@@ -1,1 +1,630 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NAORU整体 売上・集客ダッシュボード</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f7fb;
+    --card: #ffffff;
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --success: #10b981;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  header {
+    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+    color: white;
+    padding: 24px 32px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  header h1 { margin: 0; font-size: 22px; font-weight: 700; }
+  header p { margin: 4px 0 0; opacity: 0.85; font-size: 13px; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 32px; }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    background: var(--card);
+    padding: 16px 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+  .toolbar label { font-size: 13px; color: var(--muted); margin-right: 4px; }
+  select, input[type="number"], input[type="month"] {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    background: white;
+    font-family: inherit;
+  }
+  button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 8px;
+    background: var(--primary);
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+  button:hover { background: var(--primary-dark); }
+  button.ghost { background: transparent; color: var(--primary); border: 1px solid var(--border); }
+  button.ghost:hover { background: #f3f4f6; }
+  button.danger { background: var(--danger); }
+  button.danger:hover { background: #dc2626; }
 
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--card);
+    padding: 18px 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+  .kpi-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .kpi-value { font-size: 24px; font-weight: 700; color: var(--text); }
+  .kpi-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .kpi-sub.up { color: var(--success); }
+  .kpi-sub.down { color: var(--danger); }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 20px;
+  }
+  .card h2 { margin: 0 0 16px; font-size: 15px; font-weight: 600; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+  th { font-weight: 600; color: var(--muted); font-size: 12px; background: #fafbfc; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:hover td { background: #fafbfc; }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .form-grid label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 4px; }
+  .form-grid input, .form-grid select { font-size: 14px; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    background: #eef2ff;
+    color: var(--primary);
+  }
+  .tab-row { display: flex; gap: 8px; margin-bottom: 20px; }
+  .tab { padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; color: var(--muted); }
+  .tab.active { background: var(--primary); color: white; font-weight: 500; }
+  .empty { color: var(--muted); text-align: center; padding: 32px; font-size: 13px; }
+  .row-actions button { padding: 4px 8px; font-size: 12px; margin-left: 4px; }
+  .future-note {
+    background: #fffbeb;
+    border-left: 4px solid var(--warning);
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #78350f;
+    margin-top: 24px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏥 NAORU整体 経営ダッシュボード</h1>
+  <p>中百舌鳥院・天満天六院の売上 / 広告費 / 集客を一元管理</p>
+</header>
+
+<div class="container">
+
+  <div class="toolbar">
+    <label>店舗</label>
+    <select id="clinicSelect">
+      <option value="all">全店舗合算</option>
+      <option value="nakamozu">NAORU整体 中百舌鳥院</option>
+      <option value="tenrokuten">NAORU整体 天満天六院</option>
+    </select>
+
+    <label style="margin-left:12px;">表示年</label>
+    <select id="yearSelect"></select>
+
+    <div style="flex:1;"></div>
+
+    <button class="ghost" onclick="exportData()">📤 エクスポート</button>
+    <button class="ghost" onclick="document.getElementById('importFile').click()">📥 インポート</button>
+    <input type="file" id="importFile" style="display:none" accept="application/json" onchange="importData(event)" />
+    <button class="ghost" onclick="loadSample()">🎲 サンプルデータ投入</button>
+  </div>
+
+  <div class="tab-row">
+    <div class="tab active" data-tab="dashboard">ダッシュボード</div>
+    <div class="tab" data-tab="entry">月次データ入力</div>
+    <div class="tab" data-tab="reservations">予約管理 <span class="badge">準備中</span></div>
+  </div>
+
+  <!-- DASHBOARD TAB -->
+  <div id="tab-dashboard">
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h2>📈 月次売上推移</h2>
+        <canvas id="revenueChart" height="180"></canvas>
+      </div>
+      <div class="card">
+        <h2>💰 広告費 vs 新規集客</h2>
+        <canvas id="adChart" height="180"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📋 月次実績一覧</h2>
+      <table id="summaryTable">
+        <thead>
+          <tr>
+            <th>年月</th>
+            <th>店舗</th>
+            <th class="num">売上 (円)</th>
+            <th class="num">広告費 (円)</th>
+            <th class="num">新規</th>
+            <th class="num">リピート</th>
+            <th class="num">CPA</th>
+            <th class="num">ROAS</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ENTRY TAB -->
+  <div id="tab-entry" style="display:none;">
+    <div class="card">
+      <h2>月次データを追加・更新</h2>
+      <div class="form-grid">
+        <label>対象月
+          <input type="month" id="f_month" />
+        </label>
+        <label>店舗
+          <select id="f_clinic">
+            <option value="nakamozu">NAORU整体 中百舌鳥院</option>
+            <option value="tenrokuten">NAORU整体 天満天六院</option>
+          </select>
+        </label>
+        <label>売上 (円)
+          <input type="number" id="f_revenue" min="0" step="1000" placeholder="例: 1500000" />
+        </label>
+        <label>広告費 (円)
+          <input type="number" id="f_adspend" min="0" step="1000" placeholder="例: 200000" />
+        </label>
+        <label>新規顧客数
+          <input type="number" id="f_new" min="0" placeholder="例: 35" />
+        </label>
+        <label>リピート来院数
+          <input type="number" id="f_repeat" min="0" placeholder="例: 120" />
+        </label>
+        <label>予約数 (全体)
+          <input type="number" id="f_reservations" min="0" placeholder="例: 180" />
+        </label>
+        <label>主要集客チャネル
+          <select id="f_channel">
+            <option value="google">Google広告</option>
+            <option value="meta">Meta広告 (Instagram/FB)</option>
+            <option value="hotpepper">ホットペッパー</option>
+            <option value="referral">口コミ・紹介</option>
+            <option value="organic">自然検索 / MEO</option>
+            <option value="other">その他</option>
+          </select>
+        </label>
+      </div>
+      <button onclick="saveEntry()">💾 保存 / 更新</button>
+      <span id="saveMsg" style="margin-left:12px; color: var(--success); font-size: 13px;"></span>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+      <h2>登録済みデータ</h2>
+      <table id="entryTable">
+        <thead>
+          <tr><th>年月</th><th>店舗</th><th class="num">売上</th><th class="num">広告費</th><th class="num">新規</th><th class="num">リピート</th><th>チャネル</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- RESERVATIONS TAB -->
+  <div id="tab-reservations" style="display:none;">
+    <div class="card">
+      <h2>📅 予約管理 (Phase 2 で実装予定)</h2>
+      <p style="color: var(--muted); font-size: 14px;">
+        現在は月次の予約「数」のみ集計しています。本機能では下記を追加する想定です：
+      </p>
+      <ul style="font-size: 14px; color: var(--text);">
+        <li>個別予約レコード（日時 / 顧客名 / 施術メニュー / 担当 / ステータス）</li>
+        <li>カレンダー表示・日別キャパシティ管理</li>
+        <li>キャンセル率・無断キャンセル率の自動算出</li>
+        <li>LINE公式 / Googleカレンダー / RESERVA など外部予約システムとのCSV連携</li>
+        <li>顧客カルテ（来院履歴・LTV・初回来院チャネル）</li>
+      </ul>
+      <div class="future-note">
+        <strong>次のステップ:</strong> 既存の予約システム（例: RESERVA、Airリザーブ、LINE公式）からCSVを書き出せるか確認できると、すぐにこの画面で取り込めるよう実装できます。
+      </div>
+    </div>
+  </div>
+
+  <div class="future-note">
+    💡 <strong>このサンプルでできること:</strong> 月ごとの売上 / 広告費 / 新規 / リピートを入力すると、CPA・ROAS・推移グラフを自動算出します。データはブラウザの localStorage に保存され、エクスポート/インポートでバックアップ可能です。<br />
+    本番運用するときは Supabase / Firebase などのDBに繋ぎ替えれば、複数端末から同じデータを見られるようになります。
+  </div>
+
+</div>
+
+<script>
+const CLINICS = {
+  nakamozu: 'NAORU整体 中百舌鳥院',
+  tenrokuten: 'NAORU整体 天満天六院',
+};
+const CHANNEL_LABELS = {
+  google: 'Google広告',
+  meta: 'Meta広告',
+  hotpepper: 'ホットペッパー',
+  referral: '口コミ・紹介',
+  organic: '自然検索/MEO',
+  other: 'その他',
+};
+const STORAGE_KEY = 'naoru_dashboard_v1';
+
+let state = { entries: [] };
+let revenueChart, adChart;
+
+// ----- persistence -----
+function load() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) {
+    try { state = JSON.parse(raw); } catch(e) { state = { entries: [] }; }
+  }
+  if (!state.entries) state.entries = [];
+}
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+// ----- entry helpers -----
+function entryKey(month, clinic) { return `${month}__${clinic}`; }
+function upsertEntry(e) {
+  const idx = state.entries.findIndex(x => entryKey(x.month, x.clinic) === entryKey(e.month, e.clinic));
+  if (idx >= 0) state.entries[idx] = e;
+  else state.entries.push(e);
+  state.entries.sort((a,b) => a.month.localeCompare(b.month));
+  save();
+}
+function deleteEntry(month, clinic) {
+  state.entries = state.entries.filter(x => !(x.month === month && x.clinic === clinic));
+  save();
+  render();
+}
+
+function saveEntry() {
+  const month = document.getElementById('f_month').value;
+  if (!month) { alert('対象月を入力してください'); return; }
+  const entry = {
+    month,
+    clinic: document.getElementById('f_clinic').value,
+    revenue: Number(document.getElementById('f_revenue').value) || 0,
+    adspend: Number(document.getElementById('f_adspend').value) || 0,
+    newCustomers: Number(document.getElementById('f_new').value) || 0,
+    repeatVisits: Number(document.getElementById('f_repeat').value) || 0,
+    reservations: Number(document.getElementById('f_reservations').value) || 0,
+    channel: document.getElementById('f_channel').value,
+  };
+  upsertEntry(entry);
+  const msg = document.getElementById('saveMsg');
+  msg.textContent = '✓ 保存しました';
+  setTimeout(() => msg.textContent = '', 2000);
+  render();
+}
+
+// ----- filters -----
+function filteredEntries() {
+  const clinic = document.getElementById('clinicSelect').value;
+  const year = document.getElementById('yearSelect').value;
+  return state.entries.filter(e => {
+    if (clinic !== 'all' && e.clinic !== clinic) return false;
+    if (year && !e.month.startsWith(year)) return false;
+    return true;
+  });
+}
+
+// ----- aggregations -----
+function aggregate(entries) {
+  const totals = { revenue: 0, adspend: 0, newCustomers: 0, repeatVisits: 0, reservations: 0 };
+  entries.forEach(e => {
+    totals.revenue += e.revenue;
+    totals.adspend += e.adspend;
+    totals.newCustomers += e.newCustomers;
+    totals.repeatVisits += e.repeatVisits;
+    totals.reservations += e.reservations;
+  });
+  return totals;
+}
+function fmt(n) { return n.toLocaleString('ja-JP'); }
+function yen(n) { return '¥' + fmt(Math.round(n)); }
+
+// ----- render -----
+function renderKPIs() {
+  const entries = filteredEntries();
+  const t = aggregate(entries);
+  const cpa = t.newCustomers > 0 ? t.adspend / t.newCustomers : 0;
+  const roas = t.adspend > 0 ? (t.revenue / t.adspend) * 100 : 0;
+  const avgPerCustomer = (t.newCustomers + t.repeatVisits) > 0 ? t.revenue / (t.newCustomers + t.repeatVisits) : 0;
+
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">合計売上</div><div class="kpi-value">${yen(t.revenue)}</div><div class="kpi-sub">${entries.length}ヶ月分</div></div>
+    <div class="kpi-card"><div class="kpi-label">広告費合計</div><div class="kpi-value">${yen(t.adspend)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(t.newCustomers)} 人</div></div>
+    <div class="kpi-card"><div class="kpi-label">CPA (顧客獲得単価)</div><div class="kpi-value">${yen(cpa)}</div><div class="kpi-sub">低いほど良い</div></div>
+    <div class="kpi-card"><div class="kpi-label">ROAS</div><div class="kpi-value">${roas.toFixed(0)}%</div><div class="kpi-sub ${roas >= 300 ? 'up' : 'down'}">${roas >= 300 ? '良好' : '要改善 (目安300%以上)'}</div></div>
+    <div class="kpi-card"><div class="kpi-label">客単価 (平均)</div><div class="kpi-value">${yen(avgPerCustomer)}</div></div>
+  `;
+}
+
+function renderTable() {
+  const tbody = document.querySelector('#summaryTable tbody');
+  const entries = filteredEntries();
+  if (entries.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">データがありません。「月次データ入力」タブから登録するか、サンプルデータを投入してください。</td></tr>';
+    return;
+  }
+  tbody.innerHTML = entries.map(e => {
+    const cpa = e.newCustomers > 0 ? e.adspend / e.newCustomers : 0;
+    const roas = e.adspend > 0 ? (e.revenue / e.adspend) * 100 : 0;
+    return `<tr>
+      <td>${e.month}</td>
+      <td>${CLINICS[e.clinic]}</td>
+      <td class="num">${yen(e.revenue)}</td>
+      <td class="num">${yen(e.adspend)}</td>
+      <td class="num">${e.newCustomers}</td>
+      <td class="num">${e.repeatVisits}</td>
+      <td class="num">${yen(cpa)}</td>
+      <td class="num">${roas.toFixed(0)}%</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderEntryTable() {
+  const tbody = document.querySelector('#entryTable tbody');
+  if (state.entries.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">まだデータがありません。</td></tr>';
+    return;
+  }
+  tbody.innerHTML = state.entries.map(e => `<tr>
+    <td>${e.month}</td>
+    <td>${CLINICS[e.clinic]}</td>
+    <td class="num">${yen(e.revenue)}</td>
+    <td class="num">${yen(e.adspend)}</td>
+    <td class="num">${e.newCustomers}</td>
+    <td class="num">${e.repeatVisits}</td>
+    <td>${CHANNEL_LABELS[e.channel] || '-'}</td>
+    <td class="row-actions">
+      <button class="ghost" onclick="editEntry('${e.month}','${e.clinic}')">編集</button>
+      <button class="danger" onclick="if(confirm('削除しますか？')) deleteEntry('${e.month}','${e.clinic}')">削除</button>
+    </td>
+  </tr>`).join('');
+}
+
+function editEntry(month, clinic) {
+  const e = state.entries.find(x => x.month === month && x.clinic === clinic);
+  if (!e) return;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.tab[data-tab="entry"]').classList.add('active');
+  showTab('entry');
+  document.getElementById('f_month').value = e.month;
+  document.getElementById('f_clinic').value = e.clinic;
+  document.getElementById('f_revenue').value = e.revenue;
+  document.getElementById('f_adspend').value = e.adspend;
+  document.getElementById('f_new').value = e.newCustomers;
+  document.getElementById('f_repeat').value = e.repeatVisits;
+  document.getElementById('f_reservations').value = e.reservations;
+  document.getElementById('f_channel').value = e.channel;
+}
+
+function renderCharts() {
+  const entries = filteredEntries();
+  const clinic = document.getElementById('clinicSelect').value;
+
+  // group by month for revenue chart
+  const months = [...new Set(entries.map(e => e.month))].sort();
+  const datasets = [];
+
+  if (clinic === 'all') {
+    Object.keys(CLINICS).forEach((cKey, i) => {
+      datasets.push({
+        label: CLINICS[cKey],
+        data: months.map(m => {
+          const e = entries.find(x => x.month === m && x.clinic === cKey);
+          return e ? e.revenue : 0;
+        }),
+        backgroundColor: i === 0 ? '#2563eb' : '#7c3aed',
+        borderColor: i === 0 ? '#2563eb' : '#7c3aed',
+      });
+    });
+  } else {
+    datasets.push({
+      label: CLINICS[clinic],
+      data: months.map(m => {
+        const e = entries.find(x => x.month === m);
+        return e ? e.revenue : 0;
+      }),
+      backgroundColor: '#2563eb',
+      borderColor: '#2563eb',
+    });
+  }
+
+  if (revenueChart) revenueChart.destroy();
+  revenueChart = new Chart(document.getElementById('revenueChart'), {
+    type: 'bar',
+    data: { labels: months, datasets },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: { y: { ticks: { callback: v => '¥' + (v/10000) + '万' } } },
+    },
+  });
+
+  // ad spend vs new customers (combo chart)
+  const adData = months.map(m => entries.filter(e => e.month === m).reduce((s,e) => s + e.adspend, 0));
+  const newData = months.map(m => entries.filter(e => e.month === m).reduce((s,e) => s + e.newCustomers, 0));
+
+  if (adChart) adChart.destroy();
+  adChart = new Chart(document.getElementById('adChart'), {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: [
+        { type: 'bar', label: '広告費', data: adData, backgroundColor: '#f59e0b', yAxisID: 'y' },
+        { type: 'line', label: '新規顧客数', data: newData, borderColor: '#10b981', backgroundColor: '#10b981', yAxisID: 'y1', tension: 0.3 },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        y: { position: 'left', ticks: { callback: v => '¥' + (v/10000) + '万' } },
+        y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '人' } },
+      },
+    },
+  });
+}
+
+function populateYearSelect() {
+  const sel = document.getElementById('yearSelect');
+  const years = [...new Set(state.entries.map(e => e.month.slice(0,4)))].sort().reverse();
+  const currentYear = new Date().getFullYear().toString();
+  if (!years.includes(currentYear)) years.unshift(currentYear);
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">全期間</option>' + years.map(y => `<option value="${y}">${y}年</option>`).join('');
+  if (prev) sel.value = prev;
+}
+
+function render() {
+  populateYearSelect();
+  renderKPIs();
+  renderTable();
+  renderEntryTable();
+  renderCharts();
+}
+
+// ----- tabs -----
+function showTab(name) {
+  ['dashboard','entry','reservations'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = (t === name) ? '' : 'none';
+  });
+}
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    showTab(t.dataset.tab);
+  });
+});
+
+// ----- import/export -----
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `naoru_dashboard_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+function importData(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.entries) throw new Error('invalid format');
+      state = data;
+      save();
+      render();
+      alert('インポートしました');
+    } catch(err) { alert('ファイルの読み込みに失敗しました: ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+// ----- sample data -----
+function loadSample() {
+  if (state.entries.length > 0 && !confirm('既存データを上書きします。よろしいですか？')) return;
+  const months = ['2026-01','2026-02','2026-03','2026-04','2026-05'];
+  const sample = [];
+  months.forEach((m, i) => {
+    sample.push({
+      month: m, clinic: 'nakamozu',
+      revenue: 1200000 + i * 80000 + Math.floor(Math.random()*100000),
+      adspend: 180000 + Math.floor(Math.random()*40000),
+      newCustomers: 28 + Math.floor(Math.random()*10),
+      repeatVisits: 95 + i * 5,
+      reservations: 150 + i * 8,
+      channel: ['google','meta','hotpepper'][i % 3],
+    });
+    sample.push({
+      month: m, clinic: 'tenrokuten',
+      revenue: 980000 + i * 60000 + Math.floor(Math.random()*80000),
+      adspend: 150000 + Math.floor(Math.random()*30000),
+      newCustomers: 22 + Math.floor(Math.random()*8),
+      repeatVisits: 75 + i * 4,
+      reservations: 120 + i * 6,
+      channel: ['meta','google','referral'][i % 3],
+    });
+  });
+  state.entries = sample;
+  save();
+  render();
+}
+
+// ----- init -----
+document.getElementById('clinicSelect').addEventListener('change', render);
+document.getElementById('yearSelect').addEventListener('change', render);
+
+load();
+render();
+</script>
+</body>
+</html>
