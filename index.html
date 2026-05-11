@@ -1,1 +1,655 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>F.intime | 整体院 経営ダッシュボード</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --primary: #2b6cb0;
+    --primary-dark: #1f4f85;
+    --accent: #38a169;
+    --warn: #dd6b20;
+    --danger: #c53030;
+    --text: #1a202c;
+    --muted: #718096;
+    --border: #e2e8f0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: #fff;
+    padding: 20px 28px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; font-size: 13px; opacity: 0.85; }
 
+  nav {
+    display: flex;
+    gap: 4px;
+    padding: 0 28px;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+  }
+  nav button {
+    background: none;
+    border: none;
+    padding: 14px 18px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+    border-bottom: 3px solid transparent;
+    font-weight: 500;
+  }
+  nav button.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+  }
+
+  main { padding: 24px 28px; max-width: 1280px; margin: 0 auto; }
+
+  .toolbar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .toolbar label { font-size: 13px; color: var(--muted); }
+  select, input[type="number"], input[type="month"], input[type="text"] {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+    font-size: 14px;
+  }
+  button.btn {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  button.btn:hover { background: var(--primary-dark); }
+  button.btn.ghost {
+    background: #fff;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+  }
+  button.btn.danger { background: var(--danger); }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi {
+    background: var(--card);
+    padding: 18px 20px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  .kpi h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 500; }
+  .kpi .value { font-size: 22px; font-weight: 700; }
+  .kpi .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .kpi .value.green { color: var(--accent); }
+  .kpi .value.orange { color: var(--warn); }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--card);
+    padding: 20px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  .card h2 { margin: 0 0 16px; font-size: 15px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: right;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  th:first-child, td:first-child { text-align: left; }
+  th { background: #f8fafc; color: var(--muted); font-weight: 500; font-size: 12px; }
+  tr:hover td { background: #f9fafb; }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    align-items: end;
+  }
+  .form-grid .field { display: flex; flex-direction: column; gap: 4px; }
+  .form-grid label { font-size: 12px; color: var(--muted); }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    background: #ebf8ff;
+    color: var(--primary);
+  }
+  .badge.green { background: #f0fff4; color: var(--accent); }
+  .badge.orange { background: #fffaf0; color: var(--warn); }
+
+  .empty {
+    padding: 40px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .hidden { display: none !important; }
+
+  .row-actions button {
+    background: none;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>F.intime - NAORU整体 経営ダッシュボード</h1>
+  <p>中百舌鳥院 / 天満天六院 の売上・広告費・集客を一元管理</p>
+</header>
+
+<nav>
+  <button class="tab-btn active" data-tab="dashboard">ダッシュボード</button>
+  <button class="tab-btn" data-tab="entry">月次データ入力</button>
+  <button class="tab-btn" data-tab="list">データ一覧</button>
+  <button class="tab-btn" data-tab="reservation">予約管理（準備中）</button>
+</nav>
+
+<main>
+
+  <!-- ダッシュボード -->
+  <section id="tab-dashboard">
+    <div class="toolbar">
+      <label>店舗:</label>
+      <select id="filter-store">
+        <option value="all">全店舗</option>
+        <option value="nakamozu">中百舌鳥院</option>
+        <option value="tenma">天満天六院</option>
+      </select>
+      <label>期間:</label>
+      <select id="filter-period">
+        <option value="6">直近6ヶ月</option>
+        <option value="12" selected>直近12ヶ月</option>
+        <option value="all">全期間</option>
+      </select>
+      <button class="btn ghost" id="btn-export-csv">CSVエクスポート</button>
+      <button class="btn ghost" id="btn-load-sample">サンプルデータ投入</button>
+    </div>
+
+    <div class="kpi-grid" id="kpi-grid"></div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h2>月次売上推移</h2>
+        <canvas id="chart-sales" height="200"></canvas>
+      </div>
+      <div class="card">
+        <h2>広告費とROAS</h2>
+        <canvas id="chart-roas" height="200"></canvas>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h2>新規 / リピート顧客数</h2>
+        <canvas id="chart-customers" height="200"></canvas>
+      </div>
+      <div class="card">
+        <h2>店舗別 売上比較（直近月）</h2>
+        <canvas id="chart-store-compare" height="200"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- 入力 -->
+  <section id="tab-entry" class="hidden">
+    <div class="card">
+      <h2>月次データを登録</h2>
+      <form id="entry-form">
+        <div class="form-grid">
+          <div class="field">
+            <label>対象月</label>
+            <input type="month" id="in-month" required />
+          </div>
+          <div class="field">
+            <label>店舗</label>
+            <select id="in-store" required>
+              <option value="nakamozu">NAORU整体 中百舌鳥院</option>
+              <option value="tenma">NAORU整体 天満天六院</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>売上 (円)</label>
+            <input type="number" id="in-sales" min="0" required />
+          </div>
+          <div class="field">
+            <label>広告費 (円)</label>
+            <input type="number" id="in-ad" min="0" required />
+          </div>
+          <div class="field">
+            <label>新規顧客数</label>
+            <input type="number" id="in-new" min="0" required />
+          </div>
+          <div class="field">
+            <label>リピート顧客数</label>
+            <input type="number" id="in-repeat" min="0" required />
+          </div>
+          <div class="field">
+            <label>主な集客経路</label>
+            <input type="text" id="in-channel" placeholder="例: Google広告, ホットペッパー, 紹介" />
+          </div>
+          <div class="field">
+            <label>メモ</label>
+            <input type="text" id="in-note" placeholder="任意" />
+          </div>
+        </div>
+        <div style="margin-top: 16px; display: flex; gap: 8px;">
+          <button type="submit" class="btn">登録 / 更新</button>
+          <button type="reset" class="btn ghost">クリア</button>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:10px;">
+          ※ 同じ月・同じ店舗のデータは上書きされます。
+        </p>
+      </form>
+    </div>
+  </section>
+
+  <!-- 一覧 -->
+  <section id="tab-list" class="hidden">
+    <div class="card">
+      <h2>登録済みデータ一覧</h2>
+      <div style="overflow-x:auto;">
+        <table id="data-table">
+          <thead>
+            <tr>
+              <th>対象月</th>
+              <th>店舗</th>
+              <th>売上</th>
+              <th>広告費</th>
+              <th>ROAS</th>
+              <th>新規</th>
+              <th>リピート</th>
+              <th>CPA</th>
+              <th>集客経路</th>
+              <th>メモ</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 予約管理 -->
+  <section id="tab-reservation" class="hidden">
+    <div class="card">
+      <h2>予約管理（今後実装予定）</h2>
+      <p style="color:var(--muted);font-size:14px;line-height:1.7;">
+        次フェーズで以下の機能を追加予定です：
+      </p>
+      <ul style="color:var(--muted);font-size:14px;line-height:1.9;">
+        <li>カレンダー形式の予約一覧（日次 / 週次 / 月次ビュー）</li>
+        <li>店舗別 / スタッフ別の枠管理</li>
+        <li>顧客台帳との連動（来店履歴・LTV計算）</li>
+        <li>外部予約サービス（ホットペッパー、LINE予約など）からの取り込み</li>
+        <li>来店から売上・リピートまでを自動集計してダッシュボードに反映</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* =========================================================
+   F.intime ダッシュボード - 単一HTMLで完結するサンプル
+   データは localStorage に保存。CSV エクスポート可。
+   ========================================================= */
+
+const STORES = {
+  nakamozu: 'NAORU整体 中百舌鳥院',
+  tenma:    'NAORU整体 天満天六院',
+};
+
+const STORAGE_KEY = 'fintime_clinic_data_v1';
+
+// ----- データ読み書き -----
+function loadData() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  } catch (e) { return []; }
+}
+function saveData(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+// 主キー: month + store の組み合わせ
+function upsertEntry(entry) {
+  const data = loadData();
+  const idx = data.findIndex(d => d.month === entry.month && d.store === entry.store);
+  if (idx >= 0) data[idx] = entry;
+  else data.push(entry);
+  data.sort((a, b) => a.month.localeCompare(b.month));
+  saveData(data);
+}
+
+function deleteEntry(month, store) {
+  const data = loadData().filter(d => !(d.month === month && d.store === store));
+  saveData(data);
+}
+
+// ----- フォーマッタ -----
+const yen = n => '¥' + Math.round(n).toLocaleString('ja-JP');
+const pct = n => (n * 100).toFixed(1) + '%';
+
+// ----- タブ切り替え -----
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    ['dashboard', 'entry', 'list', 'reservation'].forEach(t => {
+      document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+    });
+    if (tab === 'dashboard') renderDashboard();
+    if (tab === 'list') renderList();
+  });
+});
+
+// ----- 入力フォーム -----
+document.getElementById('entry-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const entry = {
+    month: document.getElementById('in-month').value,
+    store: document.getElementById('in-store').value,
+    sales: Number(document.getElementById('in-sales').value),
+    ad:    Number(document.getElementById('in-ad').value),
+    newC:  Number(document.getElementById('in-new').value),
+    repC:  Number(document.getElementById('in-repeat').value),
+    channel: document.getElementById('in-channel').value.trim(),
+    note: document.getElementById('in-note').value.trim(),
+  };
+  upsertEntry(entry);
+  alert('登録しました');
+  e.target.reset();
+});
+
+// ----- フィルタ -----
+document.getElementById('filter-store').addEventListener('change', renderDashboard);
+document.getElementById('filter-period').addEventListener('change', renderDashboard);
+
+// ----- ダッシュボード描画 -----
+let charts = {};
+
+function filtered() {
+  const store = document.getElementById('filter-store').value;
+  const period = document.getElementById('filter-period').value;
+  let data = loadData();
+  if (store !== 'all') data = data.filter(d => d.store === store);
+  if (period !== 'all') {
+    const months = parseInt(period, 10);
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - months + 1);
+    const cutoffStr = cutoff.toISOString().slice(0, 7);
+    data = data.filter(d => d.month >= cutoffStr);
+  }
+  return data;
+}
+
+// 月ごとに集計（複数店舗のときは合算）
+function aggregateByMonth(data) {
+  const map = {};
+  data.forEach(d => {
+    if (!map[d.month]) map[d.month] = { month: d.month, sales: 0, ad: 0, newC: 0, repC: 0 };
+    map[d.month].sales += d.sales;
+    map[d.month].ad += d.ad;
+    map[d.month].newC += d.newC;
+    map[d.month].repC += d.repC;
+  });
+  return Object.values(map).sort((a, b) => a.month.localeCompare(b.month));
+}
+
+function renderKPI(monthly) {
+  const total = monthly.reduce((s, m) => ({
+    sales: s.sales + m.sales,
+    ad: s.ad + m.ad,
+    newC: s.newC + m.newC,
+    repC: s.repC + m.repC,
+  }), { sales: 0, ad: 0, newC: 0, repC: 0 });
+
+  const roas = total.ad > 0 ? total.sales / total.ad : 0;
+  const cpa = total.newC > 0 ? total.ad / total.newC : 0;
+  const repeatRate = (total.newC + total.repC) > 0 ? total.repC / (total.newC + total.repC) : 0;
+
+  const kpis = [
+    { label: '合計売上', value: yen(total.sales), sub: monthly.length + 'ヶ月分' },
+    { label: '合計広告費', value: yen(total.ad), sub: '広告費率 ' + (total.sales > 0 ? pct(total.ad/total.sales) : '-') },
+    { label: 'ROAS', value: roas.toFixed(2) + 'x', sub: '広告費1円あたりの売上', cls: roas >= 3 ? 'green' : (roas >= 1 ? '' : 'orange') },
+    { label: '新規CPA', value: total.newC > 0 ? yen(cpa) : '-', sub: '新規顧客1人あたりの広告費' },
+    { label: '新規顧客数', value: total.newC.toLocaleString(), sub: '期間合計' },
+    { label: 'リピート率', value: pct(repeatRate), sub: '全来店中リピート比率', cls: repeatRate >= 0.6 ? 'green' : '' },
+  ];
+
+  document.getElementById('kpi-grid').innerHTML = kpis.map(k => `
+    <div class="kpi">
+      <h3>${k.label}</h3>
+      <div class="value ${k.cls || ''}">${k.value}</div>
+      <div class="sub">${k.sub}</div>
+    </div>
+  `).join('');
+}
+
+function destroyCharts() {
+  Object.values(charts).forEach(c => c && c.destroy());
+  charts = {};
+}
+
+function renderCharts(data, monthly) {
+  destroyCharts();
+  const labels = monthly.map(m => m.month);
+
+  // 売上推移
+  charts.sales = new Chart(document.getElementById('chart-sales'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '売上',
+        data: monthly.map(m => m.sales),
+        borderColor: '#2b6cb0',
+        backgroundColor: 'rgba(43,108,176,0.15)',
+        fill: true,
+        tension: 0.3,
+      }],
+    },
+    options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => '¥' + v.toLocaleString() } } } },
+  });
+
+  // 広告費とROAS
+  charts.roas = new Chart(document.getElementById('chart-roas'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { type: 'bar', label: '広告費', data: monthly.map(m => m.ad), backgroundColor: '#dd6b20', yAxisID: 'y' },
+        { type: 'line', label: 'ROAS', data: monthly.map(m => m.ad > 0 ? m.sales / m.ad : 0), borderColor: '#38a169', backgroundColor: '#38a169', yAxisID: 'y1', tension: 0.3 },
+      ],
+    },
+    options: {
+      scales: {
+        y: { position: 'left', ticks: { callback: v => '¥' + v.toLocaleString() } },
+        y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v.toFixed(1) + 'x' } },
+      },
+    },
+  });
+
+  // 新規/リピート
+  charts.customers = new Chart(document.getElementById('chart-customers'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: '新規', data: monthly.map(m => m.newC), backgroundColor: '#2b6cb0' },
+        { label: 'リピート', data: monthly.map(m => m.repC), backgroundColor: '#90cdf4' },
+      ],
+    },
+    options: { scales: { x: { stacked: true }, y: { stacked: true } } },
+  });
+
+  // 店舗別 直近月
+  const latestMonth = data.length ? data.map(d => d.month).sort().slice(-1)[0] : null;
+  const storeData = Object.keys(STORES).map(key => {
+    const e = data.find(d => d.month === latestMonth && d.store === key);
+    return { label: STORES[key], sales: e ? e.sales : 0, ad: e ? e.ad : 0 };
+  });
+  charts.compare = new Chart(document.getElementById('chart-store-compare'), {
+    type: 'bar',
+    data: {
+      labels: storeData.map(s => s.label),
+      datasets: [
+        { label: '売上', data: storeData.map(s => s.sales), backgroundColor: '#2b6cb0' },
+        { label: '広告費', data: storeData.map(s => s.ad), backgroundColor: '#dd6b20' },
+      ],
+    },
+    options: {
+      plugins: { title: { display: !!latestMonth, text: latestMonth ? '対象月: ' + latestMonth : '' } },
+      scales: { y: { ticks: { callback: v => '¥' + v.toLocaleString() } } },
+    },
+  });
+}
+
+function renderDashboard() {
+  const data = filtered();
+  const monthly = aggregateByMonth(data);
+  renderKPI(monthly);
+  renderCharts(data, monthly);
+}
+
+// ----- 一覧 -----
+function renderList() {
+  const data = loadData().sort((a, b) => b.month.localeCompare(a.month) || a.store.localeCompare(b.store));
+  const tbody = document.querySelector('#data-table tbody');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">データがありません。「サンプルデータ投入」または「月次データ入力」から登録してください。</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(d => {
+    const roas = d.ad > 0 ? (d.sales / d.ad).toFixed(2) + 'x' : '-';
+    const cpa = d.newC > 0 ? yen(d.ad / d.newC) : '-';
+    return `
+      <tr>
+        <td>${d.month}</td>
+        <td>${STORES[d.store]}</td>
+        <td>${yen(d.sales)}</td>
+        <td>${yen(d.ad)}</td>
+        <td>${roas}</td>
+        <td>${d.newC}</td>
+        <td>${d.repC}</td>
+        <td>${cpa}</td>
+        <td>${d.channel || '-'}</td>
+        <td>${d.note || '-'}</td>
+        <td class="row-actions">
+          <button onclick="if(confirm('削除しますか？')){deleteEntry('${d.month}','${d.store}');renderList();}">削除</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ----- CSV エクスポート -----
+document.getElementById('btn-export-csv').addEventListener('click', () => {
+  const data = loadData();
+  if (!data.length) { alert('データがありません'); return; }
+  const header = ['対象月','店舗','売上','広告費','ROAS','新規','リピート','CPA','集客経路','メモ'];
+  const rows = data.map(d => [
+    d.month, STORES[d.store], d.sales, d.ad,
+    d.ad > 0 ? (d.sales / d.ad).toFixed(2) : '',
+    d.newC, d.repC,
+    d.newC > 0 ? Math.round(d.ad / d.newC) : '',
+    d.channel || '', d.note || ''
+  ]);
+  const csv = '﻿' + [header, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `fintime_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+});
+
+// ----- サンプルデータ -----
+document.getElementById('btn-load-sample').addEventListener('click', () => {
+  if (loadData().length && !confirm('既存データに追加します。続行しますか？')) return;
+  const now = new Date();
+  const sample = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const m = d.toISOString().slice(0, 7);
+    // 中百舌鳥院
+    sample.push({
+      month: m, store: 'nakamozu',
+      sales: 1800000 + Math.round(Math.random() * 600000),
+      ad: 220000 + Math.round(Math.random() * 80000),
+      newC: 40 + Math.round(Math.random() * 20),
+      repC: 120 + Math.round(Math.random() * 40),
+      channel: 'Google広告, ホットペッパー',
+      note: '',
+    });
+    // 天満天六院
+    sample.push({
+      month: m, store: 'tenma',
+      sales: 1500000 + Math.round(Math.random() * 500000),
+      ad: 180000 + Math.round(Math.random() * 70000),
+      newC: 30 + Math.round(Math.random() * 18),
+      repC: 95 + Math.round(Math.random() * 35),
+      channel: 'Instagram広告, 紹介',
+      note: '',
+    });
+  }
+  sample.forEach(upsertEntry);
+  renderDashboard();
+  alert('過去12ヶ月分のサンプルを投入しました');
+});
+
+// ----- 初期化 -----
+document.getElementById('in-month').value = new Date().toISOString().slice(0, 7);
+renderDashboard();
+</script>
+
+</body>
+</html>
