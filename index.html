@@ -163,8 +163,13 @@
       <option value="tenrokuten">NAORU整体 天満天六院</option>
     </select>
 
-    <label style="margin-left:12px;">表示年</label>
-    <select id="yearSelect"></select>
+    <label style="margin-left:12px;">期間</label>
+    <select id="periodSelect"></select>
+
+    <label style="margin-left:8px;">開始</label>
+    <input type="month" id="fromMonth" />
+    <label>〜 終了</label>
+    <input type="month" id="toMonth" />
 
     <div style="flex:1;"></div>
 
@@ -361,12 +366,89 @@ function saveEntry() {
 }
 
 // ----- filters -----
+function pad2(n) { return String(n).padStart(2, '0'); }
+function ymOf(date) { return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`; }
+function addMonths(date, n) { const d = new Date(date); d.setMonth(d.getMonth() + n); return d; }
+
+function populatePeriodSelect() {
+  const sel = document.getElementById('periodSelect');
+  const prev = sel.value;
+  const today = new Date();
+  const thisYear = today.getFullYear();
+  const lastYear = thisYear - 1;
+  const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const thisMonthLabel = monthNames[today.getMonth()];
+  const lastMonthDate = addMonths(today, -1);
+  const lastMonthLabel = `${lastMonthDate.getFullYear()}年${monthNames[lastMonthDate.getMonth()]}`;
+
+  // Collect years that appear in data
+  const dataYears = [...new Set(state.entries.map(e => e.month.slice(0,4)))];
+  const yearOptions = new Set([thisYear, lastYear, ...dataYears.map(Number)]);
+  const sortedYears = [...yearOptions].sort((a,b) => b - a);
+
+  sel.innerHTML = `
+    <optgroup label="ショートカット">
+      <option value="thisMonth">今月 (${thisYear}年${thisMonthLabel})</option>
+      <option value="lastMonth">先月 (${lastMonthLabel})</option>
+      <option value="last3">直近3ヶ月</option>
+      <option value="last6">直近6ヶ月</option>
+    </optgroup>
+    <optgroup label="年単位">
+      ${sortedYears.map(y => `<option value="year:${y}">${y}年 (1月〜12月)</option>`).join('')}
+    </optgroup>
+    <optgroup label="その他">
+      <option value="all">全期間</option>
+      <option value="custom">カスタム範囲を指定...</option>
+    </optgroup>
+  `;
+  sel.value = prev || `year:${thisYear}`;
+  if (!sel.value) sel.value = `year:${thisYear}`;
+}
+
+function getPeriodRange() {
+  const period = document.getElementById('periodSelect').value;
+  const today = new Date();
+  const thisMonth = ymOf(today);
+  const lastMonth = ymOf(addMonths(today, -1));
+
+  if (period.startsWith('year:')) {
+    const y = period.slice(5);
+    return { from: `${y}-01`, to: `${y}-12` };
+  }
+  switch (period) {
+    case 'thisMonth':  return { from: thisMonth, to: thisMonth };
+    case 'lastMonth':  return { from: lastMonth, to: lastMonth };
+    case 'last3':      return { from: ymOf(addMonths(today, -2)), to: thisMonth };
+    case 'last6':      return { from: ymOf(addMonths(today, -5)), to: thisMonth };
+    case 'all':        return { from: '', to: '' };
+    case 'custom':     return {
+                         from: document.getElementById('fromMonth').value,
+                         to: document.getElementById('toMonth').value,
+                       };
+  }
+  return { from: '', to: '' };
+}
+
+function syncRangeInputs() {
+  const { from, to } = getPeriodRange();
+  const fromEl = document.getElementById('fromMonth');
+  const toEl = document.getElementById('toMonth');
+  const isCustom = document.getElementById('periodSelect').value === 'custom';
+  if (!isCustom) {
+    fromEl.value = from;
+    toEl.value = to;
+  }
+  fromEl.disabled = !isCustom;
+  toEl.disabled = !isCustom;
+}
+
 function filteredEntries() {
   const clinic = document.getElementById('clinicSelect').value;
-  const year = document.getElementById('yearSelect').value;
+  const { from, to } = getPeriodRange();
   return state.entries.filter(e => {
     if (clinic !== 'all' && e.clinic !== clinic) return false;
-    if (year && !e.month.startsWith(year)) return false;
+    if (from && e.month < from) return false;
+    if (to && e.month > to) return false;
     return true;
   });
 }
@@ -532,18 +614,9 @@ function renderCharts() {
   });
 }
 
-function populateYearSelect() {
-  const sel = document.getElementById('yearSelect');
-  const years = [...new Set(state.entries.map(e => e.month.slice(0,4)))].sort().reverse();
-  const currentYear = new Date().getFullYear().toString();
-  if (!years.includes(currentYear)) years.unshift(currentYear);
-  const prev = sel.value;
-  sel.innerHTML = '<option value="">全期間</option>' + years.map(y => `<option value="${y}">${y}年</option>`).join('');
-  if (prev) sel.value = prev;
-}
-
 function render() {
-  populateYearSelect();
+  populatePeriodSelect();
+  syncRangeInputs();
   renderKPIs();
   renderTable();
   renderEntryTable();
@@ -621,7 +694,15 @@ function loadSample() {
 
 // ----- init -----
 document.getElementById('clinicSelect').addEventListener('change', render);
-document.getElementById('yearSelect').addEventListener('change', render);
+document.getElementById('periodSelect').addEventListener('change', render);
+document.getElementById('fromMonth').addEventListener('change', () => {
+  document.getElementById('periodSelect').value = 'custom';
+  render();
+});
+document.getElementById('toMonth').addEventListener('change', () => {
+  document.getElementById('periodSelect').value = 'custom';
+  render();
+});
 
 load();
 render();
