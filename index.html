@@ -1060,15 +1060,46 @@ function mapReservationRow(headers, row, sourceFile) {
   };
 }
 
+function parseSquareAmount(s) {
+  if (s === undefined || s === null) return 0;
+  // Square exports like "¥3,300", "$33.00", "-¥110", "3300"
+  const cleaned = String(s).replace(/[¥$,\s]/g, '').trim();
+  const n = Number(cleaned);
+  return isNaN(n) ? 0 : n;
+}
+
+function detectClinicFromLocation(loc) {
+  if (!loc) return '';
+  const l = loc.toLowerCase();
+  if (l.includes('中百舌鳥') || l.includes('nakamozu')) return 'nakamozu';
+  if (l.includes('天満') || l.includes('天六') || l.includes('tenroku') || l.includes('tenma')) return 'tenrokuten';
+  return '';
+}
+
 function mapSaleRow(headers, row, sourceFile) {
-  const amountRaw = valByNames(headers, row, '売上', '金額', '合計', 'amount', 'total', '会計');
-  const amount = Number(String(amountRaw).replace(/[¥,\s]/g, '')) || 0;
+  // Square CSV: prefer Net Sales (after discounts, before fees), fall back to Gross / Total
+  const netSales   = valByNames(headers, row, 'Net Sales', '純売上');
+  const grossSales = valByNames(headers, row, 'Gross Sales', '総売上');
+  const total      = valByNames(headers, row, 'Total Collected', '合計徴収', '合計', '売上', '金額', 'amount', 'total', '会計');
+  const fee        = valByNames(headers, row, 'Fee', '手数料');
+  const tax        = valByNames(headers, row, 'Tax', '税金', '消費税');
+  const amountStr  = netSales || grossSales || total;
+  if (!amountStr) return null;
+
   return {
-    date: valByNames(headers, row, '日付', '取引日', '会計日', 'date'),
-    amount,
-    menu: valByNames(headers, row, 'メニュー', '商品', '品目', 'item'),
-    staff: valByNames(headers, row, '担当', 'スタッフ', 'staff'),
-    customer: valByNames(headers, row, '顧客', '氏名', '名前', 'customer'),
+    date: valByNames(headers, row, 'Date', '日付', '取引日', '会計日', 'date'),
+    time: valByNames(headers, row, 'Time', '時刻'),
+    amount: parseSquareAmount(amountStr),
+    grossAmount: parseSquareAmount(grossSales || total || netSales),
+    fee: parseSquareAmount(fee),
+    tax: parseSquareAmount(tax),
+    menu: valByNames(headers, row, 'Item', 'メニュー', '商品', '品目', 'Description', '説明'),
+    staff: valByNames(headers, row, 'Staff Name', '担当', 'スタッフ', 'staff'),
+    customer: valByNames(headers, row, 'Customer Name', '顧客名', '顧客', '氏名', '名前', 'customer'),
+    location: valByNames(headers, row, 'Location', 'ロケーション', '店舗'),
+    clinic: detectClinicFromLocation(valByNames(headers, row, 'Location', 'ロケーション', '店舗')),
+    transactionId: valByNames(headers, row, 'Transaction ID', 'Payment ID', '取引ID'),
+    paymentMethod: valByNames(headers, row, 'Card Brand', 'Source', 'カード', '支払方法'),
     source: sourceFile,
   };
 }
@@ -1110,25 +1141,51 @@ function handleReservationCsv(ev) {
   });
 }
 function handleSaleCsv(ev) {
-  genericCsvImport(ev, mapSaleRow, 'sales', (count) => {
-    document.getElementById('csvResult').innerHTML = `<div class="note">✓ ${count} 件の売上明細を取り込みました</div>`;
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    let text;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(e.target.result); }
+    catch { text = new TextDecoder('shift-jis').decode(e.target.result); }
+    const rows = parseCsv(text);
+    if (rows.length < 2) { alert('データが見つかりませんでした'); return; }
+    const mapped = rows.slice(1).map(row => mapSaleRow(rows[0], row, file.name)).filter(r => r);
+    if (!state.sales) state.sales = [];
+    // Dedup by Square transaction ID when available
+    const existingIds = new Set(state.sales.filter(s => s.transactionId).map(s => s.transactionId));
+    const toAdd = mapped.filter(s => !s.transactionId || !existingIds.has(s.transactionId));
+    const skipped = mapped.length - toAdd.length;
+    state.sales = state.sales.concat(toAdd);
+    save();
+    const totalFee = toAdd.reduce((s, x) => s + (x.fee || 0), 0);
+    const totalGross = toAdd.reduce((s, x) => s + (x.grossAmount || 0), 0);
+    document.getElementById('csvResult').innerHTML =
+      `<div class="note">✓ ${toAdd.length} 件取り込みました（重複スキップ: ${skipped} 件）<br />
+       総売上: ${yen(totalGross)} / Square手数料: ${yen(totalFee)}</div>`;
     setTimeout(() => renderView(), 800);
-  });
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 function aggregateSalesToMonthly() {
   if (!state.sales || state.sales.length === 0) { alert('取り込み済の売上明細がありません'); return; }
-  if (!confirm('売上明細を月次に集計し、月次売上に反映します。\n対象月の既存売上は上書きされます。よろしいですか？')) return;
-  const clinic = prompt('どちらの店舗の売上として登録しますか？\nnakamozu = 中百舌鳥院\ntenrokuten = 天満天六院', 'nakamozu');
-  if (!clinic || !CLINICS[clinic]) { alert('正しい店舗コードを指定してください'); return; }
-  const byMonth = {};
+  if (!confirm('売上明細を月次に集計し、月次売上に反映します。\n店舗はSquareの Location 列から自動判定します。\n判定できない明細は除外されます。よろしいですか？')) return;
+
+  // Group by month + clinic
+  const byKey = {}; // key = `${month}__${clinic}`
+  let skipped = 0;
   state.sales.forEach(s => {
-    if (!s.date) return;
+    if (!s.date) { skipped++; return; }
     const ym = s.date.slice(0, 7).replace(/\//g, '-');
-    if (!/^\d{4}-\d{2}$/.test(ym)) return;
-    byMonth[ym] = (byMonth[ym] || 0) + s.amount;
+    if (!/^\d{4}-\d{2}$/.test(ym)) { skipped++; return; }
+    if (!s.clinic) { skipped++; return; }
+    const k = `${ym}__${s.clinic}`;
+    byKey[k] = (byKey[k] || 0) + s.amount;
   });
-  Object.entries(byMonth).forEach(([month, total]) => {
+
+  Object.entries(byKey).forEach(([k, total]) => {
+    const [month, clinic] = k.split('__');
     const existing = state.entries.find(e => e.month === month && e.clinic === clinic);
     if (existing) { existing.revenue = total; }
     else {
@@ -1140,7 +1197,7 @@ function aggregateSalesToMonthly() {
   });
   state.entries.sort((a,b) => a.month.localeCompare(b.month));
   save();
-  alert(`${Object.keys(byMonth).length} ヶ月分を月次売上に反映しました`);
+  alert(`${Object.keys(byKey).length} 件の(月×店舗)を月次売上に反映しました\n店舗未判定でスキップ: ${skipped} 件`);
   renderView();
 }
 
@@ -1182,40 +1239,72 @@ function viewImportReservations() {
 function viewImportSales() {
   const sales = state.sales || [];
   const total = sales.reduce((s, x) => s + (x.amount || 0), 0);
-  return `<div class="card"><h2>💵 売上データ移行 (CSVインポート)</h2>
-    <p style="font-size:13px; color:var(--muted);">サロンボード日報 / Airレジ / Square / スマレジ などから書き出した売上明細CSVを取り込めます。</p>
+  const totalFee = sales.reduce((s, x) => s + (x.fee || 0), 0);
+  const unassigned = sales.filter(s => !s.clinic).length;
+  const byClinic = Object.keys(CLINICS).map(c => ({
+    key: c, name: CLINICS[c],
+    count: sales.filter(s => s.clinic === c).length,
+    total: sales.filter(s => s.clinic === c).reduce((s2, x) => s2 + (x.amount || 0), 0),
+  }));
+
+  return `<div class="card"><h2>💵 売上データ移行 (Square CSV対応)</h2>
+    <p style="font-size:13px; color:var(--muted);">Square ダッシュボードからエクスポートした取引CSVを取り込みます。Location列から店舗を自動判定し、Transaction IDで重複防止します。</p>
     <label class="csv-drop" for="saleCsv">
       <div style="font-size:24px;">📄</div>
-      <div>売上CSVをここにドロップ、またはクリックして選択</div>
-      <div style="font-size:11px; margin-top:4px;">UTF-8 / Shift-JIS 自動判定</div>
+      <div>Square 取引CSV をここにドロップ、またはクリックして選択</div>
+      <div style="font-size:11px; margin-top:4px;">UTF-8 / Shift-JIS 自動判定 / Net Sales を売上として採用</div>
     </label>
     <input type="file" id="saleCsv" accept=".csv" style="display:none" onchange="handleSaleCsv(event)" />
     <div id="csvResult"></div>
 
     <div style="margin-top:16px;">
-      <button onclick="aggregateSalesToMonthly()">📊 月次売上に集計反映</button>
-      <span style="font-size:12px; color:var(--muted); margin-left:8px;">明細を月単位に集計し、ダッシュボードの月次売上に反映します</span>
+      <button onclick="aggregateSalesToMonthly()">📊 月次売上に集計反映 (店舗別)</button>
+      <span style="font-size:12px; color:var(--muted); margin-left:8px;">Locationから店舗を自動判定し、月別・店舗別に集計します</span>
     </div>
 
     <div class="note" style="margin-top:20px;">
-      <strong>CSV書き出し方法:</strong><br />
-      • <strong>サロンボード</strong>: 売上管理 → 日報 → 期間指定 → CSV出力<br />
-      • <strong>Airレジ</strong>: 売上分析 → CSVダウンロード（取引明細）<br />
-      • <strong>Square</strong>: ダッシュボード → 取引 → エクスポート<br />
-      • <strong>スマレジ</strong>: 売上集計 → CSV出力（API連携も可）<br />
-      • <strong>ユビレジ</strong>: レポート → CSV<br />
-      • <strong>銀行入金CSV</strong>: 各銀行のオンラインバンキングからダウンロード
+      <strong>📌 Square からのCSV書き出し手順:</strong><br />
+      1. Square ダッシュボードにログイン → <strong>取引</strong> メニュー<br />
+      2. 期間を指定（例：先月1日〜末日）<br />
+      3. 右上の <strong>「エクスポート」</strong> → <strong>「取引CSV」</strong> または <strong>「商品別売上CSV」</strong><br />
+      4. ダウンロードした CSV をそのままドロップ<br /><br />
+      <strong>💡 Square の Location 設定:</strong><br />
+      店舗を自動判定するには、Square 側のロケーション名に <code>中百舌鳥</code> または <code>天満</code>/<code>天六</code> を含めてください。<br />
+      （現在のSquare設定 → ロケーション名で確認/変更できます）<br /><br />
+      <strong>📈 売上として採用する金額:</strong><br />
+      Net Sales（純売上＝総売上−割引）を優先採用。なければ Gross Sales / Total Collected を使用。<br />
+      手数料（Fee列）は別カラムで保持し、表示専用にしています。
     </div>
   </div>
+
   <div class="card" style="margin-top:18px;">
-    <h2>取り込み済み売上明細 (${sales.length} 件 / 合計 ${yen(total)})</h2>
+    <h2>取り込みサマリー</h2>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">明細件数</div><div class="kpi-value">${fmt(sales.length)} 件</div></div>
+      <div class="kpi-card"><div class="kpi-label">合計売上</div><div class="kpi-value">${yen(total)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Square手数料</div><div class="kpi-value">${yen(totalFee)}</div><div class="kpi-sub">参考: 店舗着金額 = 売上 - 手数料</div></div>
+      <div class="kpi-card"><div class="kpi-label">店舗未判定</div><div class="kpi-value ${unassigned > 0 ? 'down' : ''}">${fmt(unassigned)} 件</div><div class="kpi-sub">Locationが「中百舌鳥」「天満/天六」を含む必要</div></div>
+    </div>
+    <table style="margin-top:14px;">
+      <thead><tr><th>店舗</th><th class="num">明細件数</th><th class="num">売上合計</th></tr></thead>
+      <tbody>${byClinic.map(b => `<tr><td>${b.name}</td><td class="num">${fmt(b.count)} 件</td><td class="num">${yen(b.total)}</td></tr>`).join('')}
+        ${unassigned > 0 ? `<tr><td style="color:var(--danger)">未判定</td><td class="num">${fmt(unassigned)} 件</td><td class="num">${yen(sales.filter(s => !s.clinic).reduce((s2, x) => s2 + (x.amount || 0), 0))}</td></tr>` : ''}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="margin-top:18px;">
+    <h2>取り込み済み売上明細</h2>
     ${sales.length === 0 ? '<div class="empty">まだ売上データはありません。</div>' : `
       <table>
-        <thead><tr><th>日付</th><th>金額</th><th>メニュー</th><th>担当</th><th>顧客</th><th>取込元</th></tr></thead>
+        <thead><tr><th>日付</th><th>店舗</th><th class="num">売上</th><th class="num">手数料</th><th>商品/メニュー</th><th>担当</th><th>顧客</th><th>支払</th></tr></thead>
         <tbody>${sales.slice(0, 100).map(s => `<tr>
-          <td>${s.date || '-'}</td><td class="num">${yen(s.amount || 0)}</td>
+          <td>${s.date || '-'}${s.time ? ' ' + s.time : ''}</td>
+          <td>${s.clinic ? CLINICS[s.clinic] : `<span style="color:var(--danger)">${s.location || '未判定'}</span>`}</td>
+          <td class="num">${yen(s.amount || 0)}</td>
+          <td class="num">${s.fee ? yen(s.fee) : '-'}</td>
           <td>${s.menu || '-'}</td><td>${s.staff || '-'}</td>
-          <td>${s.customer || '-'}</td><td>${s.source || '-'}</td>
+          <td>${s.customer || '-'}</td><td>${s.paymentMethod || '-'}</td>
         </tr>`).join('')}</tbody>
       </table>
       ${sales.length > 100 ? `<div class="empty">先頭100件を表示中（全 ${sales.length} 件）</div>` : ''}
