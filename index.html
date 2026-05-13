@@ -211,11 +211,77 @@
   .placeholder .big { font-size: 32px; margin-bottom: 10px; }
   .placeholder .title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
   .placeholder ul { text-align: left; max-width: 480px; margin: 16px auto 0; font-size: 13px; color: var(--text); }
+
+  /* ----- Login overlay ----- */
+  .login-overlay {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .login-card {
+    background: white;
+    padding: 36px 40px;
+    border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+    width: 360px;
+    max-width: 90vw;
+  }
+  .login-card h2 { margin: 0 0 4px; font-size: 18px; }
+  .login-card .sub { color: var(--muted); font-size: 12px; margin-bottom: 22px; }
+  .login-card label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  .login-card input { width: 100%; padding: 10px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: 8px; }
+  .login-card button { width: 100%; margin-top: 18px; padding: 11px; font-size: 14px; }
+  .login-error { color: var(--danger); font-size: 12px; margin-top: 10px; min-height: 16px; }
+  .logout-btn {
+    margin: 8px 16px 16px;
+    display: block;
+    width: calc(100% - 32px);
+    background: white;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    padding: 6px;
+  }
+  .logout-btn:hover { background: var(--sidebar-hover); color: var(--text); }
+
+  /* ----- CSV import ----- */
+  .csv-drop {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 12px;
+    cursor: pointer;
+  }
+  .csv-drop:hover { border-color: var(--primary); color: var(--primary); }
+  .csv-preview { font-size: 12px; max-height: 240px; overflow: auto; margin-top: 12px; }
+  .csv-preview table { font-size: 12px; }
+  .csv-preview th, .csv-preview td { padding: 4px 6px; }
 </style>
 </head>
 <body>
 
-<div class="app">
+<!-- =================== LOGIN =================== -->
+<div class="login-overlay" id="loginOverlay">
+  <form class="login-card" id="loginForm" onsubmit="return handleLogin(event)">
+    <h2>🏥 NAORU整体 経営ダッシュボード</h2>
+    <div class="sub">サインインしてください</div>
+    <label>メールアドレス (ID)</label>
+    <input type="email" id="loginEmail" autocomplete="username" required />
+    <label>パスワード</label>
+    <input type="password" id="loginPassword" autocomplete="current-password" required />
+    <button type="submit">ログイン</button>
+    <div class="login-error" id="loginError"></div>
+  </form>
+</div>
+
+<div class="app" id="appRoot" style="display:none;">
 
   <!-- =================== SIDEBAR =================== -->
   <aside class="sidebar">
@@ -265,7 +331,10 @@
     <div class="nav-group">
       <div class="nav-group-title">設定</div>
       <div class="nav-item" data-view="data"><span class="icon">⚙️</span>データ管理</div>
+      <div class="nav-item" data-view="import-customers"><span class="icon">📥</span>顧客データ移行</div>
     </div>
+
+    <button class="logout-btn" onclick="logout()">🚪 ログアウト</button>
   </aside>
 
   <!-- =================== MAIN =================== -->
@@ -328,7 +397,50 @@ const VIEWS = {
   'staff':                { title: 'スタッフ',         crumb: 'マスタ管理 / スタッフ',                  filters: false },
   'menu':                 { title: 'メニュー',         crumb: 'マスタ管理 / メニュー',                  filters: false },
   'data':                 { title: 'データ管理',       crumb: '設定 / データ管理',                      filters: false },
+  'import-customers':     { title: '顧客データ移行',   crumb: '設定 / 顧客データ移行',                  filters: false },
 };
+
+// ===== Auth =====
+const AUTH_USER = 'k.waka0925@gmail.com';
+const AUTH_PASSWORD_HASH = '0414a7593846245ca82aa99ab0eee1068c2bfb2a3ee602e1aaf01eb7ed5f27b2'; // sha256('naoru')
+const AUTH_KEY = 'naoru_auth_v1';
+
+async function sha256Hex(text) {
+  const buf = new TextEncoder().encode(text);
+  const hashBuf = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function handleLogin(ev) {
+  ev.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  const hash = await sha256Hex(password);
+  if (email === AUTH_USER.toLowerCase() && hash === AUTH_PASSWORD_HASH) {
+    sessionStorage.setItem(AUTH_KEY, '1');
+    showApp();
+  } else {
+    errEl.textContent = 'メールアドレスまたはパスワードが違います';
+  }
+  return false;
+}
+function logout() {
+  sessionStorage.removeItem(AUTH_KEY);
+  location.reload();
+}
+function showApp() {
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('appRoot').style.display = '';
+}
+function checkAuth() {
+  if (sessionStorage.getItem(AUTH_KEY) === '1') {
+    showApp();
+    return true;
+  }
+  document.getElementById('loginEmail').focus();
+  return false;
+}
 
 // ===== Persistence =====
 function load() {
@@ -834,6 +946,109 @@ function viewMenu() {
   ], '回数券・サブスクメニューにも対応予定です。');
 }
 
+function viewImportCustomers() {
+  return `<div class="card"><h2>📥 顧客データ移行 (CSVインポート)</h2>
+    <p style="font-size:13px; color:var(--muted);">ホットペッパー / RESERVA / Airリザーブ / LINE公式 などから書き出した CSV を取り込めます。</p>
+
+    <label class="csv-drop" for="customerCsv">
+      <div style="font-size:24px;">📄</div>
+      <div>CSVファイルをここにドロップ、またはクリックして選択</div>
+      <div style="font-size:11px; margin-top:4px;">UTF-8 / Shift-JIS どちらも自動判定</div>
+    </label>
+    <input type="file" id="customerCsv" accept=".csv,text/csv" style="display:none" onchange="handleCustomerCsv(event)" />
+
+    <div id="csvResult"></div>
+
+    <div class="note" style="margin-top:20px;">
+      <strong>CSV書き出し方法（参考）:</strong><br />
+      • <strong>ホットペッパービューティー</strong>: 管理画面 → 顧客管理 → CSV出力<br />
+      • <strong>RESERVA</strong>: 管理画面 → 顧客一覧 → エクスポート<br />
+      • <strong>Airリザーブ</strong>: 設定 → データ管理 → 顧客データダウンロード<br />
+      • <strong>LINE公式</strong>: 友だち一覧 → CSVダウンロード（基本属性のみ）<br />
+      • <strong>Googleカレンダー</strong>: 設定 → インポート / エクスポート → ICS書き出し（予約として活用可）
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px;">
+    <h2>取り込み済み顧客 (${(state.customers || []).length} 件)</h2>
+    ${(state.customers || []).length === 0 ? '<div class="empty">まだ取り込んだ顧客データはありません。</div>' : `
+      <table>
+        <thead><tr><th>氏名</th><th>かな</th><th>電話</th><th>メール</th><th>初回来院</th><th>取り込み元</th></tr></thead>
+        <tbody>${state.customers.slice(0, 100).map(c => `<tr>
+          <td>${c.name || '-'}</td><td>${c.kana || '-'}</td><td>${c.phone || '-'}</td>
+          <td>${c.email || '-'}</td><td>${c.firstVisit || '-'}</td><td>${c.source || '-'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      ${state.customers.length > 100 ? `<div class="empty">先頭100件を表示中（全 ${state.customers.length} 件）</div>` : ''}
+    `}
+  </div>`;
+}
+
+function handleCustomerCsv(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    let text;
+    try {
+      // try UTF-8 first
+      text = new TextDecoder('utf-8', { fatal: true }).decode(e.target.result);
+    } catch {
+      // fallback to Shift-JIS
+      text = new TextDecoder('shift-jis').decode(e.target.result);
+    }
+    const rows = parseCsv(text);
+    if (rows.length < 2) { alert('データが見つかりませんでした'); return; }
+    const headers = rows[0];
+    const mapped = rows.slice(1).map(row => mapCustomerRow(headers, row, file.name));
+    if (!state.customers) state.customers = [];
+    state.customers = state.customers.concat(mapped);
+    save();
+    document.getElementById('csvResult').innerHTML = `<div class="note">✓ ${mapped.length} 件の顧客データを取り込みました</div>`;
+    setTimeout(() => renderView(), 800);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"' && text[i+1] === '"') { field += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else { field += c; }
+    } else {
+      if (c === '"') { inQuotes = true; }
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else { field += c; }
+    }
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => c && c.trim()));
+}
+
+function mapCustomerRow(headers, row, sourceFile) {
+  const get = (...names) => {
+    for (const n of names) {
+      const idx = headers.findIndex(h => h && h.trim().toLowerCase().includes(n.toLowerCase()));
+      if (idx >= 0) return (row[idx] || '').trim();
+    }
+    return '';
+  };
+  return {
+    name: get('氏名', '名前', 'name', 'お名前'),
+    kana: get('かな', 'カナ', 'フリガナ', 'kana'),
+    phone: get('電話', 'tel', 'phone', '携帯'),
+    email: get('メール', 'mail', 'email', 'e-mail'),
+    firstVisit: get('初回', '初診', '登録日', 'first'),
+    source: sourceFile,
+  };
+}
+
 const VIEW_RENDER = {
   'summary':              { html: viewSummary, after: viewSummaryAfter },
   'revenue-entry':        { html: viewRevenueEntry },
@@ -850,6 +1065,7 @@ const VIEW_RENDER = {
   'staff':                { html: viewStaff },
   'menu':                 { html: viewMenu },
   'data':                 { html: viewData },
+  'import-customers':     { html: viewImportCustomers },
 };
 
 function renderView() {
@@ -919,20 +1135,32 @@ function loadSample() {
 }
 
 // ===== Init =====
-document.querySelectorAll('.nav-item').forEach(el => {
-  el.addEventListener('click', () => switchView(el.dataset.view));
-});
-document.getElementById('clinicSelect').addEventListener('change', renderView);
-document.getElementById('periodSelect').addEventListener('change', renderView);
-document.getElementById('fromMonth').addEventListener('change', () => {
-  document.getElementById('periodSelect').value = 'custom'; renderView();
-});
-document.getElementById('toMonth').addEventListener('change', () => {
-  document.getElementById('periodSelect').value = 'custom'; renderView();
-});
+function initApp() {
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.addEventListener('click', () => switchView(el.dataset.view));
+  });
+  document.getElementById('clinicSelect').addEventListener('change', renderView);
+  document.getElementById('periodSelect').addEventListener('change', renderView);
+  document.getElementById('fromMonth').addEventListener('change', () => {
+    document.getElementById('periodSelect').value = 'custom'; renderView();
+  });
+  document.getElementById('toMonth').addEventListener('change', () => {
+    document.getElementById('periodSelect').value = 'custom'; renderView();
+  });
+  load();
+  switchView('summary');
+}
 
-load();
-switchView('summary');
+const wasAuthed = checkAuth();
+if (wasAuthed) initApp();
+
+// hook login form to init app after successful login
+const originalShowApp = showApp;
+showApp = function() {
+  originalShowApp();
+  if (!window.__appInited) { initApp(); window.__appInited = true; }
+};
+if (wasAuthed) window.__appInited = true;
 </script>
 </body>
 </html>
