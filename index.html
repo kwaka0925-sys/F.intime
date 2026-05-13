@@ -386,6 +386,119 @@
   .slot.break:hover { filter: brightness(0.97); }
   .slot.break.continued { border-left: none; color: transparent; }
 
+  /* ----- Calendar ----- */
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .cal-grid > .dow {
+    background: #fafbfc;
+    padding: 8px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .cal-grid > .dow.sun { color: var(--danger); }
+  .cal-grid > .dow.sat { color: var(--primary); }
+  .cal-day {
+    background: white;
+    min-height: 96px;
+    padding: 6px 8px;
+    cursor: pointer;
+    position: relative;
+  }
+  .cal-day:hover { background: #f9fafb; }
+  .cal-day.other { background: #fafbfc; color: var(--muted-2); cursor: default; }
+  .cal-day.today { background: #eff6ff; }
+  .cal-day.today .date-num { color: var(--primary); font-weight: 700; }
+  .cal-day .date-num { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .cal-day .date-num.sun { color: var(--danger); }
+  .cal-day .date-num.sat { color: var(--primary); }
+  .staff-chip {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 6px;
+    margin-top: 2px;
+    border-radius: 4px;
+    font-size: 10px;
+    background: #f3f4f6;
+    color: var(--muted);
+  }
+  .staff-chip.has {
+    background: #dbeafe;
+    color: var(--primary-dark);
+    font-weight: 600;
+  }
+  .cal-day .day-total {
+    position: absolute;
+    top: 4px; right: 6px;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--primary);
+    color: white;
+    font-weight: 600;
+  }
+  .cal-day .day-total.zero { background: transparent; color: var(--muted-2); }
+
+  .week-grid {
+    display: grid;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .week-grid > div { background: white; padding: 8px; font-size: 12px; }
+  .week-grid .head { background: #fafbfc; font-weight: 600; text-align: center; font-size: 11px; }
+  .week-grid .head.today { background: #eff6ff; color: var(--primary); }
+  .week-grid .staff-name { background: #fafbfc; font-weight: 600; font-size: 12px; padding: 10px; }
+  .week-cell {
+    cursor: pointer;
+    min-height: 60px;
+    line-height: 1.4;
+  }
+  .week-cell:hover { background: #f9fafb; }
+  .week-cell.off {
+    background: repeating-linear-gradient(45deg, #fafbfc, #fafbfc 4px, #f3f4f6 4px, #f3f4f6 8px);
+    color: var(--muted-2);
+    cursor: not-allowed;
+    text-align: center;
+  }
+  .week-cell .count {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--primary);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .week-cell .b-list { font-size: 10px; color: var(--text); }
+  .view-toggle {
+    display: inline-flex;
+    background: #f3f4f6;
+    border-radius: 8px;
+    padding: 2px;
+  }
+  .view-toggle button {
+    background: transparent;
+    color: var(--muted);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .view-toggle button.active { background: white; color: var(--primary); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+  .view-toggle button:hover { color: var(--text); }
+
   /* ----- Modal ----- */
   .modal-backdrop {
     position: fixed; inset: 0;
@@ -678,6 +791,10 @@ function load() {
   if (!state.bookings) state.bookings = [];
   if (!state.staffViewClinic) state.staffViewClinic = 'nakamozu';
   if (!state.staffViewDate) state.staffViewDate = new Date().toISOString().slice(0, 10);
+  if (!state.calClinic) state.calClinic = 'nakamozu';
+  if (!state.calMonth) state.calMonth = new Date().toISOString().slice(0, 7);
+  if (!state.calWeekStart) state.calWeekStart = new Date().toISOString().slice(0, 10);
+  if (!state.calView) state.calView = 'month';
 }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
@@ -1213,13 +1330,170 @@ function viewReservationList() {
     'API連携（外部予約システム）',
   ], '既存の予約システムからのCSV連携を想定しています。');
 }
+// ===== Reservation Calendar =====
+function switchCalClinic(clinic) { state.calClinic = clinic; save(); renderView(); }
+function switchCalView(view) { state.calView = view; save(); renderView(); }
+function shiftCalMonth(delta) {
+  const [y, m] = state.calMonth.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  state.calMonth = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+  save(); renderView();
+}
+function shiftCalWeek(days) {
+  state.calWeekStart = ymdShift(state.calWeekStart, days);
+  save(); renderView();
+}
+function jumpToStaffDay(date) {
+  state.staffViewDate = date;
+  state.staffViewClinic = state.calClinic;
+  save();
+  switchView('staff');
+}
+function bookingsOn(date, staffId) {
+  return state.bookings.filter(b => b.date === date && b.staffId === staffId && b.type !== '休憩');
+}
+function getMonthDays(yyyymm) {
+  const [y, m] = yyyymm.split('-').map(Number);
+  const first = new Date(y, m - 1, 1);
+  const last = new Date(y, m, 0);
+  const startDay = first.getDay();
+  const cells = [];
+  for (let i = 0; i < startDay; i++) {
+    const dd = new Date(y, m - 1, 1 - (startDay - i));
+    cells.push({ date: ymd(dd), inMonth: false });
+  }
+  for (let d = 1; d <= last.getDate(); d++) {
+    cells.push({ date: `${y}-${pad2(m)}-${pad2(d)}`, inMonth: true });
+  }
+  while (cells.length % 7 !== 0) {
+    const lastCell = cells[cells.length - 1].date;
+    const d = new Date(lastCell);
+    d.setDate(d.getDate() + 1);
+    cells.push({ date: ymd(d), inMonth: false });
+  }
+  return cells;
+}
+function ymd(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+function getWeekDays(startYmd) {
+  const d = new Date(startYmd);
+  const sunday = new Date(d);
+  sunday.setDate(d.getDate() - d.getDay());
+  return Array.from({ length: 7 }, (_, i) => {
+    const dd = new Date(sunday);
+    dd.setDate(sunday.getDate() + i);
+    return ymd(dd);
+  });
+}
+function jpDate(ymdStr) {
+  const d = new Date(ymdStr);
+  return `${d.getMonth() + 1}/${d.getDate()}(${['日','月','火','水','木','金','土'][d.getDay()]})`;
+}
+
 function viewReservationCalendar() {
-  return placeholder('予約カレンダー', '🗓️', [
-    '月 / 週 / 日表示',
-    '担当者別・設備別カラム表示',
-    'ドラッグ&ドロップで予約変更',
-    '日別キャパシティ表示',
-  ], 'スタッフ・施術ベッドのキャパシティを可視化します。');
+  const clinic = state.calClinic;
+  const view = state.calView;
+  const staffList = STAFF[clinic] || [];
+  const today = ymd(new Date());
+
+  const header = `
+    <div class="clinic-tabs">
+      ${Object.entries(CLINICS).map(([key, name]) => `
+        <div class="clinic-tab ${clinic === key ? 'active' : ''}" onclick="switchCalClinic('${key}')">${name}</div>
+      `).join('')}
+    </div>
+    <div class="card" style="margin-bottom:18px;">
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <div class="view-toggle">
+          <button class="${view === 'month' ? 'active' : ''}" onclick="switchCalView('month')">月表示</button>
+          <button class="${view === 'week' ? 'active' : ''}" onclick="switchCalView('week')">週表示</button>
+        </div>
+        <div style="flex:1;"></div>
+        ${view === 'month' ? `
+          <button class="ghost" onclick="shiftCalMonth(-1)">← 前月</button>
+          <div style="font-weight:600; font-size:16px; min-width:120px; text-align:center;">${state.calMonth.replace('-', '年')}月</div>
+          <button class="ghost" onclick="shiftCalMonth(1)">翌月 →</button>
+          <button class="ghost" onclick="state.calMonth='${today.slice(0,7)}'; save(); renderView();">今月</button>
+        ` : `
+          <button class="ghost" onclick="shiftCalWeek(-7)">← 前週</button>
+          <div style="font-weight:600; font-size:14px; min-width:200px; text-align:center;">${jpDate(getWeekDays(state.calWeekStart)[0])} 〜 ${jpDate(getWeekDays(state.calWeekStart)[6])}</div>
+          <button class="ghost" onclick="shiftCalWeek(7)">翌週 →</button>
+          <button class="ghost" onclick="state.calWeekStart='${today}'; save(); renderView();">今週</button>
+        `}
+      </div>
+    </div>
+  `;
+
+  return header + (view === 'month' ? renderMonthCalendar(staffList, today) : renderWeekCalendar(staffList, today));
+}
+
+function renderMonthCalendar(staffList, today) {
+  const cells = getMonthDays(state.calMonth);
+  const dows = ['日','月','火','水','木','金','土'];
+  let html = `<div class="card"><div class="cal-grid">`;
+  dows.forEach((d, i) => {
+    const cls = i === 0 ? 'sun' : i === 6 ? 'sat' : '';
+    html += `<div class="dow ${cls}">${d}</div>`;
+  });
+  cells.forEach(cell => {
+    const d = new Date(cell.date);
+    const dow = d.getDay();
+    const dayNum = d.getDate();
+    if (!cell.inMonth) {
+      html += `<div class="cal-day other"><div class="date-num">${dayNum}</div></div>`;
+      return;
+    }
+    const dayBookings = staffList.map(s => ({ staff: s, count: bookingsOn(cell.date, s.id).length }));
+    const total = dayBookings.reduce((a, b) => a + b.count, 0);
+    const dnClass = dow === 0 ? 'sun' : dow === 6 ? 'sat' : '';
+    const cellClass = cell.date === today ? 'today' : '';
+    html += `<div class="cal-day ${cellClass}" onclick="jumpToStaffDay('${cell.date}')">
+      <div class="date-num ${dnClass}">${dayNum}</div>
+      ${total > 0 ? `<div class="day-total">${total}件</div>` : `<div class="day-total zero">·</div>`}
+      ${dayBookings.map(b => `<div class="staff-chip ${b.count > 0 ? 'has' : ''}">
+        <span>${b.staff.name.split(' ')[0]}</span><span>${b.count > 0 ? b.count + '件' : '—'}</span>
+      </div>`).join('')}
+    </div>`;
+  });
+  html += `</div></div>
+    <div style="margin-top:10px; font-size:11px; color:var(--muted);">
+      💡 日付セルをクリックすると、その日のスタッフ別予約画面に移動します
+    </div>`;
+  return html;
+}
+
+function renderWeekCalendar(staffList, today) {
+  const days = getWeekDays(state.calWeekStart);
+  const cols = `120px repeat(7, 1fr)`;
+  let html = `<div class="card"><div class="week-grid" style="grid-template-columns: ${cols};">`;
+  html += `<div class="head">スタッフ</div>`;
+  days.forEach(d => {
+    const dd = new Date(d);
+    const dow = dd.getDay();
+    const isToday = d === today;
+    const color = dow === 0 ? 'color:var(--danger);' : dow === 6 ? 'color:var(--primary);' : '';
+    html += `<div class="head ${isToday ? 'today' : ''}" style="${color}">${jpDate(d)}</div>`;
+  });
+  staffList.forEach(s => {
+    html += `<div class="staff-name">${s.name}<br /><span style="font-size:10px; color:var(--muted); font-weight:normal;">${s.role}</span></div>`;
+    days.forEach(d => {
+      const shift = getShift(s.id, d);
+      const isOff = shift === '休み';
+      const bs = bookingsOn(d, s.id).sort((a, b) => a.time.localeCompare(b.time));
+      if (isOff && bs.length === 0) {
+        html += `<div class="week-cell off">休</div>`;
+      } else {
+        html += `<div class="week-cell" onclick="jumpToStaffDay('${d}')">
+          ${bs.length > 0 ? `<span class="count">${bs.length}件</span>` : '<span style="color:var(--muted-2); font-size:11px;">空</span>'}
+          <div class="b-list">${bs.slice(0, 3).map(b => `${b.time} ${(b.customer || '予約').slice(0, 5)}`).join('<br />')}${bs.length > 3 ? `<br /><span style="color:var(--muted);">他${bs.length - 3}件</span>` : ''}</div>
+        </div>`;
+      }
+    });
+  });
+  html += `</div></div>
+    <div style="margin-top:10px; font-size:11px; color:var(--muted);">
+      💡 セルをクリックすると、その日のスタッフ別予約画面に移動します
+    </div>`;
+  return html;
 }
 function viewCustomers() {
   return placeholder('顧客一覧', '👥', [
