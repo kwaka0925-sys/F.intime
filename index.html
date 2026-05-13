@@ -553,6 +553,38 @@ function filteredEntries() {
 // ===== Format =====
 function fmt(n) { return n.toLocaleString('ja-JP'); }
 function yen(n) { return '¥' + fmt(Math.round(n)); }
+
+// Chart-axis-friendly yen formatter (avoids floating point dust like 0.00005999...)
+function yenAxis(v) {
+  const r = Math.round(v);
+  if (r === 0) return '¥0';
+  const abs = Math.abs(r);
+  if (abs < 10000) return '¥' + fmt(r);
+  if (abs < 100000000) {
+    const man = r / 10000;
+    // 1 decimal only when needed
+    const s = (Math.round(man * 10) / 10).toString();
+    return '¥' + s + '万';
+  }
+  const oku = Math.round(r / 1000000) / 100; // 0.01億刻み
+  return '¥' + oku + '億';
+}
+
+// Renders an empty state inside a <canvas> parent when there's nothing to plot
+function emptyChart(canvasId, msg) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const parent = canvas.parentElement;
+  canvas.remove();
+  const div = document.createElement('div');
+  div.className = 'empty';
+  div.style.padding = '60px 20px';
+  div.innerHTML = `📭 ${msg || 'この期間のデータはありません'}<br /><span style="font-size:11px;">「月次売上入力」または「データ管理→サンプル投入」からデータを追加してください。</span>`;
+  parent.appendChild(div);
+}
+function hasPlotData(entries) {
+  return entries && entries.length > 0 && entries.some(e => (e.revenue || e.adspend || e.newCustomers) > 0);
+}
 function aggregate(entries) {
   const t = { revenue: 0, adspend: 0, newCustomers: 0, repeatVisits: 0, reservations: 0 };
   entries.forEach(e => {
@@ -576,15 +608,20 @@ function viewSummary() {
   const roas = t.adspend > 0 ? (t.revenue / t.adspend) * 100 : 0;
   const avgPerCust = (t.newCustomers + t.repeatVisits) > 0 ? t.revenue / (t.newCustomers + t.repeatVisits) : 0;
 
+  const dash = '—';
+  const showRoas = t.adspend > 0;
+  const showCpa = t.newCustomers > 0;
+  const showAvg = (t.newCustomers + t.repeatVisits) > 0;
+
   return `
     <div class="kpi-grid">
       <div class="kpi-card"><div class="kpi-label">合計売上</div><div class="kpi-value">${yen(t.revenue)}</div><div class="kpi-sub">${entries.length}件のデータ</div></div>
       <div class="kpi-card"><div class="kpi-label">広告費</div><div class="kpi-value">${yen(t.adspend)}</div></div>
-      <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(t.newCustomers)} 人</div></div>
-      <div class="kpi-card"><div class="kpi-label">リピート来院</div><div class="kpi-value">${fmt(t.repeatVisits)} 人</div></div>
-      <div class="kpi-card"><div class="kpi-label">CPA</div><div class="kpi-value">${yen(cpa)}</div><div class="kpi-sub">顧客獲得単価</div></div>
-      <div class="kpi-card"><div class="kpi-label">ROAS</div><div class="kpi-value">${roas.toFixed(0)}%</div><div class="kpi-sub ${roas >= 300 ? 'up' : 'down'}">${roas >= 300 ? '良好' : '要改善 (目安300%以上)'}</div></div>
-      <div class="kpi-card"><div class="kpi-label">客単価</div><div class="kpi-value">${yen(avgPerCust)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(t.newCustomers)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">リピート来院</div><div class="kpi-value">${fmt(t.repeatVisits)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">CPA</div><div class="kpi-value">${showCpa ? yen(cpa) : dash}</div><div class="kpi-sub">${showCpa ? '顧客獲得単価' : 'データなし'}</div></div>
+      <div class="kpi-card"><div class="kpi-label">ROAS</div><div class="kpi-value">${showRoas ? Math.round(roas) + '%' : dash}</div><div class="kpi-sub ${showRoas ? (roas >= 300 ? 'up' : 'down') : ''}">${showRoas ? (roas >= 300 ? '良好' : '要改善 (目安300%以上)') : 'データなし'}</div></div>
+      <div class="kpi-card"><div class="kpi-label">客単価</div><div class="kpi-value">${showAvg ? yen(avgPerCust) : dash}</div></div>
       <div class="kpi-card"><div class="kpi-label">予約数</div><div class="kpi-value">${fmt(t.reservations)}</div></div>
     </div>
     <div class="grid-2">
@@ -595,6 +632,11 @@ function viewSummary() {
 }
 function viewSummaryAfter() {
   const entries = filteredEntries();
+  if (!hasPlotData(entries)) {
+    emptyChart('chart_summary_revenue');
+    emptyChart('chart_summary_ad');
+    return;
+  }
   const months = [...new Set(entries.map(e => e.month))].sort();
   const clinic = document.getElementById('clinicSelect').value;
   const datasets = [];
@@ -616,7 +658,11 @@ function viewSummaryAfter() {
   destroyChart('summary_revenue');
   charts.summary_revenue = new Chart(document.getElementById('chart_summary_revenue'), {
     type: 'bar', data: { labels: months, datasets },
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { ticks: { callback: v => '¥' + (v/10000) + '万' } } } },
+    options: { responsive: true, plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + yen(ctx.parsed.y) } },
+      },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } } } },
   });
   const adData = months.map(m => entries.filter(e => e.month === m).reduce((s,e) => s + e.adspend, 0));
   const newData = months.map(m => entries.filter(e => e.month === m).reduce((s,e) => s + e.newCustomers, 0));
@@ -627,8 +673,13 @@ function viewSummaryAfter() {
       { type: 'bar', label: '広告費', data: adData, backgroundColor: '#f59e0b', yAxisID: 'y' },
       { type: 'line', label: '新規顧客', data: newData, borderColor: '#10b981', backgroundColor: '#10b981', yAxisID: 'y1', tension: 0.3 },
     ]},
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } },
-      scales: { y: { position: 'left', ticks: { callback: v => '¥' + (v/10000) + '万' } }, y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '人' } } } },
+    options: { responsive: true, plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label === '広告費' ? '広告費: ' + yen(ctx.parsed.y) : '新規顧客: ' + fmt(ctx.parsed.y) + '人' } },
+      },
+      scales: {
+        y:  { position: 'left',  beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } },
+        y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { precision: 0, stepSize: 1, callback: v => v + '人' } } } },
   });
 }
 
@@ -748,6 +799,11 @@ function viewRevenueTrend() {
 }
 function viewRevenueTrendAfter() {
   const entries = filteredEntries();
+  if (!hasPlotData(entries)) {
+    emptyChart('chart_trend');
+    emptyChart('chart_share');
+    return;
+  }
   const months = [...new Set(entries.map(e => e.month))].sort();
   const clinic = document.getElementById('clinicSelect').value;
   const datasets = clinic === 'all'
@@ -762,14 +818,21 @@ function viewRevenueTrendAfter() {
   destroyChart('trend');
   charts.trend = new Chart(document.getElementById('chart_trend'), {
     type: 'line', data: { labels: months, datasets },
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { ticks: { callback: v => '¥' + (v/10000) + '万' } } } },
+    options: { responsive: true, plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + yen(ctx.parsed.y) } },
+      },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } } } },
   });
   const totals = Object.keys(CLINICS).map(c => entries.filter(e => e.clinic === c).reduce((s,e) => s + e.revenue, 0));
   destroyChart('share');
   charts.share = new Chart(document.getElementById('chart_share'), {
     type: 'doughnut',
     data: { labels: Object.values(CLINICS), datasets: [{ data: totals, backgroundColor: ['#2563eb', '#7c3aed'] }] },
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } } },
+    options: { responsive: true, plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => ctx.label + ': ' + yen(ctx.parsed) } },
+      } },
   });
 }
 
@@ -788,12 +851,16 @@ function viewAdCost() {
 }
 function viewAdCostAfter() {
   const entries = filteredEntries();
+  if (!entries.length || !entries.some(e => e.adspend > 0)) { emptyChart('chart_adcost', 'この期間の広告費データはありません'); return; }
   const months = [...new Set(entries.map(e => e.month))].sort();
   destroyChart('adcost');
   charts.adcost = new Chart(document.getElementById('chart_adcost'), {
     type: 'bar',
     data: { labels: months, datasets: [{ label: '広告費', data: months.map(m => entries.filter(e => e.month === m).reduce((s,e) => s + e.adspend, 0)), backgroundColor: '#f59e0b' }] },
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { ticks: { callback: v => '¥' + (v/10000) + '万' } } } },
+    options: { responsive: true, plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => '広告費: ' + yen(ctx.parsed.y) } },
+      }, scales: { y: { beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } } } },
   });
 }
 
@@ -819,13 +886,17 @@ function viewChannel() {
 function viewChannelAfter() {
   const entries = filteredEntries();
   const counts = {};
-  entries.forEach(e => { counts[e.channel] = (counts[e.channel] || 0) + e.newCustomers; });
+  entries.forEach(e => { if (e.newCustomers > 0) counts[e.channel] = (counts[e.channel] || 0) + e.newCustomers; });
+  if (Object.keys(counts).length === 0) { emptyChart('chart_channel', 'この期間の集客データはありません'); return; }
   destroyChart('channel');
   charts.channel = new Chart(document.getElementById('chart_channel'), {
     type: 'doughnut',
     data: { labels: Object.keys(counts).map(k => CHANNEL_LABELS[k] || k),
       datasets: [{ data: Object.values(counts), backgroundColor: ['#2563eb','#7c3aed','#f59e0b','#10b981','#ef4444','#6b7280'] }] },
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } } },
+    options: { responsive: true, plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => ctx.label + ': ' + fmt(ctx.parsed) + '人' } },
+      } },
   });
 }
 
@@ -845,18 +916,19 @@ function viewCpaRoas() {
 }
 function viewCpaRoasAfter() {
   const entries = filteredEntries();
+  if (!entries.length || !entries.some(e => e.adspend > 0)) { emptyChart('chart_cpa', 'この期間の広告費データはありません'); return; }
   const months = [...new Set(entries.map(e => e.month))].sort();
   const cpaData = months.map(m => {
     const ms = entries.filter(e => e.month === m);
     const ad = ms.reduce((s,e) => s + e.adspend, 0);
     const nc = ms.reduce((s,e) => s + e.newCustomers, 0);
-    return nc > 0 ? ad / nc : 0;
+    return nc > 0 ? Math.round(ad / nc) : 0;
   });
   const roasData = months.map(m => {
     const ms = entries.filter(e => e.month === m);
     const ad = ms.reduce((s,e) => s + e.adspend, 0);
     const rv = ms.reduce((s,e) => s + e.revenue, 0);
-    return ad > 0 ? (rv / ad) * 100 : 0;
+    return ad > 0 ? Math.round((rv / ad) * 100) : 0;
   });
   destroyChart('cpa');
   charts.cpa = new Chart(document.getElementById('chart_cpa'), {
@@ -864,8 +936,13 @@ function viewCpaRoasAfter() {
       { type: 'bar', label: 'CPA (円)', data: cpaData, backgroundColor: '#f59e0b', yAxisID: 'y' },
       { type: 'line', label: 'ROAS (%)', data: roasData, borderColor: '#10b981', backgroundColor: '#10b981', yAxisID: 'y1', tension: 0.3 },
     ]},
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } },
-      scales: { y: { position: 'left', ticks: { callback: v => '¥' + fmt(v) } }, y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } } } },
+    options: { responsive: true, plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label === 'CPA (円)' ? 'CPA: ' + yen(ctx.parsed.y) : 'ROAS: ' + ctx.parsed.y + '%' } },
+      },
+      scales: {
+        y:  { position: 'left',  beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } },
+        y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { precision: 0, callback: v => v + '%' } } } },
   });
 }
 
