@@ -310,31 +310,60 @@
   .status-btn.active.half { background: var(--warning); color: white; border-color: var(--warning); }
   .staff-card .stats { font-size: 11px; color: var(--muted); margin-top: 6px; }
 
+  .schedule-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
   .schedule-grid {
     display: grid;
     gap: 1px;
     background: var(--border);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-    font-size: 12px;
+    font-size: 11px;
+    min-width: max-content;
   }
-  .schedule-grid > div { background: white; padding: 6px 8px; }
+  .schedule-grid > div { background: white; padding: 6px 4px; box-sizing: border-box; }
   .schedule-grid .head {
     background: #fafbfc;
     font-weight: 600;
     text-align: center;
     color: var(--text);
-    font-size: 12px;
+    font-size: 11px;
+    position: sticky; top: 0; z-index: 2;
   }
-  .schedule-grid .time { background: #fafbfc; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 11px; }
+  .schedule-grid .staff-label {
+    background: #fafbfc;
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 12px;
+    position: sticky; left: 0; z-index: 3;
+    border-right: 2px solid var(--border);
+  }
+  .schedule-grid .staff-label .name { font-size: 13px; }
+  .schedule-grid .staff-label .sub { font-size: 10px; color: var(--muted); font-weight: normal; }
+  .schedule-grid .time-head {
+    background: #fafbfc;
+    text-align: center;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    font-size: 10px;
+    padding: 8px 2px;
+  }
   .slot {
-    min-height: 34px;
+    min-height: 44px;
     cursor: pointer;
     position: relative;
+    overflow: hidden;
+    font-size: 10px;
+    line-height: 1.2;
+    padding: 4px;
   }
   .slot:hover { background: #f3f4f6; }
-  .slot.off { background: repeating-linear-gradient(45deg, #fafbfc, #fafbfc 6px, #f3f4f6 6px, #f3f4f6 12px); cursor: not-allowed; color: var(--muted-2); }
+  .slot.off {
+    background: repeating-linear-gradient(45deg, #fafbfc, #fafbfc 6px, #f3f4f6 6px, #f3f4f6 12px);
+    cursor: not-allowed; color: var(--muted-2);
+    text-align: center; line-height: 36px;
+  }
   .slot.booked {
     background: #dbeafe;
     border-left: 3px solid var(--primary);
@@ -343,9 +372,19 @@
   }
   .slot.booked:hover { background: #bfdbfe; }
   .slot.booked.continued {
-    border-left: 3px solid var(--primary);
+    background: #dbeafe;
+    border-left: none;
     color: transparent;
   }
+  .slot.break {
+    background: repeating-linear-gradient(135deg, #fff7ed, #fff7ed 4px, #ffedd5 4px, #ffedd5 8px);
+    border-left: 3px solid var(--warning);
+    color: #92400e;
+    font-weight: 600;
+    text-align: center;
+  }
+  .slot.break:hover { filter: brightness(0.97); }
+  .slot.break.continued { border-left: none; color: transparent; }
 
   /* ----- Modal ----- */
   .modal-backdrop {
@@ -394,6 +433,17 @@
     <h3 id="bookingModalTitle">予約を追加</h3>
     <input type="hidden" id="bk_id" />
     <input type="hidden" id="bk_staffId" />
+
+    <label>種別</label>
+    <div style="display:flex; gap:8px;">
+      <label style="flex:1; cursor:pointer; padding:8px; border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; gap:6px; margin:0;">
+        <input type="radio" name="bk_type" value="予約" checked onchange="toggleBookingType()" style="width:auto;" /> 予約
+      </label>
+      <label style="flex:1; cursor:pointer; padding:8px; border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; gap:6px; margin:0;">
+        <input type="radio" name="bk_type" value="休憩" onchange="toggleBookingType()" style="width:auto;" /> 休憩
+      </label>
+    </div>
+
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
       <div>
         <label>スタッフ</label>
@@ -418,10 +468,12 @@
         </select>
       </div>
     </div>
-    <label>顧客名</label>
-    <input type="text" id="bk_customer" placeholder="例: 田中 太郎" />
-    <label>メニュー</label>
-    <input type="text" id="bk_menu" placeholder="例: 全身整体60分" />
+    <div id="bk_customerFields">
+      <label>顧客名</label>
+      <input type="text" id="bk_customer" placeholder="例: 田中 太郎" />
+      <label>メニュー</label>
+      <input type="text" id="bk_menu" placeholder="例: 全身整体60分" />
+    </div>
     <label>メモ</label>
     <textarea id="bk_notes" placeholder="任意"></textarea>
     <div class="modal-footer">
@@ -1293,14 +1345,16 @@ function viewStaff() {
       <h2>📋 本日の予約一覧</h2>
       ${todayBookings.length === 0 ? '<div class="empty">予約はまだありません。グリッドの空きセルをクリック、または「+ 予約を追加」から登録できます。</div>' : `
         <table>
-          <thead><tr><th>時刻</th><th>スタッフ</th><th>顧客</th><th>メニュー</th><th>所要</th><th>メモ</th><th></th></tr></thead>
+          <thead><tr><th>時刻</th><th>種別</th><th>スタッフ</th><th>顧客</th><th>メニュー</th><th>所要</th><th>メモ</th><th></th></tr></thead>
           <tbody>${todayBookings.sort((a,b) => a.time.localeCompare(b.time)).map(b => {
             const s = staffList.find(x => x.id === b.staffId);
+            const isBreak = b.type === '休憩';
             return `<tr>
               <td>${b.time}</td>
+              <td><span class="pill" style="${isBreak ? 'background:#fff7ed; color:#92400e;' : ''}">${b.type || '予約'}</span></td>
               <td>${s ? s.name : b.staffId}</td>
-              <td>${b.customer || '-'}</td>
-              <td>${b.menu || '-'}</td>
+              <td>${b.customer || (isBreak ? '—' : '-')}</td>
+              <td>${b.menu || (isBreak ? '—' : '-')}</td>
               <td>${b.durationMin || 60}分</td>
               <td>${b.notes || '-'}</td>
               <td><button class="ghost sm" onclick="openBookingModal('${b.staffId}','${b.date}','${b.time}','${b.id}')">編集</button></td>
@@ -1320,33 +1374,60 @@ function ymdShift(ymd, days) {
 
 function renderScheduleGrid(staffList, date) {
   if (staffList.length === 0) return '<div class="empty">スタッフがいません</div>';
-  const cols = `80px repeat(${staffList.length}, minmax(140px, 1fr))`;
-  let html = `<div class="schedule-grid" style="grid-template-columns: ${cols};">`;
-  // header
-  html += `<div class="head">時刻</div>`;
-  html += staffList.map(s => `<div class="head">${s.name}<br /><span style="font-weight:normal; font-size:10px; color:var(--muted);">${getShift(s.id, date)}</span></div>`).join('');
-  // rows
-  TIME_SLOTS.forEach(time => {
-    html += `<div class="time">${time}</div>`;
-    staffList.forEach(s => {
-      const shift = getShift(s.id, date);
+  const slotWidth = 56;
+  const labelWidth = 130;
+  const cols = `${labelWidth}px repeat(${TIME_SLOTS.length}, ${slotWidth}px)`;
+  let html = `<div class="schedule-wrap"><div class="schedule-grid" style="grid-template-columns: ${cols};">`;
+  // header row
+  html += `<div class="head staff-label">スタッフ</div>`;
+  html += TIME_SLOTS.map(t => `<div class="head time-head">${t}</div>`).join('');
+  // staff rows
+  staffList.forEach(s => {
+    const shift = getShift(s.id, date);
+    const shiftColor = shift === '休み' ? 'var(--danger)' : shift === '半休' ? 'var(--warning)' : 'var(--success)';
+    html += `<div class="staff-label"><div class="name">${s.name}</div><div class="sub">${s.role} / <span style="color:${shiftColor};">${shift}</span></div></div>`;
+    TIME_SLOTS.forEach(time => {
       const isOff = shift === '休み';
       const b = bookingAtSlot(s.id, date, time);
-      if (isOff && !b) {
-        html += `<div class="slot off">—</div>`;
-      } else if (b) {
+      if (b) {
         const isStart = b.time === time;
-        html += `<div class="slot booked ${isStart ? '' : 'continued'}" onclick="openBookingModal('${s.id}','${date}','${b.time}','${b.id}')">${isStart ? `${b.customer || '予約'}<br /><span style="font-size:10px;">${b.menu || ''}</span>` : ''}</div>`;
+        const cls = b.type === '休憩' ? `slot break ${isStart ? '' : 'continued'}` : `slot booked ${isStart ? '' : 'continued'}`;
+        const label = b.type === '休憩' ? (isStart ? '☕ 休憩' : '') : (isStart ? `${(b.customer || '予約').slice(0, 6)}` : '');
+        html += `<div class="${cls}" onclick="openBookingModal('${s.id}','${date}','${b.time}','${b.id}')" title="${b.type === '休憩' ? '休憩' : (b.customer || '予約') + (b.menu ? ' / ' + b.menu : '')}">${label}</div>`;
+      } else if (isOff) {
+        html += `<div class="slot off">—</div>`;
       } else {
         html += `<div class="slot" onclick="openBookingModal('${s.id}','${date}','${time}')"></div>`;
       }
     });
   });
-  html += `</div>`;
+  html += `</div></div>`;
+  html += `<div style="margin-top:10px; font-size:11px; color:var(--muted); display:flex; gap:16px;">
+    <span><span style="display:inline-block; width:12px; height:12px; background:#dbeafe; border-left:3px solid var(--primary); vertical-align:middle;"></span> 予約</span>
+    <span><span style="display:inline-block; width:12px; height:12px; background:repeating-linear-gradient(135deg, #fff7ed, #fff7ed 2px, #ffedd5 2px, #ffedd5 4px); border-left:3px solid var(--warning); vertical-align:middle;"></span> 休憩</span>
+    <span><span style="display:inline-block; width:12px; height:12px; background:repeating-linear-gradient(45deg, #fafbfc, #fafbfc 3px, #f3f4f6 3px, #f3f4f6 6px); vertical-align:middle;"></span> 休み</span>
+    <span style="margin-left:auto;">→ 空きセルをクリックで予約/休憩を追加、既存をクリックで編集</span>
+  </div>`;
   return html;
 }
 
 // ===== Booking modal =====
+function setBookingType(type) {
+  document.querySelectorAll('input[name="bk_type"]').forEach(r => { r.checked = r.value === type; });
+  toggleBookingType();
+}
+function toggleBookingType() {
+  const type = document.querySelector('input[name="bk_type"]:checked').value;
+  const isBreak = type === '休憩';
+  document.getElementById('bk_customerFields').style.display = isBreak ? 'none' : '';
+  document.getElementById('bookingModalTitle').textContent =
+    (document.getElementById('bk_id').value ? '編集' : '追加') + ': ' + (isBreak ? '休憩' : '予約');
+  if (isBreak) {
+    // default break duration: 30 min if creating new
+    if (!document.getElementById('bk_id').value) document.getElementById('bk_duration').value = '30';
+  }
+}
+
 function openBookingModal(staffId, date, time, bookingId) {
   const clinic = state.staffViewClinic;
   const staffList = STAFF[clinic] || [];
@@ -1359,7 +1440,6 @@ function openBookingModal(staffId, date, time, bookingId) {
   if (bookingId) {
     const b = state.bookings.find(x => x.id === bookingId);
     if (!b) return;
-    document.getElementById('bookingModalTitle').textContent = '予約を編集';
     document.getElementById('bk_id').value = b.id;
     document.getElementById('bk_staffId').value = b.staffId;
     document.getElementById('bk_staffLabel').textContent = (staffList.find(s => s.id === b.staffId) || {}).name || b.staffId;
@@ -1370,8 +1450,8 @@ function openBookingModal(staffId, date, time, bookingId) {
     document.getElementById('bk_menu').value = b.menu || '';
     document.getElementById('bk_notes').value = b.notes || '';
     document.getElementById('bk_deleteBtn').style.display = '';
+    setBookingType(b.type || '予約');
   } else {
-    document.getElementById('bookingModalTitle').textContent = '予約を追加';
     document.getElementById('bk_id').value = '';
     if (!staffId && staffList[0]) staffId = staffList[0].id;
     document.getElementById('bk_staffId').value = staffId;
@@ -1386,6 +1466,7 @@ function openBookingModal(staffId, date, time, bookingId) {
     document.getElementById('bk_menu').value = '';
     document.getElementById('bk_notes').value = '';
     document.getElementById('bk_deleteBtn').style.display = 'none';
+    setBookingType('予約');
   }
   modal.classList.add('show');
 }
@@ -1395,15 +1476,17 @@ function saveBooking() {
   const id = document.getElementById('bk_id').value || ('bk_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
   const staffSel = document.getElementById('bk_staffSelect');
   const staffId = staffSel ? staffSel.value : document.getElementById('bk_staffId').value;
+  const type = document.querySelector('input[name="bk_type"]:checked').value;
   const booking = {
     id,
+    type,
     staffId,
     clinic: state.staffViewClinic,
     date: document.getElementById('bk_date').value,
     time: document.getElementById('bk_time').value,
     durationMin: Number(document.getElementById('bk_duration').value) || 60,
-    customer: document.getElementById('bk_customer').value.trim(),
-    menu: document.getElementById('bk_menu').value.trim(),
+    customer: type === '休憩' ? '' : document.getElementById('bk_customer').value.trim(),
+    menu: type === '休憩' ? '' : document.getElementById('bk_menu').value.trim(),
     notes: document.getElementById('bk_notes').value.trim(),
   };
   if (!booking.date || !booking.time) { alert('日付と時刻は必須です'); return; }
