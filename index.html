@@ -263,6 +263,113 @@
   .csv-preview { font-size: 12px; max-height: 240px; overflow: auto; margin-top: 12px; }
   .csv-preview table { font-size: 12px; }
   .csv-preview th, .csv-preview td { padding: 4px 6px; }
+
+  /* ----- Staff scheduler ----- */
+  .clinic-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .clinic-tab {
+    padding: 10px 20px;
+    border-radius: 10px 10px 0 0;
+    background: var(--sidebar-hover);
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+    border-bottom: 3px solid transparent;
+  }
+  .clinic-tab.active {
+    background: white;
+    color: var(--primary);
+    font-weight: 600;
+    border-bottom-color: var(--primary);
+  }
+  .staff-roster {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .staff-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .staff-card .name { font-weight: 600; font-size: 14px; }
+  .staff-card .role { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .staff-card .status-row { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+  .status-btn {
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .status-btn.active.on  { background: var(--success); color: white; border-color: var(--success); }
+  .status-btn.active.off { background: var(--danger);  color: white; border-color: var(--danger); }
+  .status-btn.active.half { background: var(--warning); color: white; border-color: var(--warning); }
+  .staff-card .stats { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  .schedule-grid {
+    display: grid;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-size: 12px;
+  }
+  .schedule-grid > div { background: white; padding: 6px 8px; }
+  .schedule-grid .head {
+    background: #fafbfc;
+    font-weight: 600;
+    text-align: center;
+    color: var(--text);
+    font-size: 12px;
+  }
+  .schedule-grid .time { background: #fafbfc; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 11px; }
+  .slot {
+    min-height: 34px;
+    cursor: pointer;
+    position: relative;
+  }
+  .slot:hover { background: #f3f4f6; }
+  .slot.off { background: repeating-linear-gradient(45deg, #fafbfc, #fafbfc 6px, #f3f4f6 6px, #f3f4f6 12px); cursor: not-allowed; color: var(--muted-2); }
+  .slot.booked {
+    background: #dbeafe;
+    border-left: 3px solid var(--primary);
+    color: var(--primary-dark);
+    font-weight: 500;
+  }
+  .slot.booked:hover { background: #bfdbfe; }
+  .slot.booked.continued {
+    border-left: 3px solid var(--primary);
+    color: transparent;
+  }
+
+  /* ----- Modal ----- */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 900;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    width: 420px;
+    max-width: 92vw;
+  }
+  .modal h3 { margin: 0 0 12px; font-size: 16px; }
+  .modal label { display: block; font-size: 11px; color: var(--muted); margin: 10px 0 4px; }
+  .modal input, .modal select, .modal textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit;
+  }
+  .modal textarea { min-height: 60px; resize: vertical; }
+  .modal-footer { margin-top: 18px; display: flex; gap: 8px; justify-content: flex-end; }
 </style>
 </head>
 <body>
@@ -279,6 +386,50 @@
     <button type="submit">ログイン</button>
     <div class="login-error" id="loginError"></div>
   </form>
+</div>
+
+<!-- =================== BOOKING MODAL =================== -->
+<div class="modal-backdrop" id="bookingModal">
+  <div class="modal">
+    <h3 id="bookingModalTitle">予約を追加</h3>
+    <input type="hidden" id="bk_id" />
+    <input type="hidden" id="bk_staffId" />
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <div>
+        <label>スタッフ</label>
+        <div id="bk_staffLabel" style="font-weight:600; padding:6px 0;"></div>
+      </div>
+      <div>
+        <label>日付</label>
+        <input type="date" id="bk_date" />
+      </div>
+      <div>
+        <label>開始時刻</label>
+        <select id="bk_time"></select>
+      </div>
+      <div>
+        <label>所要時間（分）</label>
+        <select id="bk_duration">
+          <option value="30">30分</option>
+          <option value="45">45分</option>
+          <option value="60" selected>60分</option>
+          <option value="90">90分</option>
+          <option value="120">120分</option>
+        </select>
+      </div>
+    </div>
+    <label>顧客名</label>
+    <input type="text" id="bk_customer" placeholder="例: 田中 太郎" />
+    <label>メニュー</label>
+    <input type="text" id="bk_menu" placeholder="例: 全身整体60分" />
+    <label>メモ</label>
+    <textarea id="bk_notes" placeholder="任意"></textarea>
+    <div class="modal-footer">
+      <button id="bk_deleteBtn" class="danger" onclick="deleteBooking()" style="display:none;">削除</button>
+      <button class="ghost" onclick="closeBookingModal()">キャンセル</button>
+      <button onclick="saveBooking()">保存</button>
+    </div>
+  </div>
 </div>
 
 <div class="app" id="appRoot" style="display:none;">
@@ -369,6 +520,26 @@ const CLINICS = {
   nakamozu: 'NAORU整体 中百舌鳥院',
   tenrokuten: 'NAORU整体 天満天六院',
 };
+const STAFF = {
+  nakamozu: [
+    { id: 'anai',   name: '穴井 将太', role: '院長' },
+    { id: 'murata', name: '村田 鵬暢', role: 'スタッフ' },
+  ],
+  tenrokuten: [
+    { id: 'nakamura',  name: '中村 尭雅',  role: 'スタッフ' },
+    { id: 'nishikawa', name: '西川 慎太朗', role: 'スタッフ' },
+  ],
+};
+const TIME_SLOTS = (() => {
+  const arr = [];
+  for (let h = 9; h <= 20; h++) {
+    arr.push(`${pad2(h)}:00`);
+    arr.push(`${pad2(h)}:30`);
+  }
+  arr.push('21:00');
+  return arr;
+})();
+function pad2(n) { return String(n).padStart(2, '0'); }
 const CHANNEL_LABELS = {
   google: 'Google広告',
   meta: 'Meta広告',
@@ -451,6 +622,10 @@ function load() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) { try { state = JSON.parse(raw); } catch(e) { state = { entries: [] }; } }
   if (!state.entries) state.entries = [];
+  if (!state.shifts) state.shifts = {};
+  if (!state.bookings) state.bookings = [];
+  if (!state.staffViewClinic) state.staffViewClinic = 'nakamozu';
+  if (!state.staffViewDate) state.staffViewDate = new Date().toISOString().slice(0, 10);
 }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
@@ -1010,13 +1185,243 @@ function viewLine() {
     'セグメント配信',
   ], 'LINE Messaging API との連携で実装可能です。');
 }
+// ===== Staff scheduler helpers =====
+function shiftKey(staffId, date) { return `${staffId}__${date}`; }
+function getShift(staffId, date) {
+  return (state.shifts && state.shifts[shiftKey(staffId, date)]) || '出勤';
+}
+function setShift(staffId, date, status) {
+  state.shifts[shiftKey(staffId, date)] = status;
+  save();
+  renderView();
+}
+function getBookingsForStaffDate(staffId, date) {
+  return state.bookings.filter(b => b.staffId === staffId && b.date === date)
+    .sort((a, b) => a.time.localeCompare(b.time));
+}
+function slotIndex(time) { return TIME_SLOTS.indexOf(time); }
+function bookingAtSlot(staffId, date, time) {
+  const idx = slotIndex(time);
+  return state.bookings.find(b => {
+    if (b.staffId !== staffId || b.date !== date) return false;
+    const start = slotIndex(b.time);
+    const span = Math.max(1, Math.round((b.durationMin || 60) / 30));
+    return idx >= start && idx < start + span;
+  });
+}
+function isSlotStart(staffId, date, time, b) {
+  return b && b.time === time;
+}
+
+function switchStaffClinic(clinic) {
+  state.staffViewClinic = clinic;
+  save();
+  renderView();
+}
+function changeStaffDate(date) {
+  state.staffViewDate = date;
+  save();
+  renderView();
+}
+
 function viewStaff() {
-  return placeholder('スタッフ管理', '🧑‍⚕️', [
-    'スタッフ情報（所属店舗 / 役職 / 連絡先）',
-    'スタッフ別売上・施術件数',
-    '担当顧客リスト',
-    'シフト管理連携',
-  ], 'スタッフ別のパフォーマンス可視化に対応します。');
+  const date = state.staffViewDate;
+  const clinic = state.staffViewClinic;
+  const staffList = STAFF[clinic] || [];
+
+  const todayBookings = state.bookings.filter(b => b.date === date && staffList.some(s => s.id === b.staffId));
+  const totalBookings = todayBookings.length;
+
+  // Status counts
+  const onCount = staffList.filter(s => getShift(s.id, date) === '出勤').length;
+  const offCount = staffList.filter(s => getShift(s.id, date) === '休み').length;
+
+  return `
+    <div class="clinic-tabs">
+      ${Object.entries(CLINICS).map(([key, name]) => `
+        <div class="clinic-tab ${clinic === key ? 'active' : ''}" onclick="switchStaffClinic('${key}')">${name}</div>
+      `).join('')}
+    </div>
+
+    <div class="card" style="margin-bottom:18px;">
+      <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+        <div>
+          <label style="font-size:11px; color:var(--muted); display:block;">対象日</label>
+          <input type="date" value="${date}" onchange="changeStaffDate(this.value)" style="padding:8px 10px;" />
+        </div>
+        <button class="ghost" onclick="changeStaffDate('${new Date().toISOString().slice(0,10)}')">今日</button>
+        <button class="ghost" onclick="changeStaffDate('${ymdShift(date, -1)}')">← 前日</button>
+        <button class="ghost" onclick="changeStaffDate('${ymdShift(date, 1)}')">翌日 →</button>
+        <div style="flex:1;"></div>
+        <div style="font-size:12px; color:var(--muted);">
+          📊 出勤 ${onCount}名 / 休み ${offCount}名 / 本日の予約 ${totalBookings}件
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px;">
+      <h2>スタッフ一覧 (${CLINICS[clinic]})</h2>
+      <div class="staff-roster">
+        ${staffList.map(s => {
+          const shift = getShift(s.id, date);
+          const bookings = getBookingsForStaffDate(s.id, date);
+          return `
+            <div class="staff-card">
+              <div class="name">${s.name}</div>
+              <div class="role">${s.role}</div>
+              <div class="status-row">
+                <button class="status-btn ${shift === '出勤' ? 'active on' : ''}" onclick="setShift('${s.id}','${date}','出勤')">出勤</button>
+                <button class="status-btn ${shift === '半休' ? 'active half' : ''}" onclick="setShift('${s.id}','${date}','半休')">半休</button>
+                <button class="status-btn ${shift === '休み' ? 'active off' : ''}" onclick="setShift('${s.id}','${date}','休み')">休み</button>
+              </div>
+              <div class="stats">📅 本日の予約: <strong>${bookings.length} 件</strong></div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <h2 style="margin:0;">⏰ 時間別予約状況</h2>
+        <button onclick="openBookingModal('', '${date}', '')">+ 予約を追加</button>
+      </div>
+      ${renderScheduleGrid(staffList, date)}
+    </div>
+
+    <div class="card" style="margin-top:18px;">
+      <h2>📋 本日の予約一覧</h2>
+      ${todayBookings.length === 0 ? '<div class="empty">予約はまだありません。グリッドの空きセルをクリック、または「+ 予約を追加」から登録できます。</div>' : `
+        <table>
+          <thead><tr><th>時刻</th><th>スタッフ</th><th>顧客</th><th>メニュー</th><th>所要</th><th>メモ</th><th></th></tr></thead>
+          <tbody>${todayBookings.sort((a,b) => a.time.localeCompare(b.time)).map(b => {
+            const s = staffList.find(x => x.id === b.staffId);
+            return `<tr>
+              <td>${b.time}</td>
+              <td>${s ? s.name : b.staffId}</td>
+              <td>${b.customer || '-'}</td>
+              <td>${b.menu || '-'}</td>
+              <td>${b.durationMin || 60}分</td>
+              <td>${b.notes || '-'}</td>
+              <td><button class="ghost sm" onclick="openBookingModal('${b.staffId}','${b.date}','${b.time}','${b.id}')">編集</button></td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
+      `}
+    </div>
+  `;
+}
+
+function ymdShift(ymd, days) {
+  const d = new Date(ymd);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function renderScheduleGrid(staffList, date) {
+  if (staffList.length === 0) return '<div class="empty">スタッフがいません</div>';
+  const cols = `80px repeat(${staffList.length}, minmax(140px, 1fr))`;
+  let html = `<div class="schedule-grid" style="grid-template-columns: ${cols};">`;
+  // header
+  html += `<div class="head">時刻</div>`;
+  html += staffList.map(s => `<div class="head">${s.name}<br /><span style="font-weight:normal; font-size:10px; color:var(--muted);">${getShift(s.id, date)}</span></div>`).join('');
+  // rows
+  TIME_SLOTS.forEach(time => {
+    html += `<div class="time">${time}</div>`;
+    staffList.forEach(s => {
+      const shift = getShift(s.id, date);
+      const isOff = shift === '休み';
+      const b = bookingAtSlot(s.id, date, time);
+      if (isOff && !b) {
+        html += `<div class="slot off">—</div>`;
+      } else if (b) {
+        const isStart = b.time === time;
+        html += `<div class="slot booked ${isStart ? '' : 'continued'}" onclick="openBookingModal('${s.id}','${date}','${b.time}','${b.id}')">${isStart ? `${b.customer || '予約'}<br /><span style="font-size:10px;">${b.menu || ''}</span>` : ''}</div>`;
+      } else {
+        html += `<div class="slot" onclick="openBookingModal('${s.id}','${date}','${time}')"></div>`;
+      }
+    });
+  });
+  html += `</div>`;
+  return html;
+}
+
+// ===== Booking modal =====
+function openBookingModal(staffId, date, time, bookingId) {
+  const clinic = state.staffViewClinic;
+  const staffList = STAFF[clinic] || [];
+  const modal = document.getElementById('bookingModal');
+
+  // populate time select
+  const timeSel = document.getElementById('bk_time');
+  timeSel.innerHTML = TIME_SLOTS.map(t => `<option value="${t}">${t}</option>`).join('');
+
+  if (bookingId) {
+    const b = state.bookings.find(x => x.id === bookingId);
+    if (!b) return;
+    document.getElementById('bookingModalTitle').textContent = '予約を編集';
+    document.getElementById('bk_id').value = b.id;
+    document.getElementById('bk_staffId').value = b.staffId;
+    document.getElementById('bk_staffLabel').textContent = (staffList.find(s => s.id === b.staffId) || {}).name || b.staffId;
+    document.getElementById('bk_date').value = b.date;
+    document.getElementById('bk_time').value = b.time;
+    document.getElementById('bk_duration').value = b.durationMin || 60;
+    document.getElementById('bk_customer').value = b.customer || '';
+    document.getElementById('bk_menu').value = b.menu || '';
+    document.getElementById('bk_notes').value = b.notes || '';
+    document.getElementById('bk_deleteBtn').style.display = '';
+  } else {
+    document.getElementById('bookingModalTitle').textContent = '予約を追加';
+    document.getElementById('bk_id').value = '';
+    if (!staffId && staffList[0]) staffId = staffList[0].id;
+    document.getElementById('bk_staffId').value = staffId;
+    document.getElementById('bk_staffLabel').innerHTML = `
+      <select id="bk_staffSelect" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px;">
+        ${staffList.map(s => `<option value="${s.id}" ${s.id === staffId ? 'selected' : ''}>${s.name}</option>`).join('')}
+      </select>`;
+    document.getElementById('bk_date').value = date || state.staffViewDate;
+    document.getElementById('bk_time').value = time || TIME_SLOTS[0];
+    document.getElementById('bk_duration').value = '60';
+    document.getElementById('bk_customer').value = '';
+    document.getElementById('bk_menu').value = '';
+    document.getElementById('bk_notes').value = '';
+    document.getElementById('bk_deleteBtn').style.display = 'none';
+  }
+  modal.classList.add('show');
+}
+function closeBookingModal() { document.getElementById('bookingModal').classList.remove('show'); }
+
+function saveBooking() {
+  const id = document.getElementById('bk_id').value || ('bk_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
+  const staffSel = document.getElementById('bk_staffSelect');
+  const staffId = staffSel ? staffSel.value : document.getElementById('bk_staffId').value;
+  const booking = {
+    id,
+    staffId,
+    clinic: state.staffViewClinic,
+    date: document.getElementById('bk_date').value,
+    time: document.getElementById('bk_time').value,
+    durationMin: Number(document.getElementById('bk_duration').value) || 60,
+    customer: document.getElementById('bk_customer').value.trim(),
+    menu: document.getElementById('bk_menu').value.trim(),
+    notes: document.getElementById('bk_notes').value.trim(),
+  };
+  if (!booking.date || !booking.time) { alert('日付と時刻は必須です'); return; }
+  const idx = state.bookings.findIndex(b => b.id === id);
+  if (idx >= 0) state.bookings[idx] = booking;
+  else state.bookings.push(booking);
+  save();
+  closeBookingModal();
+  renderView();
+}
+function deleteBooking() {
+  const id = document.getElementById('bk_id').value;
+  if (!id) return;
+  if (!confirm('この予約を削除しますか？')) return;
+  state.bookings = state.bookings.filter(b => b.id !== id);
+  save();
+  closeBookingModal();
+  renderView();
 }
 function viewMenu() {
   return placeholder('メニュー管理', '🍽️', [
