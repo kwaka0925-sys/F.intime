@@ -332,6 +332,8 @@
       <div class="nav-group-title">設定</div>
       <div class="nav-item" data-view="data"><span class="icon">⚙️</span>データ管理</div>
       <div class="nav-item" data-view="import-customers"><span class="icon">📥</span>顧客データ移行</div>
+      <div class="nav-item" data-view="import-reservations"><span class="icon">📅</span>予約データ移行</div>
+      <div class="nav-item" data-view="import-sales"><span class="icon">💵</span>売上データ移行</div>
     </div>
 
     <button class="logout-btn" onclick="logout()">🚪 ログアウト</button>
@@ -398,6 +400,8 @@ const VIEWS = {
   'menu':                 { title: 'メニュー',         crumb: 'マスタ管理 / メニュー',                  filters: false },
   'data':                 { title: 'データ管理',       crumb: '設定 / データ管理',                      filters: false },
   'import-customers':     { title: '顧客データ移行',   crumb: '設定 / 顧客データ移行',                  filters: false },
+  'import-reservations':  { title: '予約データ移行',   crumb: '設定 / 予約データ移行',                  filters: false },
+  'import-sales':         { title: '売上データ移行',   crumb: '設定 / 売上データ移行',                  filters: false },
 };
 
 // ===== Auth =====
@@ -1031,22 +1035,192 @@ function parseCsv(text) {
   return rows.filter(r => r.some(c => c && c.trim()));
 }
 
-function mapCustomerRow(headers, row, sourceFile) {
-  const get = (...names) => {
-    for (const n of names) {
-      const idx = headers.findIndex(h => h && h.trim().toLowerCase().includes(n.toLowerCase()));
-      if (idx >= 0) return (row[idx] || '').trim();
-    }
-    return '';
-  };
+function findCol(headers, ...names) {
+  for (const n of names) {
+    const idx = headers.findIndex(h => h && h.trim().toLowerCase().includes(n.toLowerCase()));
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+function valByNames(headers, row, ...names) {
+  const idx = findCol(headers, ...names);
+  return idx >= 0 ? (row[idx] || '').trim() : '';
+}
+
+function mapReservationRow(headers, row, sourceFile) {
+  const date = valByNames(headers, row, '予約日', '来店日', '日付', 'date');
+  const time = valByNames(headers, row, '予約時間', '時間', 'time');
   return {
-    name: get('氏名', '名前', 'name', 'お名前'),
-    kana: get('かな', 'カナ', 'フリガナ', 'kana'),
-    phone: get('電話', 'tel', 'phone', '携帯'),
-    email: get('メール', 'mail', 'email', 'e-mail'),
-    firstVisit: get('初回', '初診', '登録日', 'first'),
+    datetime: (date + ' ' + time).trim(),
+    customer: valByNames(headers, row, '顧客', '氏名', '名前', 'お名前', 'name'),
+    menu: valByNames(headers, row, 'メニュー', 'コース', 'menu', '施術'),
+    staff: valByNames(headers, row, '担当', 'スタッフ', 'staff'),
+    status: valByNames(headers, row, 'ステータス', '状態', 'status') || '予約済',
     source: sourceFile,
   };
+}
+
+function mapSaleRow(headers, row, sourceFile) {
+  const amountRaw = valByNames(headers, row, '売上', '金額', '合計', 'amount', 'total', '会計');
+  const amount = Number(String(amountRaw).replace(/[¥,\s]/g, '')) || 0;
+  return {
+    date: valByNames(headers, row, '日付', '取引日', '会計日', 'date'),
+    amount,
+    menu: valByNames(headers, row, 'メニュー', '商品', '品目', 'item'),
+    staff: valByNames(headers, row, '担当', 'スタッフ', 'staff'),
+    customer: valByNames(headers, row, '顧客', '氏名', '名前', 'customer'),
+    source: sourceFile,
+  };
+}
+
+function mapCustomerRow(headers, row, sourceFile) {
+  return {
+    name: valByNames(headers, row, '氏名', '名前', 'name', 'お名前'),
+    kana: valByNames(headers, row, 'かな', 'カナ', 'フリガナ', 'kana'),
+    phone: valByNames(headers, row, '電話', 'tel', 'phone', '携帯'),
+    email: valByNames(headers, row, 'メール', 'mail', 'email', 'e-mail'),
+    firstVisit: valByNames(headers, row, '初回', '初診', '登録日', 'first'),
+    source: sourceFile,
+  };
+}
+
+function genericCsvImport(fileEvent, mapper, targetField, onDone) {
+  const file = fileEvent.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    let text;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(e.target.result); }
+    catch { text = new TextDecoder('shift-jis').decode(e.target.result); }
+    const rows = parseCsv(text);
+    if (rows.length < 2) { alert('データが見つかりませんでした'); return; }
+    const mapped = rows.slice(1).map(row => mapper(rows[0], row, file.name)).filter(r => r);
+    if (!state[targetField]) state[targetField] = [];
+    state[targetField] = state[targetField].concat(mapped);
+    save();
+    onDone(mapped.length);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function handleReservationCsv(ev) {
+  genericCsvImport(ev, mapReservationRow, 'reservations', (count) => {
+    document.getElementById('csvResult').innerHTML = `<div class="note">✓ ${count} 件の予約データを取り込みました</div>`;
+    setTimeout(() => renderView(), 800);
+  });
+}
+function handleSaleCsv(ev) {
+  genericCsvImport(ev, mapSaleRow, 'sales', (count) => {
+    document.getElementById('csvResult').innerHTML = `<div class="note">✓ ${count} 件の売上明細を取り込みました</div>`;
+    setTimeout(() => renderView(), 800);
+  });
+}
+
+function aggregateSalesToMonthly() {
+  if (!state.sales || state.sales.length === 0) { alert('取り込み済の売上明細がありません'); return; }
+  if (!confirm('売上明細を月次に集計し、月次売上に反映します。\n対象月の既存売上は上書きされます。よろしいですか？')) return;
+  const clinic = prompt('どちらの店舗の売上として登録しますか？\nnakamozu = 中百舌鳥院\ntenrokuten = 天満天六院', 'nakamozu');
+  if (!clinic || !CLINICS[clinic]) { alert('正しい店舗コードを指定してください'); return; }
+  const byMonth = {};
+  state.sales.forEach(s => {
+    if (!s.date) return;
+    const ym = s.date.slice(0, 7).replace(/\//g, '-');
+    if (!/^\d{4}-\d{2}$/.test(ym)) return;
+    byMonth[ym] = (byMonth[ym] || 0) + s.amount;
+  });
+  Object.entries(byMonth).forEach(([month, total]) => {
+    const existing = state.entries.find(e => e.month === month && e.clinic === clinic);
+    if (existing) { existing.revenue = total; }
+    else {
+      state.entries.push({
+        month, clinic, revenue: total, adspend: 0,
+        newCustomers: 0, repeatVisits: 0, reservations: 0, channel: 'other',
+      });
+    }
+  });
+  state.entries.sort((a,b) => a.month.localeCompare(b.month));
+  save();
+  alert(`${Object.keys(byMonth).length} ヶ月分を月次売上に反映しました`);
+  renderView();
+}
+
+function viewImportReservations() {
+  const reservations = state.reservations || [];
+  return `<div class="card"><h2>📅 予約データ移行 (CSVインポート)</h2>
+    <p style="font-size:13px; color:var(--muted);">サロンボード / RESERVA / Airリザーブ などから書き出した予約CSVを取り込めます。</p>
+    <label class="csv-drop" for="reservationCsv">
+      <div style="font-size:24px;">📄</div>
+      <div>予約CSVをここにドロップ、またはクリックして選択</div>
+      <div style="font-size:11px; margin-top:4px;">UTF-8 / Shift-JIS 自動判定</div>
+    </label>
+    <input type="file" id="reservationCsv" accept=".csv" style="display:none" onchange="handleReservationCsv(event)" />
+    <div id="csvResult"></div>
+    <div class="note" style="margin-top:20px;">
+      <strong>CSV書き出し方法:</strong><br />
+      • <strong>サロンボード</strong>: 予約管理 → 期間指定 → CSV出力<br />
+      • <strong>RESERVA</strong>: 予約管理 → エクスポート<br />
+      • <strong>Airリザーブ</strong>: 予約一覧 → CSVダウンロード<br />
+      • <strong>Googleカレンダー</strong>: ICSはこの画面では未対応、まずCSVに変換が必要です
+    </div>
+  </div>
+  <div class="card" style="margin-top:18px;">
+    <h2>取り込み済み予約 (${reservations.length} 件)</h2>
+    ${reservations.length === 0 ? '<div class="empty">まだ予約データはありません。</div>' : `
+      <table>
+        <thead><tr><th>日時</th><th>顧客</th><th>メニュー</th><th>担当</th><th>ステータス</th><th>取込元</th></tr></thead>
+        <tbody>${reservations.slice(0, 100).map(r => `<tr>
+          <td>${r.datetime || '-'}</td><td>${r.customer || '-'}</td>
+          <td>${r.menu || '-'}</td><td>${r.staff || '-'}</td>
+          <td><span class="pill">${r.status || '-'}</span></td><td>${r.source || '-'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      ${reservations.length > 100 ? `<div class="empty">先頭100件を表示中（全 ${reservations.length} 件）</div>` : ''}
+    `}
+  </div>`;
+}
+
+function viewImportSales() {
+  const sales = state.sales || [];
+  const total = sales.reduce((s, x) => s + (x.amount || 0), 0);
+  return `<div class="card"><h2>💵 売上データ移行 (CSVインポート)</h2>
+    <p style="font-size:13px; color:var(--muted);">サロンボード日報 / Airレジ / Square / スマレジ などから書き出した売上明細CSVを取り込めます。</p>
+    <label class="csv-drop" for="saleCsv">
+      <div style="font-size:24px;">📄</div>
+      <div>売上CSVをここにドロップ、またはクリックして選択</div>
+      <div style="font-size:11px; margin-top:4px;">UTF-8 / Shift-JIS 自動判定</div>
+    </label>
+    <input type="file" id="saleCsv" accept=".csv" style="display:none" onchange="handleSaleCsv(event)" />
+    <div id="csvResult"></div>
+
+    <div style="margin-top:16px;">
+      <button onclick="aggregateSalesToMonthly()">📊 月次売上に集計反映</button>
+      <span style="font-size:12px; color:var(--muted); margin-left:8px;">明細を月単位に集計し、ダッシュボードの月次売上に反映します</span>
+    </div>
+
+    <div class="note" style="margin-top:20px;">
+      <strong>CSV書き出し方法:</strong><br />
+      • <strong>サロンボード</strong>: 売上管理 → 日報 → 期間指定 → CSV出力<br />
+      • <strong>Airレジ</strong>: 売上分析 → CSVダウンロード（取引明細）<br />
+      • <strong>Square</strong>: ダッシュボード → 取引 → エクスポート<br />
+      • <strong>スマレジ</strong>: 売上集計 → CSV出力（API連携も可）<br />
+      • <strong>ユビレジ</strong>: レポート → CSV<br />
+      • <strong>銀行入金CSV</strong>: 各銀行のオンラインバンキングからダウンロード
+    </div>
+  </div>
+  <div class="card" style="margin-top:18px;">
+    <h2>取り込み済み売上明細 (${sales.length} 件 / 合計 ${yen(total)})</h2>
+    ${sales.length === 0 ? '<div class="empty">まだ売上データはありません。</div>' : `
+      <table>
+        <thead><tr><th>日付</th><th>金額</th><th>メニュー</th><th>担当</th><th>顧客</th><th>取込元</th></tr></thead>
+        <tbody>${sales.slice(0, 100).map(s => `<tr>
+          <td>${s.date || '-'}</td><td class="num">${yen(s.amount || 0)}</td>
+          <td>${s.menu || '-'}</td><td>${s.staff || '-'}</td>
+          <td>${s.customer || '-'}</td><td>${s.source || '-'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      ${sales.length > 100 ? `<div class="empty">先頭100件を表示中（全 ${sales.length} 件）</div>` : ''}
+    `}
+  </div>`;
 }
 
 const VIEW_RENDER = {
@@ -1066,6 +1240,8 @@ const VIEW_RENDER = {
   'menu':                 { html: viewMenu },
   'data':                 { html: viewData },
   'import-customers':     { html: viewImportCustomers },
+  'import-reservations':  { html: viewImportReservations },
+  'import-sales':         { html: viewImportSales },
 };
 
 function renderView() {
