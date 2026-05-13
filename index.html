@@ -386,103 +386,121 @@
   .slot.break:hover { filter: brightness(0.97); }
   .slot.break.continued { border-left: none; color: transparent; }
 
-  /* ----- Calendar ----- */
+  /* ----- Calendar (light & airy palette) ----- */
   .cal-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 1px;
-    background: var(--border);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    border-radius: 12px;
+    padding: 4px;
   }
   .cal-grid > .dow {
-    background: #fafbfc;
-    padding: 8px;
+    background: linear-gradient(180deg, #f0f7ff 0%, #e0ecff 100%);
+    padding: 10px;
     text-align: center;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    color: #4b5563;
+    border-radius: 8px;
   }
-  .cal-grid > .dow.sun { color: var(--danger); }
-  .cal-grid > .dow.sat { color: var(--primary); }
+  .cal-grid > .dow.sun { background: linear-gradient(180deg, #ffe4e6 0%, #fecaca 100%); color: #be123c; }
+  .cal-grid > .dow.sat { background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%); color: #1d4ed8; }
   .cal-day {
     background: white;
-    min-height: 96px;
-    padding: 6px 8px;
+    min-height: 110px;
+    padding: 8px 10px;
     cursor: pointer;
     position: relative;
+    border-radius: 10px;
+    border: 1px solid #f1f5f9;
+    transition: transform 0.1s, box-shadow 0.15s;
   }
-  .cal-day:hover { background: #f9fafb; }
-  .cal-day.other { background: #fafbfc; color: var(--muted-2); cursor: default; }
-  .cal-day.today { background: #eff6ff; }
-  .cal-day.today .date-num { color: var(--primary); font-weight: 700; }
-  .cal-day .date-num { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-  .cal-day .date-num.sun { color: var(--danger); }
-  .cal-day .date-num.sat { color: var(--primary); }
+  .cal-day:hover { background: #fefce8; box-shadow: 0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
+  .cal-day.other { background: #f8fafc; color: var(--muted-2); cursor: default; border-color: #f1f5f9; }
+  .cal-day.other:hover { background: #f8fafc; box-shadow: none; transform: none; }
+  .cal-day.sun-bg { background: #fff5f5; }
+  .cal-day.sat-bg { background: #f0f9ff; }
+  .cal-day.today { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-color: #fcd34d; }
+  .cal-day.today .date-num { color: #b45309; font-weight: 800; }
+  .cal-day .date-num { font-size: 14px; font-weight: 700; margin-bottom: 6px; color: #1f2937; }
+  .cal-day .date-num.sun { color: #dc2626; }
+  .cal-day .date-num.sat { color: #2563eb; }
   .staff-chip {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 2px 6px;
-    margin-top: 2px;
-    border-radius: 4px;
-    font-size: 10px;
-    background: #f3f4f6;
-    color: var(--muted);
+    padding: 3px 8px;
+    margin-top: 3px;
+    border-radius: 6px;
+    font-size: 11px;
+    background: #f8fafc;
+    color: #94a3b8;
   }
-  .staff-chip.has {
-    background: #dbeafe;
-    color: var(--primary-dark);
-    font-weight: 600;
-  }
+  .staff-chip.has { font-weight: 600; }
+  .staff-chip.has.c0 { background: #e0f2fe; color: #075985; }
+  .staff-chip.has.c1 { background: #f0fdf4; color: #15803d; }
+  .staff-chip.has.c2 { background: #fef3c7; color: #b45309; }
+  .staff-chip.has.c3 { background: #fce7f3; color: #be185d; }
   .cal-day .day-total {
     position: absolute;
-    top: 4px; right: 6px;
-    font-size: 10px;
-    padding: 1px 6px;
+    top: 6px; right: 8px;
+    font-size: 11px;
+    padding: 2px 8px;
     border-radius: 999px;
-    background: var(--primary);
+    background: linear-gradient(135deg, #818cf8, #6366f1);
     color: white;
-    font-weight: 600;
+    font-weight: 700;
+    box-shadow: 0 2px 4px rgba(99,102,241,0.3);
   }
-  .cal-day .day-total.zero { background: transparent; color: var(--muted-2); }
 
   .week-grid {
     display: grid;
-    gap: 1px;
-    background: var(--border);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    border-radius: 12px;
+    padding: 4px;
   }
-  .week-grid > div { background: white; padding: 8px; font-size: 12px; }
-  .week-grid .head { background: #fafbfc; font-weight: 600; text-align: center; font-size: 11px; }
-  .week-grid .head.today { background: #eff6ff; color: var(--primary); }
-  .week-grid .staff-name { background: #fafbfc; font-weight: 600; font-size: 12px; padding: 10px; }
+  .week-grid > div { background: white; padding: 10px; font-size: 12px; border-radius: 8px; border: 1px solid #f1f5f9; }
+  .week-grid .head {
+    background: linear-gradient(180deg, #f0f7ff 0%, #e0ecff 100%);
+    font-weight: 700;
+    text-align: center;
+    font-size: 12px;
+    color: #4b5563;
+  }
+  .week-grid .head.today { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); color: #b45309; border-color: #fcd34d; }
+  .week-grid .head.sun { background: linear-gradient(180deg, #ffe4e6 0%, #fecaca 100%); color: #be123c; }
+  .week-grid .head.sat { background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%); color: #1d4ed8; }
+  .week-grid .staff-name { background: #fafbfc; font-weight: 700; font-size: 13px; padding: 12px; }
   .week-cell {
     cursor: pointer;
-    min-height: 60px;
+    min-height: 72px;
     line-height: 1.4;
+    transition: transform 0.1s, box-shadow 0.15s;
   }
-  .week-cell:hover { background: #f9fafb; }
+  .week-cell:hover { background: #fefce8; box-shadow: 0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
   .week-cell.off {
-    background: repeating-linear-gradient(45deg, #fafbfc, #fafbfc 4px, #f3f4f6 4px, #f3f4f6 8px);
+    background: repeating-linear-gradient(45deg, #fefefe, #fefefe 4px, #f3f4f6 4px, #f3f4f6 8px);
     color: var(--muted-2);
     cursor: not-allowed;
     text-align: center;
   }
+  .week-cell.off:hover { box-shadow: none; transform: none; }
   .week-cell .count {
     display: inline-block;
-    padding: 1px 6px;
+    padding: 2px 8px;
     border-radius: 999px;
-    background: var(--primary);
+    background: linear-gradient(135deg, #818cf8, #6366f1);
     color: white;
-    font-size: 10px;
-    font-weight: 600;
-    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    box-shadow: 0 2px 4px rgba(99,102,241,0.3);
   }
-  .week-cell .b-list { font-size: 10px; color: var(--text); }
+  .week-cell .b-list { font-size: 11px; color: #475569; }
   .view-toggle {
     display: inline-flex;
     background: #f3f4f6;
@@ -1356,7 +1374,8 @@ function getMonthDays(yyyymm) {
   const [y, m] = yyyymm.split('-').map(Number);
   const first = new Date(y, m - 1, 1);
   const last = new Date(y, m, 0);
-  const startDay = first.getDay();
+  // Monday-first: Mon=0, Tue=1, ..., Sun=6
+  const startDay = (first.getDay() + 6) % 7;
   const cells = [];
   for (let i = 0; i < startDay; i++) {
     const dd = new Date(y, m - 1, 1 - (startDay - i));
@@ -1376,11 +1395,13 @@ function getMonthDays(yyyymm) {
 function ymd(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
 function getWeekDays(startYmd) {
   const d = new Date(startYmd);
-  const sunday = new Date(d);
-  sunday.setDate(d.getDate() - d.getDay());
+  // Monday-first: how many days back to Monday (Sun→6, Mon→0, Tue→1, ..., Sat→5)
+  const daysBack = (d.getDay() + 6) % 7;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - daysBack);
   return Array.from({ length: 7 }, (_, i) => {
-    const dd = new Date(sunday);
-    dd.setDate(sunday.getDate() + i);
+    const dd = new Date(monday);
+    dd.setDate(monday.getDate() + i);
     return ymd(dd);
   });
 }
@@ -1428,10 +1449,10 @@ function viewReservationCalendar() {
 
 function renderMonthCalendar(staffList, today) {
   const cells = getMonthDays(state.calMonth);
-  const dows = ['日','月','火','水','木','金','土'];
+  const dows = ['月','火','水','木','金','土','日'];
   let html = `<div class="card"><div class="cal-grid">`;
   dows.forEach((d, i) => {
-    const cls = i === 0 ? 'sun' : i === 6 ? 'sat' : '';
+    const cls = i === 5 ? 'sat' : i === 6 ? 'sun' : '';
     html += `<div class="dow ${cls}">${d}</div>`;
   });
   cells.forEach(cell => {
@@ -1445,11 +1466,11 @@ function renderMonthCalendar(staffList, today) {
     const dayBookings = staffList.map(s => ({ staff: s, count: bookingsOn(cell.date, s.id).length }));
     const total = dayBookings.reduce((a, b) => a + b.count, 0);
     const dnClass = dow === 0 ? 'sun' : dow === 6 ? 'sat' : '';
-    const cellClass = cell.date === today ? 'today' : '';
-    html += `<div class="cal-day ${cellClass}" onclick="jumpToStaffDay('${cell.date}')">
+    const cellBgClass = cell.date === today ? 'today' : (dow === 0 ? 'sun-bg' : dow === 6 ? 'sat-bg' : '');
+    html += `<div class="cal-day ${cellBgClass}" onclick="jumpToStaffDay('${cell.date}')">
       <div class="date-num ${dnClass}">${dayNum}</div>
-      ${total > 0 ? `<div class="day-total">${total}件</div>` : `<div class="day-total zero">·</div>`}
-      ${dayBookings.map(b => `<div class="staff-chip ${b.count > 0 ? 'has' : ''}">
+      ${total > 0 ? `<div class="day-total">${total}件</div>` : ''}
+      ${dayBookings.map((b, i) => `<div class="staff-chip ${b.count > 0 ? 'has c' + (i % 4) : ''}">
         <span>${b.staff.name.split(' ')[0]}</span><span>${b.count > 0 ? b.count + '件' : '—'}</span>
       </div>`).join('')}
     </div>`;
@@ -1470,8 +1491,8 @@ function renderWeekCalendar(staffList, today) {
     const dd = new Date(d);
     const dow = dd.getDay();
     const isToday = d === today;
-    const color = dow === 0 ? 'color:var(--danger);' : dow === 6 ? 'color:var(--primary);' : '';
-    html += `<div class="head ${isToday ? 'today' : ''}" style="${color}">${jpDate(d)}</div>`;
+    const dowCls = dow === 0 ? 'sun' : dow === 6 ? 'sat' : '';
+    html += `<div class="head ${isToday ? 'today' : dowCls}">${jpDate(d)}</div>`;
   });
   staffList.forEach(s => {
     html += `<div class="staff-name">${s.name}<br /><span style="font-size:10px; color:var(--muted); font-weight:normal;">${s.role}</span></div>`;
