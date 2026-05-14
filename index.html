@@ -793,52 +793,56 @@
   /* ----- Daily sales table ----- */
   .daily-wrap { overflow-x: auto; margin-top: 8px; }
   .daily-table {
-    border-collapse: separate;
-    border-spacing: 1px;
-    background: var(--border);
+    border-collapse: collapse;
     font-size: 12px;
+    border: 2px solid #94a3b8;
   }
   .daily-table th, .daily-table td {
     background: white;
-    padding: 4px 6px;
+    padding: 6px 8px;
     text-align: center;
-    border: none;
+    border: 1px solid #cbd5e1;
     white-space: nowrap;
   }
   .daily-table thead th {
     background: linear-gradient(180deg, #fef3c7, #fde68a);
     color: #92400e;
     font-weight: 700;
-    font-size: 11px;
-    padding: 8px 6px;
+    font-size: 12px;
+    padding: 10px 8px;
+    border: 1px solid #ca8a04;
   }
-  .daily-table thead th.hl { background: linear-gradient(180deg, #fed7aa, #fdba74); color: #9a3412; }
-  .daily-table tbody td.dow-sun { color: #dc2626; font-weight: 600; }
-  .daily-table tbody td.dow-sat { color: #2563eb; font-weight: 600; }
-  .daily-table tbody td.date-cell { font-weight: 600; color: var(--text-dark); }
+  .daily-table thead th.hl { background: linear-gradient(180deg, #fed7aa, #fdba74); color: #9a3412; border-color: #c2410c; }
+  .daily-table tbody td.dow-sun { color: #dc2626; font-weight: 700; background: #fff5f5; }
+  .daily-table tbody td.dow-sat { color: #2563eb; font-weight: 700; background: #f0f9ff; }
+  .daily-table tbody td.date-cell { font-weight: 700; color: var(--text-dark); background: #fafbfc; }
   .daily-table tbody td.hl { background: #fff7ed; }
   .daily-table tfoot td {
-    background: #f0f9ff;
-    font-weight: 700;
+    background: #dbeafe;
+    font-weight: 800;
     color: var(--primary-dark);
-    font-size: 12px;
-    border-top: 2px solid var(--primary);
+    font-size: 13px;
+    border: 1px solid var(--primary);
+    border-top: 3px solid var(--primary);
+    padding: 8px;
   }
+  .daily-cell { padding: 0 !important; }
   .daily-cell input {
     width: 100%;
-    min-width: 36px;
-    padding: 3px 5px;
-    border: 1px solid transparent;
+    min-width: 44px;
+    padding: 6px 4px;
+    border: none;
     background: transparent;
-    font-size: 12px;
+    font-size: 13px;
     text-align: center;
     font-family: inherit;
-    border-radius: 3px;
     color: var(--text-dark);
+    box-sizing: border-box;
   }
-  .daily-cell input:hover { border-color: var(--border); background: #fafbfc; }
-  .daily-cell input:focus { outline: none; background: white; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
-  .daily-cell input[readonly] { color: var(--text-dark); font-weight: 700; cursor: default; }
+  .daily-cell input:hover { background: #fef3c7; }
+  .daily-cell input:focus { outline: 2px solid var(--primary); outline-offset: -2px; background: white; }
+  .daily-cell input[readonly] { color: var(--text-dark); font-weight: 700; cursor: default; background: transparent; }
+  .daily-cell input[readonly]:hover { background: transparent; }
 
   .search-input {
     width: 100%;
