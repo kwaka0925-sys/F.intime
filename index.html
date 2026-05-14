@@ -391,6 +391,15 @@
   }
   .slot.break:hover { filter: brightness(0.97); }
   .slot.break.continued { border-left: none; color: transparent; }
+  .slot.mtg {
+    background: repeating-linear-gradient(135deg, #ede9fe, #ede9fe 4px, #ddd6fe 4px, #ddd6fe 8px);
+    border-left: 3px solid #8b5cf6;
+    color: #5b21b6;
+    font-weight: 600;
+    text-align: center;
+  }
+  .slot.mtg:hover { filter: brightness(0.97); }
+  .slot.mtg.continued { border-left: none; color: transparent; }
 
   /* ----- Calendar (light & airy palette) ----- */
   .cal-grid {
@@ -723,12 +732,15 @@
     <input type="hidden" id="bk_staffId" />
 
     <label>種別</label>
-    <div style="display:flex; gap:8px;">
-      <label style="flex:1; cursor:pointer; padding:8px; border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; gap:6px; margin:0;">
-        <input type="radio" name="bk_type" value="予約" checked onchange="toggleBookingType()" style="width:auto;" /> 予約
+    <div style="display:flex; gap:6px;">
+      <label style="flex:1; cursor:pointer; padding:8px; border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; gap:6px; margin:0; justify-content:center;">
+        <input type="radio" name="bk_type" value="施術" checked onchange="toggleBookingType()" style="width:auto;" /> 🔵 施術
       </label>
-      <label style="flex:1; cursor:pointer; padding:8px; border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; gap:6px; margin:0;">
-        <input type="radio" name="bk_type" value="休憩" onchange="toggleBookingType()" style="width:auto;" /> 休憩
+      <label style="flex:1; cursor:pointer; padding:8px; border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; gap:6px; margin:0; justify-content:center;">
+        <input type="radio" name="bk_type" value="休憩" onchange="toggleBookingType()" style="width:auto;" /> 🟠 休憩
+      </label>
+      <label style="flex:1; cursor:pointer; padding:8px; border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; gap:6px; margin:0; justify-content:center;">
+        <input type="radio" name="bk_type" value="MTG" onchange="toggleBookingType()" style="width:auto;" /> 🟣 MTG
       </label>
     </div>
 
@@ -756,11 +768,20 @@
         </select>
       </div>
     </div>
-    <div id="bk_customerFields">
+    <div id="bk_customerField">
       <label>顧客名</label>
       <input type="text" id="bk_customer" placeholder="例: 田中 太郎" />
+    </div>
+    <div id="bk_menuField">
       <label>メニュー</label>
-      <input type="text" id="bk_menu" placeholder="例: 全身整体60分" />
+      <select id="bk_menu" onchange="onMenuChange()">
+        <option value="">（選択してください）</option>
+        <option value="NAORUプラン">NAORUプラン</option>
+        <option value="ボディーケア30分">ボディーケア30分</option>
+        <option value="ボディーケア60分">ボディーケア60分</option>
+        <option value="ボディーケア90分">ボディーケア90分</option>
+        <option value="メンテナンス">メンテナンス</option>
+      </select>
     </div>
     <label>メモ</label>
     <textarea id="bk_notes" placeholder="任意"></textarea>
@@ -1721,7 +1742,7 @@ function jumpToStaffDay(date) {
   switchView('staff');
 }
 function bookingsOn(date, staffId) {
-  return state.bookings.filter(b => b.date === date && b.staffId === staffId && b.type !== '休憩');
+  return state.bookings.filter(b => b.date === date && b.staffId === staffId && b.type !== '休憩' && b.type !== 'MTG');
 }
 function getMonthDays(yyyymm) {
   const [y, m] = yyyymm.split('-').map(Number);
@@ -1996,13 +2017,16 @@ function viewStaff() {
           <thead><tr><th>時刻</th><th>種別</th><th>スタッフ</th><th>顧客</th><th>メニュー</th><th>所要</th><th>メモ</th><th></th></tr></thead>
           <tbody>${todayBookings.sort((a,b) => a.time.localeCompare(b.time)).map(b => {
             const s = staffList.find(x => x.id === b.staffId);
-            const isBreak = b.type === '休憩';
+            const type = b.type === '予約' ? '施術' : (b.type || '施術');
+            const pillStyle = type === '休憩' ? 'background:#fff7ed; color:#92400e;' :
+                              type === 'MTG'  ? 'background:#ede9fe; color:#5b21b6;' : '';
+            const isTreatment = type === '施術';
             return `<tr>
               <td>${b.time}</td>
-              <td><span class="pill" style="${isBreak ? 'background:#fff7ed; color:#92400e;' : ''}">${b.type || '予約'}</span></td>
+              <td><span class="pill" style="${pillStyle}">${type}</span></td>
               <td>${s ? s.name : b.staffId}</td>
-              <td>${b.customer || (isBreak ? '—' : '-')}</td>
-              <td>${b.menu || (isBreak ? '—' : '-')}</td>
+              <td>${isTreatment ? (b.customer || '-') : '—'}</td>
+              <td>${isTreatment ? (b.menu || '-') : '—'}</td>
               <td>${b.durationMin || 60}分</td>
               <td>${b.notes || '-'}</td>
               <td><button class="ghost sm" onclick="openBookingModal('${b.staffId}','${b.date}','${b.time}','${b.id}')">編集</button></td>
@@ -2039,9 +2063,22 @@ function renderScheduleGrid(staffList, date) {
       const b = bookingAtSlot(s.id, date, time);
       if (b) {
         const isStart = b.time === time;
-        const cls = b.type === '休憩' ? `slot break ${isStart ? '' : 'continued'}` : `slot booked ${isStart ? '' : 'continued'}`;
-        const label = b.type === '休憩' ? (isStart ? '☕ 休憩' : '') : (isStart ? `${(b.customer || '予約').slice(0, 6)}` : '');
-        html += `<div class="${cls}" onclick="openBookingModal('${s.id}','${date}','${b.time}','${b.id}')" title="${b.type === '休憩' ? '休憩' : (b.customer || '予約') + (b.menu ? ' / ' + b.menu : '')}">${label}</div>`;
+        let typeCls, labelText, titleText;
+        if (b.type === '休憩') {
+          typeCls = 'break';
+          labelText = isStart ? '☕ 休憩' : '';
+          titleText = '休憩';
+        } else if (b.type === 'MTG') {
+          typeCls = 'mtg';
+          labelText = isStart ? '👥 MTG' : '';
+          titleText = 'MTG' + (b.notes ? ' / ' + b.notes : '');
+        } else {
+          typeCls = 'booked';
+          labelText = isStart ? `${(b.customer || '施術').slice(0, 6)}` : '';
+          titleText = (b.customer || '施術') + (b.menu ? ' / ' + b.menu : '');
+        }
+        const cls = `slot ${typeCls} ${isStart ? '' : 'continued'}`;
+        html += `<div class="${cls}" onclick="openBookingModal('${s.id}','${date}','${b.time}','${b.id}')" title="${titleText}">${labelText}</div>`;
       } else if (isOff) {
         html += `<div class="slot off">—</div>`;
       } else {
@@ -2050,11 +2087,12 @@ function renderScheduleGrid(staffList, date) {
     });
   });
   html += `</div></div>`;
-  html += `<div style="margin-top:10px; font-size:11px; color:var(--muted); display:flex; gap:16px;">
-    <span><span style="display:inline-block; width:12px; height:12px; background:#dbeafe; border-left:3px solid var(--primary); vertical-align:middle;"></span> 予約</span>
-    <span><span style="display:inline-block; width:12px; height:12px; background:repeating-linear-gradient(135deg, #fff7ed, #fff7ed 2px, #ffedd5 2px, #ffedd5 4px); border-left:3px solid var(--warning); vertical-align:middle;"></span> 休憩</span>
+  html += `<div style="margin-top:10px; font-size:11px; color:var(--muted); display:flex; gap:16px; flex-wrap:wrap;">
+    <span><span style="display:inline-block; width:12px; height:12px; background:#dbeafe; border-left:3px solid var(--primary); vertical-align:middle;"></span> 🔵 施術</span>
+    <span><span style="display:inline-block; width:12px; height:12px; background:repeating-linear-gradient(135deg, #fff7ed, #fff7ed 2px, #ffedd5 2px, #ffedd5 4px); border-left:3px solid var(--warning); vertical-align:middle;"></span> 🟠 休憩</span>
+    <span><span style="display:inline-block; width:12px; height:12px; background:repeating-linear-gradient(135deg, #ede9fe, #ede9fe 2px, #ddd6fe 2px, #ddd6fe 4px); border-left:3px solid #8b5cf6; vertical-align:middle;"></span> 🟣 MTG</span>
     <span><span style="display:inline-block; width:12px; height:12px; background:repeating-linear-gradient(45deg, #fafbfc, #fafbfc 3px, #f3f4f6 3px, #f3f4f6 6px); vertical-align:middle;"></span> 休み</span>
-    <span style="margin-left:auto;">→ 空きセルをクリックで予約/休憩を追加、既存をクリックで編集</span>
+    <span style="margin-left:auto;">→ 空きセルをクリックで追加、既存をクリックで編集</span>
   </div>`;
   return html;
 }
@@ -2066,14 +2104,21 @@ function setBookingType(type) {
 }
 function toggleBookingType() {
   const type = document.querySelector('input[name="bk_type"]:checked').value;
-  const isBreak = type === '休憩';
-  document.getElementById('bk_customerFields').style.display = isBreak ? 'none' : '';
+  const isTreatment = type === '施術';
+  document.getElementById('bk_customerField').style.display = isTreatment ? '' : 'none';
+  document.getElementById('bk_menuField').style.display = isTreatment ? '' : 'none';
   document.getElementById('bookingModalTitle').textContent =
-    (document.getElementById('bk_id').value ? '編集' : '追加') + ': ' + (isBreak ? '休憩' : '予約');
-  if (isBreak) {
-    // default break duration: 30 min if creating new
-    if (!document.getElementById('bk_id').value) document.getElementById('bk_duration').value = '30';
+    (document.getElementById('bk_id').value ? '編集' : '追加') + ': ' + type;
+  // sensible defaults when creating new
+  if (!document.getElementById('bk_id').value) {
+    if (type === '休憩') document.getElementById('bk_duration').value = '30';
+    else if (type === 'MTG') document.getElementById('bk_duration').value = '60';
   }
+}
+function onMenuChange() {
+  const menu = document.getElementById('bk_menu').value;
+  const map = { 'ボディーケア30分': '30', 'ボディーケア60分': '60', 'ボディーケア90分': '90' };
+  if (map[menu]) document.getElementById('bk_duration').value = map[menu];
 }
 
 function openBookingModal(staffId, date, time, bookingId) {
@@ -2098,7 +2143,9 @@ function openBookingModal(staffId, date, time, bookingId) {
     document.getElementById('bk_menu').value = b.menu || '';
     document.getElementById('bk_notes').value = b.notes || '';
     document.getElementById('bk_deleteBtn').style.display = '';
-    setBookingType(b.type || '予約');
+    // Backward compat: old data may have type='予約' — treat as '施術'
+    const t = b.type === '予約' ? '施術' : (b.type || '施術');
+    setBookingType(t);
   } else {
     document.getElementById('bk_id').value = '';
     if (!staffId && staffList[0]) staffId = staffList[0].id;
@@ -2114,7 +2161,7 @@ function openBookingModal(staffId, date, time, bookingId) {
     document.getElementById('bk_menu').value = '';
     document.getElementById('bk_notes').value = '';
     document.getElementById('bk_deleteBtn').style.display = 'none';
-    setBookingType('予約');
+    setBookingType('施術');
   }
   modal.classList.add('show');
 }
@@ -2133,8 +2180,8 @@ function saveBooking() {
     date: document.getElementById('bk_date').value,
     time: document.getElementById('bk_time').value,
     durationMin: Number(document.getElementById('bk_duration').value) || 60,
-    customer: type === '休憩' ? '' : document.getElementById('bk_customer').value.trim(),
-    menu: type === '休憩' ? '' : document.getElementById('bk_menu').value.trim(),
+    customer: type === '施術' ? document.getElementById('bk_customer').value.trim() : '',
+    menu: type === '施術' ? document.getElementById('bk_menu').value.trim() : '',
     notes: document.getElementById('bk_notes').value.trim(),
   };
   if (!booking.date || !booking.time) { alert('日付と時刻は必須です'); return; }
