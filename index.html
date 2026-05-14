@@ -606,9 +606,9 @@
     min-width: max-content;
   }
   .att-grid > .head {
-    font-size: 12px;
+    font-size: 14px;
     text-align: center;
-    padding: 8px 2px;
+    padding: 10px 4px;
     background: linear-gradient(180deg, #f0f7ff 0%, #e0ecff 100%);
     border-radius: 6px;
     font-weight: 700;
@@ -618,11 +618,11 @@
   .att-grid > .head.sat { background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%); color: #1d4ed8; }
   .att-grid > .head.today { background: linear-gradient(180deg, #fde68a 0%, #fcd34d 100%); color: #92400e; }
   .att-grid > .name {
-    padding: 10px 12px;
+    padding: 14px 16px;
     background: #fafbfc;
     border-radius: 6px;
     font-weight: 700;
-    font-size: 13px;
+    font-size: 14px;
     border-left: 4px solid var(--primary);
     cursor: pointer;
     transition: background 0.15s;
@@ -632,16 +632,16 @@
     content: '⚙';
     float: right;
     color: var(--muted);
-    font-size: 12px;
+    font-size: 14px;
   }
   .att-cell {
-    height: 44px;
+    height: 52px;
     border-radius: 6px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
+    font-size: 17px;
     font-weight: 700;
     transition: transform 0.1s;
     user-select: none;
@@ -651,12 +651,12 @@
   .att-cell.half { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
   .att-cell.off { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #b91c1c; }
   .att-total {
-    height: 44px;
+    height: 52px;
     border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 700;
     background: linear-gradient(135deg, #fef3c7, #fde68a);
     color: #92400e;
@@ -676,10 +676,18 @@
   .dow-check:hover { background: var(--sidebar-hover); }
   .dow-check input { width: auto; margin: 0; }
   .att-clinic-label {
-    font-size: 11px;
-    color: var(--muted);
-    font-weight: 600;
-    padding: 14px 0 6px;
+    font-size: 16px;
+    color: var(--text-dark);
+    font-weight: 700;
+    margin-top: 40px;
+    padding-top: 20px;
+    padding-bottom: 12px;
+    border-top: 2px dashed var(--border);
+  }
+  .att-clinic-label:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
   }
 
   /* ----- Modal ----- */
@@ -2207,7 +2215,7 @@ function viewStaffAttendance() {
   const lastDay = new Date(y, m, 0).getDate();
   const days = Array.from({ length: lastDay }, (_, i) => i + 1);
   const today = ymd(new Date());
-  const cols = `200px repeat(${lastDay}, 44px) 90px`;
+  const cols = `220px repeat(${lastDay}, 52px) 100px`;
 
   const renderStaffRow = (s, clinicName) => {
     let offCount = 0;
