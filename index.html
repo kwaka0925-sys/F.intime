@@ -790,6 +790,56 @@
   .cs-item .name { font-weight: 600; color: var(--text-dark); }
   .cs-item .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
   .cs-empty { padding: 14px 12px; text-align: center; color: var(--muted); font-size: 13px; }
+  /* ----- Daily sales table ----- */
+  .daily-wrap { overflow-x: auto; margin-top: 8px; }
+  .daily-table {
+    border-collapse: separate;
+    border-spacing: 1px;
+    background: var(--border);
+    font-size: 12px;
+  }
+  .daily-table th, .daily-table td {
+    background: white;
+    padding: 4px 6px;
+    text-align: center;
+    border: none;
+    white-space: nowrap;
+  }
+  .daily-table thead th {
+    background: linear-gradient(180deg, #fef3c7, #fde68a);
+    color: #92400e;
+    font-weight: 700;
+    font-size: 11px;
+    padding: 8px 6px;
+  }
+  .daily-table thead th.hl { background: linear-gradient(180deg, #fed7aa, #fdba74); color: #9a3412; }
+  .daily-table tbody td.dow-sun { color: #dc2626; font-weight: 600; }
+  .daily-table tbody td.dow-sat { color: #2563eb; font-weight: 600; }
+  .daily-table tbody td.date-cell { font-weight: 600; color: var(--text-dark); }
+  .daily-table tbody td.hl { background: #fff7ed; }
+  .daily-table tfoot td {
+    background: #f0f9ff;
+    font-weight: 700;
+    color: var(--primary-dark);
+    font-size: 12px;
+    border-top: 2px solid var(--primary);
+  }
+  .daily-cell input {
+    width: 100%;
+    min-width: 36px;
+    padding: 3px 5px;
+    border: 1px solid transparent;
+    background: transparent;
+    font-size: 12px;
+    text-align: center;
+    font-family: inherit;
+    border-radius: 3px;
+    color: var(--text-dark);
+  }
+  .daily-cell input:hover { border-color: var(--border); background: #fafbfc; }
+  .daily-cell input:focus { outline: none; background: white; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
+  .daily-cell input[readonly] { color: var(--text-dark); font-weight: 700; cursor: default; }
+
   .search-input {
     width: 100%;
     padding: 11px 14px 11px 38px;
@@ -947,6 +997,7 @@
     <div class="nav-group">
       <div class="nav-group-title">売上管理</div>
       <div class="nav-item" data-view="revenue-entry"><span class="icon">📝</span>月次売上入力</div>
+      <div class="nav-item" data-view="daily-sales"><span class="icon">📅</span>日次売上</div>
       <div class="nav-item" data-view="revenue-list"><span class="icon">📋</span>売上一覧</div>
       <div class="nav-item" data-view="revenue-trend"><span class="icon">📈</span>売上推移</div>
     </div>
@@ -1062,6 +1113,7 @@ const charts = {};
 const VIEWS = {
   'summary':              { title: '経営サマリー',     crumb: 'ダッシュボード / 経営サマリー',         filters: true },
   'revenue-entry':        { title: '月次売上入力',     crumb: '売上管理 / 月次売上入力',                filters: false },
+  'daily-sales':          { title: '日次売上',         crumb: '売上管理 / 日次売上',                    filters: false },
   'revenue-list':         { title: '売上一覧',         crumb: '売上管理 / 売上一覧',                    filters: true },
   'revenue-trend':        { title: '売上推移',         crumb: '売上管理 / 売上推移',                    filters: true },
   'ad-cost':              { title: '広告費管理',       crumb: '広告・集客 / 広告費管理',                filters: true },
@@ -1141,6 +1193,52 @@ function load() {
   if (!state.calWeekStart) state.calWeekStart = new Date().toISOString().slice(0, 10);
   if (!state.calView) state.calView = 'month';
   if (!state.attendanceMonth) state.attendanceMonth = ymOf(new Date());
+  if (!state.dailyEntries) state.dailyEntries = [];
+  if (!state.dailyClinic) state.dailyClinic = 'nakamozu';
+  if (!state.dailyMonth) state.dailyMonth = '2026-05';
+  if (!state.dailySeeded) {
+    seedDailySalesNakamozu();
+    state.dailySeeded = true;
+    save();
+  }
+}
+
+const DAILY_FIELDS = ['referralCount','chanHpb','chanHp','chanFlyer','chanMeta','chanMinimo','chanReferral','chanBoneFix','chanMeo','chanGmap','chanOther','returning','smile','reservations','cancellations','actualVisits','otherCash','memberSales'];
+const DAILY_CHANNELS = ['chanHpb','chanHp','chanFlyer','chanMeta','chanMinimo','chanReferral','chanBoneFix','chanMeo','chanGmap','chanOther'];
+
+function createEmptyDaily(date, clinic) {
+  const e = { date, clinic, newPatient: 0 };
+  DAILY_FIELDS.forEach(f => e[f] = 0);
+  return e;
+}
+function recomputeNewPatient(e) {
+  e.newPatient = DAILY_CHANNELS.reduce((s, k) => s + (e[k] || 0), 0);
+}
+
+function seedDailySalesNakamozu() {
+  const rows = [
+    { d: 1,  reservations: 7,  actualVisits: 7,  memberSales: 62700 },
+    { d: 2,  chanMeta: 1, reservations: 14, actualVisits: 15, otherCash: 2000,  memberSales: 49750 },
+    { d: 3,  chanHpb: 2, chanHp: 1, chanMeta: 2, reservations: 12, actualVisits: 14, otherCash: 31000, memberSales: 86750 },
+    { d: 4,  chanMeta: 2, reservations: 6,  actualVisits: 8,  otherCash: 4000,  memberSales: 49500 },
+    { d: 5,  chanHpb: 1, reservations: 12, actualVisits: 13, otherCash: 3500,  memberSales: 111750 },
+    { d: 6,  chanHpb: 1, reservations: 10, actualVisits: 10, otherCash: 3500,  memberSales: 62000 },
+    { d: 7,  chanMeta: 1, reservations: 8,  actualVisits: 10, otherCash: 2000,  memberSales: 62000 },
+    { d: 8,  chanMeta: 1, reservations: 9,  actualVisits: 10, otherCash: 2000,  memberSales: 50450 },
+    { d: 9,  chanMeta: 1, reservations: 12, actualVisits: 13, otherCash: 2000,  memberSales: 74250 },
+    { d: 10, chanMeta: 1, reservations: 18, actualVisits: 19, otherCash: 17400, memberSales: 74250 },
+    { d: 11, reservations: 8,  actualVisits: 8,  memberSales: 74750 },
+    { d: 12, chanGmap: 1, reservations: 9,  actualVisits: 10, otherCash: 6000,  memberSales: 37500 },
+    { d: 13, chanGmap: 2, reservations: 9,  actualVisits: 11, otherCash: 2000,  memberSales: 38200 },
+    { d: 14, chanGmap: 2, reservations: 7,  actualVisits: 8,  otherCash: 7000,  memberSales: 49750 },
+  ];
+  rows.forEach(r => {
+    const dateStr = `2026-05-${pad2(r.d)}`;
+    const e = createEmptyDaily(dateStr, 'nakamozu');
+    Object.entries(r).forEach(([k, v]) => { if (k !== 'd') e[k] = v; });
+    recomputeNewPatient(e);
+    state.dailyEntries.push(e);
+  });
 }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
@@ -1579,6 +1677,143 @@ function editEntry(month, clinic) {
     document.getElementById('f_channel').value = e.channel;
     updateRevenueTotal();
   }, 50);
+}
+
+// ===== Daily sales view =====
+const DAILY_COLS = [
+  { key: 'newPatient',    label: '新患',    hl: true,  readonly: true },
+  { key: 'referralCount', label: '紹介数' },
+  { key: 'chanHpb',       label: 'HPB' },
+  { key: 'chanHp',        label: 'HP' },
+  { key: 'chanFlyer',     label: 'チラシ' },
+  { key: 'chanMeta',      label: 'メタ広告' },
+  { key: 'chanMinimo',    label: 'minimo' },
+  { key: 'chanReferral',  label: '紹介' },
+  { key: 'chanBoneFix',   label: '骨FIX' },
+  { key: 'chanMeo',       label: 'MEO' },
+  { key: 'chanGmap',      label: 'Gマップ' },
+  { key: 'chanOther',     label: 'その他' },
+  { key: 'returning',     label: '再診' },
+  { key: 'smile',         label: 'スマイル' },
+  { key: 'reservations',  label: '予約人数' },
+  { key: 'cancellations', label: '赤キャンセル' },
+  { key: 'actualVisits',  label: '実来院数', hl: true },
+  { key: 'otherCash',     label: 'その他自費', wide: true },
+  { key: 'memberSales',   label: '会員売上',  wide: true },
+];
+
+function shiftDailyMonth(delta) {
+  const [y, m] = state.dailyMonth.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  state.dailyMonth = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+  save();
+  renderView();
+}
+function switchDailyClinic(clinic) {
+  state.dailyClinic = clinic;
+  save();
+  renderView();
+}
+
+function getDailyEntry(date, clinic) {
+  return state.dailyEntries.find(e => e.date === date && e.clinic === clinic);
+}
+
+function viewDailySales() {
+  const clinic = state.dailyClinic;
+  const month = state.dailyMonth;
+  const [y, m] = month.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const dowChars = ['日','月','火','水','木','金','土'];
+
+  // header
+  let head = `<tr><th>営業日</th><th>曜日</th>` +
+    DAILY_COLS.map(c => `<th class="${c.hl ? 'hl' : ''}" style="${c.wide ? 'min-width:84px;' : ''}">${c.label}</th>`).join('') +
+    `</tr>`;
+
+  // body rows
+  let body = '';
+  for (let d = 1; d <= lastDay; d++) {
+    const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
+    const dow = new Date(y, m - 1, d).getDay();
+    const e = getDailyEntry(dateStr, clinic) || createEmptyDaily(dateStr, clinic);
+    const dowCls = dow === 0 ? 'dow-sun' : dow === 6 ? 'dow-sat' : '';
+    body += `<tr>
+      <td class="date-cell">${m}/${d}</td>
+      <td class="${dowCls}">${dowChars[dow]}</td>` +
+      DAILY_COLS.map(c => {
+        const val = e[c.key] || 0;
+        const display = val || '';
+        if (c.readonly) {
+          return `<td class="hl daily-cell"><input id="np_${dateStr}" type="number" value="${display}" readonly /></td>`;
+        }
+        return `<td class="${c.hl ? 'hl' : ''} daily-cell"><input type="number" min="0" value="${display}" onchange="updateDailyCell('${dateStr}','${clinic}','${c.key}',this.value)" /></td>`;
+      }).join('') + `</tr>`;
+  }
+
+  // footer totals
+  const totals = {};
+  DAILY_COLS.forEach(c => totals[c.key] = 0);
+  state.dailyEntries.filter(e => e.clinic === clinic && e.date.startsWith(month)).forEach(e => {
+    DAILY_COLS.forEach(c => totals[c.key] += (e[c.key] || 0));
+  });
+  let foot = `<tr><td colspan="2">合計</td>` +
+    DAILY_COLS.map(c => `<td class="${c.hl ? 'hl' : ''}" id="total_${c.key}">${c.wide ? fmt(totals[c.key]) : (totals[c.key] || 0)}</td>`).join('') +
+    `</tr>`;
+
+  return `
+    <div class="clinic-tabs">
+      ${Object.entries(CLINICS).map(([k, name]) => `
+        <div class="clinic-tab ${clinic === k ? 'active' : ''}" onclick="switchDailyClinic('${k}')">${name}</div>
+      `).join('')}
+    </div>
+    <div class="card" style="margin-bottom:18px;">
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <h2 style="margin:0;">📅 日次売上 (${CLINICS[clinic]})</h2>
+        <div style="flex:1;"></div>
+        <button class="ghost" onclick="shiftDailyMonth(-1)">← 前月</button>
+        <div style="font-weight:700; font-size:16px; min-width:130px; text-align:center;">${y}年 ${m}月</div>
+        <button class="ghost" onclick="shiftDailyMonth(1)">翌月 →</button>
+        <button class="ghost" onclick="state.dailyMonth='${ymOf(new Date())}'; save(); renderView();">今月</button>
+      </div>
+      <div style="margin-top:8px; font-size:12px; color:var(--muted);">
+        💡 各セルをクリックして数値を入力すると自動保存。「新患」は集客チャネルの合計が自動計算されます。
+      </div>
+    </div>
+    <div class="card">
+      <div class="daily-wrap">
+        <table class="daily-table">
+          <thead>${head}</thead>
+          <tbody>${body}</tbody>
+          <tfoot>${foot}</tfoot>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function updateDailyCell(dateStr, clinic, field, valueStr) {
+  let entry = getDailyEntry(dateStr, clinic);
+  if (!entry) {
+    entry = createEmptyDaily(dateStr, clinic);
+    state.dailyEntries.push(entry);
+  }
+  entry[field] = Number(valueStr) || 0;
+  recomputeNewPatient(entry);
+  save();
+  // Refresh 新患 display for this row
+  const np = document.getElementById('np_' + dateStr);
+  if (np) np.value = entry.newPatient || '';
+  // Refresh totals row
+  const totals = {};
+  DAILY_COLS.forEach(c => totals[c.key] = 0);
+  state.dailyEntries.filter(e => e.clinic === clinic && e.date.startsWith(state.dailyMonth)).forEach(e => {
+    DAILY_COLS.forEach(c => totals[c.key] += (e[c.key] || 0));
+  });
+  DAILY_COLS.forEach(c => {
+    const el = document.getElementById('total_' + c.key);
+    if (el) el.textContent = c.wide ? fmt(totals[c.key]) : (totals[c.key] || 0);
+  });
 }
 
 function viewRevenueList() {
@@ -2941,6 +3176,7 @@ function viewImportSales() {
 const VIEW_RENDER = {
   'summary':              { html: viewSummary, after: viewSummaryAfter },
   'revenue-entry':        { html: viewRevenueEntry },
+  'daily-sales':          { html: viewDailySales },
   'revenue-list':         { html: viewRevenueList },
   'revenue-trend':        { html: viewRevenueTrend, after: viewRevenueTrendAfter },
   'ad-cost':              { html: viewAdCost, after: viewAdCostAfter },
