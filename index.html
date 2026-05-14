@@ -7,19 +7,23 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root {
-    --bg: #f5f7fb;
+    --bg: #fdfbff;
     --card: #ffffff;
     --sidebar: #ffffff;
-    --sidebar-hover: #f3f4f6;
-    --primary: #2563eb;
-    --primary-dark: #1d4ed8;
-    --text: #1f2937;
-    --muted: #6b7280;
-    --muted-2: #9ca3af;
-    --border: #e5e7eb;
-    --success: #10b981;
-    --danger: #ef4444;
-    --warning: #f59e0b;
+    --sidebar-hover: #f5f3ff;
+    --primary: #6366f1;
+    --primary-dark: #4f46e5;
+    --primary-soft: #c7d2fe;
+    --accent: #f472b6;
+    --text: #475569;
+    --text-dark: #1e293b;
+    --muted: #94a3b8;
+    --muted-2: #cbd5e1;
+    --border: #ede9fe;
+    --border-soft: #f1f5f9;
+    --success: #34d399;
+    --danger: #fb7185;
+    --warning: #fbbf24;
   }
   * { box-sizing: border-box; }
   body {
@@ -44,11 +48,12 @@
     max-height: 100vh;
   }
   .sidebar-header {
-    padding: 18px 20px;
+    padding: 20px 20px;
     border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, #fce7f3 0%, #ede9fe 100%);
   }
-  .sidebar-header .logo { font-size: 15px; font-weight: 700; color: var(--text); }
-  .sidebar-header .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .sidebar-header .logo { font-size: 15px; font-weight: 800; color: var(--text-dark); }
+  .sidebar-header .sub { font-size: 11px; color: var(--primary); margin-top: 2px; font-weight: 500; }
 
   .nav-group { padding: 12px 0 4px; }
   .nav-group-title {
@@ -71,10 +76,10 @@
   }
   .nav-item:hover { background: var(--sidebar-hover); }
   .nav-item.active {
-    background: #eff6ff;
+    background: linear-gradient(90deg, #ede9fe 0%, #fce7f3 100%);
     border-left-color: var(--primary);
-    color: var(--primary);
-    font-weight: 600;
+    color: var(--primary-dark);
+    font-weight: 700;
   }
   .nav-item .icon { font-size: 16px; width: 18px; text-align: center; }
   .nav-item .badge-sm {
@@ -89,7 +94,7 @@
   /* ----- Main ----- */
   .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   .topbar {
-    background: white;
+    background: linear-gradient(180deg, #fdfaff 0%, #ffffff 100%);
     border-bottom: 1px solid var(--border);
     padding: 14px 28px;
     display: flex;
@@ -140,13 +145,14 @@
     margin-bottom: 20px;
   }
   .kpi-card {
-    background: var(--card);
+    background: linear-gradient(135deg, #ffffff 0%, #fdfaff 100%);
     padding: 16px 18px;
-    border-radius: 12px;
+    border-radius: 14px;
     border: 1px solid var(--border);
+    box-shadow: 0 1px 3px rgba(99,102,241,0.04);
   }
   .kpi-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-  .kpi-value { font-size: 22px; font-weight: 700; }
+  .kpi-value { font-size: 22px; font-weight: 700; color: var(--text-dark); }
   .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
   .kpi-sub.up { color: var(--success); }
   .kpi-sub.down { color: var(--danger); }
@@ -216,7 +222,7 @@
   .login-overlay {
     position: fixed;
     inset: 0;
-    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+    background: linear-gradient(135deg, #fbcfe8 0%, #ddd6fe 50%, #bae6fd 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -531,8 +537,13 @@
     color: var(--text);
     font-family: inherit;
   }
-  .month-picker-trigger:hover { border-color: var(--primary); }
-  .month-picker-trigger::after { content: '📅'; float: right; }
+  .month-picker-trigger:hover:not(:disabled) { border-color: var(--primary); }
+  .month-picker-trigger:disabled {
+    background: #f8fafc;
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+  .month-picker-trigger::after { content: '📅'; float: right; opacity: 0.7; }
   .mp-popup {
     display: none;
     position: absolute;
@@ -610,10 +621,23 @@
   <form class="login-card" id="loginForm" onsubmit="return handleLogin(event)">
     <h2>🏥 NAORU整体 経営ダッシュボード</h2>
     <div class="sub">サインインしてください</div>
+
+    <button type="button" id="biometricBtn" onclick="authPasskey()" style="display:none; width:100%; padding:11px; margin-top:14px; background:linear-gradient(135deg,#a78bfa,#f472b6); border:none; border-radius:10px; color:white; font-weight:600; font-size:14px;">
+      🔒 指紋・顔認証でログイン
+    </button>
+    <div id="orDivider" style="display:none; text-align:center; color:var(--muted); font-size:11px; margin:14px 0; position:relative;">
+      <span style="background:white; padding:0 10px; position:relative; z-index:1;">または</span>
+      <div style="position:absolute; top:50%; left:0; right:0; border-top:1px solid var(--border); z-index:0;"></div>
+    </div>
+
     <label>メールアドレス (ID)</label>
     <input type="email" id="loginEmail" autocomplete="username" required />
     <label>パスワード</label>
     <input type="password" id="loginPassword" autocomplete="current-password" required />
+    <label style="display:flex; align-items:center; gap:8px; margin-top:14px; color:var(--text); font-size:13px; cursor:pointer;">
+      <input type="checkbox" id="rememberMe" checked style="width:auto;" />
+      <span>ログイン状態を保持する（次回からパスワード入力不要）</span>
+    </label>
     <button type="submit">ログイン</button>
     <div class="login-error" id="loginError"></div>
   </form>
@@ -750,9 +774,17 @@
         </select>
         <label>期間</label>
         <select id="periodSelect"></select>
-        <input type="month" id="fromMonth" />
+        <div class="month-picker" id="fromMonthWrapper" style="width:140px;">
+          <button type="button" class="month-picker-trigger" id="fromMonthTrigger" onclick="toggleMonthPicker('fromMonth')">月を選択</button>
+          <input type="hidden" id="fromMonth" />
+          <div class="mp-popup" id="fromMonthPopup"></div>
+        </div>
         <span style="color: var(--muted); font-size: 12px;">〜</span>
-        <input type="month" id="toMonth" />
+        <div class="month-picker" id="toMonthWrapper" style="width:140px;">
+          <button type="button" class="month-picker-trigger" id="toMonthTrigger" onclick="toggleMonthPicker('toMonth')">月を選択</button>
+          <input type="hidden" id="toMonth" />
+          <div class="mp-popup" id="toMonthPopup"></div>
+        </div>
       </div>
     </div>
     <div class="content" id="viewContent"></div>
@@ -823,6 +855,7 @@ const VIEWS = {
 const AUTH_USER = 'k.waka0925@gmail.com';
 const AUTH_PASSWORD_HASH = '0414a7593846245ca82aa99ab0eee1068c2bfb2a3ee602e1aaf01eb7ed5f27b2'; // sha256('naoru')
 const AUTH_KEY = 'naoru_auth_v1';
+const PASSKEY_KEY = 'naoru_passkey_v1';
 
 async function sha256Hex(text) {
   const buf = new TextEncoder().encode(text);
@@ -830,22 +863,37 @@ async function sha256Hex(text) {
   return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+function isAuthed() {
+  return sessionStorage.getItem(AUTH_KEY) === '1' || localStorage.getItem(AUTH_KEY) === '1';
+}
+function setAuthed(remember) {
+  if (remember) localStorage.setItem(AUTH_KEY, '1');
+  sessionStorage.setItem(AUTH_KEY, '1');
+}
+function clearAuth() {
+  sessionStorage.removeItem(AUTH_KEY);
+  localStorage.removeItem(AUTH_KEY);
+}
+
 async function handleLogin(ev) {
   ev.preventDefault();
   const email = document.getElementById('loginEmail').value.trim().toLowerCase();
   const password = document.getElementById('loginPassword').value;
+  const remember = document.getElementById('rememberMe').checked;
   const errEl = document.getElementById('loginError');
   const hash = await sha256Hex(password);
   if (email === AUTH_USER.toLowerCase() && hash === AUTH_PASSWORD_HASH) {
-    sessionStorage.setItem(AUTH_KEY, '1');
+    setAuthed(remember);
     showApp();
+    // Offer biometric registration after successful password login
+    setTimeout(() => offerBiometricRegistration(), 600);
   } else {
     errEl.textContent = 'メールアドレスまたはパスワードが違います';
   }
   return false;
 }
 function logout() {
-  sessionStorage.removeItem(AUTH_KEY);
+  clearAuth();
   location.reload();
 }
 function showApp() {
@@ -853,12 +901,84 @@ function showApp() {
   document.getElementById('appRoot').style.display = '';
 }
 function checkAuth() {
-  if (sessionStorage.getItem(AUTH_KEY) === '1') {
+  // show biometric button if a passkey is registered
+  if (localStorage.getItem(PASSKEY_KEY) && isPasskeyAvailable()) {
+    document.getElementById('biometricBtn').style.display = '';
+    document.getElementById('orDivider').style.display = '';
+  }
+  if (isAuthed()) { showApp(); return true; }
+  setTimeout(() => document.getElementById('loginEmail')?.focus(), 50);
+  return false;
+}
+
+// ----- WebAuthn / Passkey -----
+function isPasskeyAvailable() {
+  return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
+}
+function bufToB64(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+function b64ToBuf(b64) {
+  return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
+}
+async function registerPasskey() {
+  if (!isPasskeyAvailable()) { alert('このブラウザ・端末は生体認証に対応していません'); return false; }
+  try {
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const userId = crypto.getRandomValues(new Uint8Array(16));
+    const cred = await navigator.credentials.create({
+      publicKey: {
+        challenge,
+        rp: { name: 'NAORU整体 経営ダッシュボード' },
+        user: { id: userId, name: AUTH_USER, displayName: 'NAORU整体' },
+        pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+        authenticatorSelection: { userVerification: 'preferred' },
+        timeout: 60000,
+      },
+    });
+    localStorage.setItem(PASSKEY_KEY, bufToB64(cred.rawId));
+    alert('✓ 指紋・顔認証を登録しました。次回からは生体認証でログインできます。');
+    return true;
+  } catch (e) {
+    console.error(e);
+    if (e.name !== 'NotAllowedError') alert('登録に失敗しました: ' + e.message);
+    return false;
+  }
+}
+async function authPasskey() {
+  if (!isPasskeyAvailable()) return false;
+  const credId = localStorage.getItem(PASSKEY_KEY);
+  if (!credId) return false;
+  try {
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    await navigator.credentials.get({
+      publicKey: {
+        challenge,
+        allowCredentials: [{ type: 'public-key', id: b64ToBuf(credId) }],
+        userVerification: 'preferred',
+        timeout: 60000,
+      },
+    });
+    setAuthed(true);
+    document.getElementById('loginError').textContent = '';
     showApp();
     return true;
+  } catch (e) {
+    console.error(e);
+    if (e.name !== 'NotAllowedError') {
+      document.getElementById('loginError').textContent = '生体認証に失敗しました: ' + e.message;
+    }
+    return false;
   }
-  document.getElementById('loginEmail').focus();
-  return false;
+}
+function offerBiometricRegistration() {
+  if (localStorage.getItem(PASSKEY_KEY)) return; // already registered
+  if (!isPasskeyAvailable()) return;
+  if (confirm('🔒 次回から指紋・顔認証でログインできるように設定しますか？\n（端末の生体認証を使用します）')) {
+    registerPasskey();
+  } else {
+    localStorage.setItem(PASSKEY_KEY + '_declined', '1');
+  }
 }
 
 // ===== Persistence =====
@@ -956,10 +1076,21 @@ function syncRangeInputs() {
   const { from, to } = getPeriodRange();
   const fromEl = document.getElementById('fromMonth');
   const toEl = document.getElementById('toMonth');
+  const fromTrigger = document.getElementById('fromMonthTrigger');
+  const toTrigger = document.getElementById('toMonthTrigger');
   const isCustom = document.getElementById('periodSelect').value === 'custom';
-  if (!isCustom) { fromEl.value = from; toEl.value = to; }
-  fromEl.disabled = !isCustom;
-  toEl.disabled = !isCustom;
+  if (!isCustom) {
+    fromEl.value = from;
+    toEl.value = to;
+  }
+  if (fromTrigger) {
+    fromTrigger.textContent = fromEl.value ? formatYM(fromEl.value) : '月を選択';
+    fromTrigger.disabled = !isCustom;
+  }
+  if (toTrigger) {
+    toTrigger.textContent = toEl.value ? formatYM(toEl.value) : '月を選択';
+    toTrigger.disabled = !isCustom;
+  }
 }
 
 function filteredEntries() {
@@ -1202,54 +1333,61 @@ function updateRevenueTotal() {
   document.getElementById('f_revTotal').textContent = yen(total);
 }
 
-// ----- Month picker popup -----
-let monthPickerYear = new Date().getFullYear();
-function toggleMonthPicker() {
-  const popup = document.getElementById('f_monthPopup');
-  const current = document.getElementById('f_month').value;
-  if (current) monthPickerYear = Number(current.slice(0, 4));
+// ----- Generic month picker popup -----
+const pickerState = {};
+function toggleMonthPicker(prefix) {
+  const popup = document.getElementById(prefix + 'Popup');
+  if (!popup) return;
+  const current = document.getElementById(prefix).value;
+  if (!pickerState[prefix]) pickerState[prefix] = { year: new Date().getFullYear() };
+  if (current) pickerState[prefix].year = Number(current.slice(0, 4));
+  // close other open pickers
+  document.querySelectorAll('.mp-popup.show').forEach(p => { if (p !== popup) p.classList.remove('show'); });
   popup.classList.toggle('show');
-  if (popup.classList.contains('show')) renderMonthPicker();
+  if (popup.classList.contains('show')) renderMonthPicker(prefix);
 }
-function shiftMonthPickerYear(d) {
-  monthPickerYear += d;
-  renderMonthPicker();
+function shiftMonthPickerYear(prefix, d) {
+  pickerState[prefix].year += d;
+  renderMonthPicker(prefix);
 }
-function renderMonthPicker() {
-  const popup = document.getElementById('f_monthPopup');
-  const current = document.getElementById('f_month').value;
+function renderMonthPicker(prefix) {
+  const popup = document.getElementById(prefix + 'Popup');
+  const current = document.getElementById(prefix).value;
   const today = new Date();
   const todayYM = ymOf(today);
+  const year = pickerState[prefix].year;
   let html = `
     <div class="mp-header">
-      <button class="mp-nav" onclick="shiftMonthPickerYear(-1)">‹</button>
-      <div class="mp-year">${monthPickerYear}年</div>
-      <button class="mp-nav" onclick="shiftMonthPickerYear(1)">›</button>
+      <button class="mp-nav" onclick="shiftMonthPickerYear('${prefix}', -1)">‹</button>
+      <div class="mp-year">${year}年</div>
+      <button class="mp-nav" onclick="shiftMonthPickerYear('${prefix}', 1)">›</button>
     </div>
     <div class="mp-months">
   `;
   for (let m = 1; m <= 12; m++) {
-    const ym = `${monthPickerYear}-${pad2(m)}`;
+    const ym = `${year}-${pad2(m)}`;
     const cls = (current === ym ? 'selected ' : '') + (todayYM === ym ? 'current ' : '');
-    html += `<div class="mp-month ${cls}" onclick="pickMonth('${ym}')">${m}月</div>`;
+    html += `<div class="mp-month ${cls}" onclick="pickMonth('${prefix}','${ym}')">${m}月</div>`;
   }
   html += `</div>
     <div class="mp-actions">
-      <button class="ghost" onclick="pickMonth('${todayYM}')">今月</button>
-      <button class="ghost" onclick="document.getElementById('f_monthPopup').classList.remove('show')">閉じる</button>
+      <button class="ghost" onclick="pickMonth('${prefix}','${todayYM}')">今月</button>
+      <button class="ghost" onclick="document.getElementById('${prefix}Popup').classList.remove('show')">閉じる</button>
     </div>`;
   popup.innerHTML = html;
 }
-function pickMonth(ym) {
-  document.getElementById('f_month').value = ym;
-  document.getElementById('f_monthTrigger').textContent = formatYM(ym);
-  document.getElementById('f_monthPopup').classList.remove('show');
+function pickMonth(prefix, ym) {
+  const input = document.getElementById(prefix);
+  input.value = ym;
+  document.getElementById(prefix + 'Trigger').textContent = formatYM(ym);
+  document.getElementById(prefix + 'Popup').classList.remove('show');
+  input.dispatchEvent(new Event('change'));
 }
 document.addEventListener('click', (e) => {
-  const wrap = document.getElementById('f_monthWrapper');
-  if (wrap && !wrap.contains(e.target)) {
-    document.getElementById('f_monthPopup')?.classList.remove('show');
-  }
+  document.querySelectorAll('.mp-popup.show').forEach(popup => {
+    const wrap = popup.closest('.month-picker');
+    if (wrap && !wrap.contains(e.target)) popup.classList.remove('show');
+  });
 });
 
 function saveEntry() {
