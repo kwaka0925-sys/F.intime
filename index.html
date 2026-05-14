@@ -763,6 +763,42 @@
   }
   .modal textarea { min-height: 60px; resize: vertical; }
   .modal-footer { margin-top: 18px; display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* ----- Customer autocomplete ----- */
+  .customer-suggestions {
+    display: none;
+    position: absolute;
+    top: 100%; left: 0; right: 0;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 1010;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+    margin-top: 4px;
+  }
+  .customer-suggestions.show { display: block; }
+  .cs-item {
+    padding: 9px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .cs-item:last-child { border-bottom: none; }
+  .cs-item:hover, .cs-item.kbd-active { background: #eff6ff; }
+  .cs-item .name { font-weight: 600; color: var(--text-dark); }
+  .cs-item .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .cs-empty { padding: 14px 12px; text-align: center; color: var(--muted); font-size: 13px; }
+  .search-input {
+    width: 100%;
+    padding: 11px 14px 11px 38px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 15px;
+    background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat 12px center / 18px 18px;
+    margin-bottom: 14px;
+  }
 </style>
 </head>
 <body>
@@ -826,9 +862,11 @@
         </select>
       </div>
     </div>
-    <div id="bk_customerField">
+    <div id="bk_customerField" style="position:relative;">
       <label>顧客名</label>
-      <input type="text" id="bk_customer" placeholder="例: 田中 太郎" />
+      <input type="text" id="bk_customer" placeholder="顧客一覧から検索 or 直接入力" autocomplete="off"
+             oninput="filterCustomerSuggestions()" onfocus="filterCustomerSuggestions()" />
+      <div id="bk_customerSuggestions" class="customer-suggestions"></div>
     </div>
     <div id="bk_menuField">
       <label>メニュー</label>
@@ -1950,12 +1988,68 @@ function renderWeekCalendar(staffList, today) {
   return html;
 }
 function viewCustomers() {
-  return placeholder('顧客一覧', '👥', [
-    '顧客カルテ（来院履歴 / 施術内容 / LTV）',
-    '初回来院チャネル・紹介元の記録',
-    '誕生日・記念日リマインダー',
-    '離脱予兆アラート（来院間隔が空いた顧客）',
-  ], '顧客生涯価値を最大化するためのCRM機能です。');
+  const customers = state.customers || [];
+  if (customers.length === 0) {
+    return placeholder('顧客一覧', '👥', [
+      '「設定 → 顧客データ移行」からCSVをアップロード',
+      'ホットペッパー / RESERVA / Airリザーブ のCSVに対応',
+      'UTF-8 / Shift-JIS 自動判定',
+    ], '顧客データを取り込むとここに一覧表示されます。');
+  }
+  const q = (state.customerSearch || '').toLowerCase().trim();
+  const filtered = q
+    ? customers.filter(c =>
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.kana || '').toLowerCase().includes(q) ||
+        (c.phone || '').includes(q) ||
+        (c.email || '').toLowerCase().includes(q))
+    : customers;
+  return `
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+        <h2 style="margin:0;">👥 顧客一覧 <span id="customerListCount" style="color:var(--muted); font-size:13px; font-weight:500;">(${filtered.length} / ${customers.length} 件)</span></h2>
+      </div>
+      <input type="text" class="search-input" placeholder="名前・かな・電話・メールで検索"
+             value="${escapeHtml(state.customerSearch || '')}"
+             oninput="searchCustomers(this.value)" />
+      <div style="overflow-x:auto;">
+        <table id="customerListTable">
+          <thead><tr><th>氏名</th><th>かな</th><th>電話</th><th>メール</th><th>初回来院</th><th>取込元</th></tr></thead>
+          <tbody id="customerListBody">${renderCustomerRows(filtered)}</tbody>
+        </table>
+      </div>
+      ${filtered.length > 200 ? `<div class="empty">先頭200件を表示中。検索で絞り込んでください。</div>` : ''}
+    </div>
+  `;
+}
+
+function renderCustomerRows(list) {
+  if (list.length === 0) return '<tr><td colspan="6" class="empty">該当する顧客はありません</td></tr>';
+  return list.slice(0, 200).map(c => `<tr>
+    <td><strong>${escapeHtml(c.name || '-')}</strong></td>
+    <td>${escapeHtml(c.kana || '-')}</td>
+    <td>${escapeHtml(c.phone || '-')}</td>
+    <td>${escapeHtml(c.email || '-')}</td>
+    <td>${escapeHtml(c.firstVisit || '-')}</td>
+    <td style="font-size:11px; color:var(--muted);">${escapeHtml(c.source || '-')}</td>
+  </tr>`).join('');
+}
+
+function searchCustomers(query) {
+  state.customerSearch = query;
+  const customers = state.customers || [];
+  const q = query.toLowerCase().trim();
+  const filtered = q
+    ? customers.filter(c =>
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.kana || '').toLowerCase().includes(q) ||
+        (c.phone || '').includes(q) ||
+        (c.email || '').toLowerCase().includes(q))
+    : customers;
+  const tbody = document.getElementById('customerListBody');
+  if (tbody) tbody.innerHTML = renderCustomerRows(filtered);
+  const cnt = document.getElementById('customerListCount');
+  if (cnt) cnt.textContent = `(${filtered.length} / ${customers.length} 件)`;
 }
 // ===== Staff scheduler helpers =====
 function shiftKey(staffId, date) { return `${staffId}__${date}`; }
@@ -2189,6 +2283,45 @@ function onMenuChange() {
   const map = { 'ボディーケア30分': '30', 'ボディーケア60分': '60', 'ボディーケア90分': '90' };
   if (map[menu]) document.getElementById('bk_duration').value = map[menu];
 }
+
+// ----- Customer autocomplete in booking modal -----
+function filterCustomerSuggestions() {
+  const q = document.getElementById('bk_customer').value.toLowerCase().trim();
+  const all = state.customers || [];
+  const filtered = q
+    ? all.filter(c =>
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.kana || '').toLowerCase().includes(q) ||
+        (c.phone || '').includes(q))
+    : all;
+  const dropdown = document.getElementById('bk_customerSuggestions');
+  if (!dropdown) return;
+  if (filtered.length === 0) {
+    dropdown.innerHTML = all.length === 0
+      ? `<div class="cs-empty">顧客データがありません<br /><span style="font-size:11px;">「設定 → 顧客データ移行」からCSVをアップロードしてください</span></div>`
+      : `<div class="cs-empty">該当する顧客はありません</div>`;
+  } else {
+    dropdown.innerHTML = filtered.slice(0, 30).map(c => `
+      <div class="cs-item" data-name="${escapeHtml(c.name || '')}">
+        <div class="name">${escapeHtml(c.name || '-')}</div>
+        <div class="sub">${escapeHtml(c.kana || '')}${c.phone ? ' / ☎ ' + escapeHtml(c.phone) : ''}${c.firstVisit ? ' / 初回 ' + escapeHtml(c.firstVisit) : ''}</div>
+      </div>
+    `).join('');
+    dropdown.querySelectorAll('.cs-item').forEach(el => {
+      el.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        document.getElementById('bk_customer').value = el.dataset.name;
+        dropdown.classList.remove('show');
+      });
+    });
+  }
+  dropdown.classList.add('show');
+}
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('bk_customerField');
+  const dropdown = document.getElementById('bk_customerSuggestions');
+  if (wrap && dropdown && !wrap.contains(e.target)) dropdown.classList.remove('show');
+});
 
 function openBookingModal(staffId, date, time, bookingId) {
   const clinic = state.staffViewClinic;
