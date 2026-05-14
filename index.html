@@ -597,52 +597,75 @@
     min-width: max-content;
   }
   .att-grid > .head {
-    font-size: 10px;
+    font-size: 12px;
     text-align: center;
-    padding: 6px 2px;
+    padding: 8px 2px;
     background: linear-gradient(180deg, #f0f7ff 0%, #e0ecff 100%);
     border-radius: 6px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--text);
   }
   .att-grid > .head.sun { background: linear-gradient(180deg, #ffe4e6 0%, #fecaca 100%); color: #be123c; }
   .att-grid > .head.sat { background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%); color: #1d4ed8; }
+  .att-grid > .head.today { background: linear-gradient(180deg, #fde68a 0%, #fcd34d 100%); color: #92400e; }
   .att-grid > .name {
-    padding: 8px 10px;
+    padding: 10px 12px;
     background: #fafbfc;
     border-radius: 6px;
     font-weight: 700;
-    font-size: 12px;
+    font-size: 13px;
     border-left: 4px solid var(--primary);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .att-grid > .name:hover { background: #ede9fe; }
+  .att-grid > .name::after {
+    content: '⚙';
+    float: right;
+    color: var(--muted);
+    font-size: 12px;
   }
   .att-cell {
-    height: 34px;
+    height: 44px;
     border-radius: 6px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 700;
     transition: transform 0.1s;
     user-select: none;
   }
-  .att-cell:hover { transform: scale(1.15); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+  .att-cell:hover { transform: scale(1.12); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
   .att-cell.on { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #065f46; }
   .att-cell.half { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
   .att-cell.off { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #b91c1c; }
-  .att-cell.today { box-shadow: inset 0 0 0 2px var(--primary); }
   .att-total {
-    height: 34px;
+    height: 44px;
     border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 700;
     background: linear-gradient(135deg, #fef3c7, #fde68a);
     color: #92400e;
   }
+  .dow-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 12px;
+    background: white;
+    user-select: none;
+  }
+  .dow-check:hover { background: var(--sidebar-hover); }
+  .dow-check input { width: auto; margin: 0; }
   .att-clinic-label {
     font-size: 11px;
     color: var(--muted);
@@ -679,27 +702,15 @@
 
 <!-- =================== LOGIN =================== -->
 <div class="login-overlay" id="loginOverlay">
-  <form class="login-card" id="loginForm" onsubmit="return handleLogin(event)">
+  <form class="login-card" id="loginForm" onsubmit="return handleLogin(event)" autocomplete="off">
     <h2>🏥 NAORU整体 経営ダッシュボード</h2>
     <div class="sub">サインインしてください</div>
 
-    <button type="button" id="biometricBtn" onclick="authPasskey()" style="display:none; width:100%; padding:11px; margin-top:14px; background:linear-gradient(135deg,#a78bfa,#f472b6); border:none; border-radius:10px; color:white; font-weight:600; font-size:14px;">
-      🔒 指紋・顔認証でログイン
-    </button>
-    <div id="orDivider" style="display:none; text-align:center; color:var(--muted); font-size:11px; margin:14px 0; position:relative;">
-      <span style="background:white; padding:0 10px; position:relative; z-index:1;">または</span>
-      <div style="position:absolute; top:50%; left:0; right:0; border-top:1px solid var(--border); z-index:0;"></div>
-    </div>
-
     <label>メールアドレス (ID)</label>
-    <input type="email" id="loginEmail" autocomplete="username" required />
+    <input type="email" id="loginEmail" autocomplete="off" required />
     <label>パスワード</label>
-    <input type="password" id="loginPassword" autocomplete="current-password" required />
-    <label style="display:flex; align-items:center; gap:8px; margin-top:14px; color:var(--text); font-size:13px; cursor:pointer;">
-      <input type="checkbox" id="rememberMe" checked style="width:auto;" />
-      <span>ログイン状態を保持する（次回からパスワード入力不要）</span>
-    </label>
-    <button type="submit">ログイン</button>
+    <input type="password" id="loginPassword" autocomplete="new-password" required />
+    <button type="submit" style="margin-top:18px;">ログイン</button>
     <div class="login-error" id="loginError"></div>
   </form>
 </div>
@@ -757,6 +768,47 @@
       <button id="bk_deleteBtn" class="danger" onclick="deleteBooking()" style="display:none;">削除</button>
       <button class="ghost" onclick="closeBookingModal()">キャンセル</button>
       <button onclick="saveBooking()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- =================== BULK SHIFT MODAL =================== -->
+<div class="modal-backdrop" id="bulkShiftModal">
+  <div class="modal" style="width:460px;">
+    <h3 id="bulkShiftTitle">勤怠を一括設定</h3>
+    <input type="hidden" id="bulkShiftStaffId" />
+
+    <div style="margin:14px 0;">
+      <label style="font-size:11px; color:var(--muted);">月全体の一括設定</label>
+      <div style="display:flex; gap:8px; margin-top:6px;">
+        <button onclick="applyBulkAllMonth('出勤')" style="flex:1; background:#10b981;">◯ 月すべて出勤</button>
+        <button onclick="applyBulkAllMonth('休み')" style="flex:1; background:#ef4444;">休 月すべて休み</button>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid var(--border); padding-top:14px;">
+      <label style="font-size:11px; color:var(--muted);">毎週固定の曜日設定（チェックした曜日に状態を一括適用）</label>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
+        <label class="dow-check"><input type="checkbox" id="bulk_dow_1" /> 月</label>
+        <label class="dow-check"><input type="checkbox" id="bulk_dow_2" /> 火</label>
+        <label class="dow-check"><input type="checkbox" id="bulk_dow_3" /> 水</label>
+        <label class="dow-check"><input type="checkbox" id="bulk_dow_4" /> 木</label>
+        <label class="dow-check"><input type="checkbox" id="bulk_dow_5" /> 金</label>
+        <label class="dow-check"><input type="checkbox" id="bulk_dow_6" /> 土</label>
+        <label class="dow-check"><input type="checkbox" id="bulk_dow_0" /> 日</label>
+      </div>
+      <label style="margin-top:12px;">状態</label>
+      <select id="bulk_status">
+        <option value="休み" selected>休み</option>
+        <option value="出勤">出勤</option>
+        <option value="半休">半休</option>
+      </select>
+      <button onclick="applyBulkWeekdays()" style="margin-top:10px; width:100%;">選択した曜日に適用</button>
+    </div>
+
+    <div class="modal-footer">
+      <button class="danger" onclick="resetBulkShift()">今月の設定を全解除</button>
+      <button class="ghost" onclick="closeBulkShiftModal()">閉じる</button>
     </div>
   </div>
 </div>
@@ -912,11 +964,18 @@ const VIEWS = {
   'import-sales':         { title: '売上データ移行',   crumb: '設定 / 売上データ移行',                  filters: false },
 };
 
-// ===== Auth =====
+// ===== Auth (password required on every page load) =====
 const AUTH_USER = 'k.waka0925@gmail.com';
 const AUTH_PASSWORD_HASH = '0414a7593846245ca82aa99ab0eee1068c2bfb2a3ee602e1aaf01eb7ed5f27b2'; // sha256('naoru')
-const AUTH_KEY = 'naoru_auth_v1';
-const PASSKEY_KEY = 'naoru_passkey_v1';
+// Clean up any previously-persisted auth/passkey artifacts; require fresh login each time.
+try {
+  localStorage.removeItem('naoru_auth_v1');
+  sessionStorage.removeItem('naoru_auth_v1');
+  localStorage.removeItem('naoru_passkey_v1');
+  localStorage.removeItem('naoru_passkey_v1_declined');
+} catch (e) {}
+
+let isAuthedInMemory = false;
 
 async function sha256Hex(text) {
   const buf = new TextEncoder().encode(text);
@@ -924,37 +983,23 @@ async function sha256Hex(text) {
   return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-function isAuthed() {
-  return sessionStorage.getItem(AUTH_KEY) === '1' || localStorage.getItem(AUTH_KEY) === '1';
-}
-function setAuthed(remember) {
-  if (remember) localStorage.setItem(AUTH_KEY, '1');
-  sessionStorage.setItem(AUTH_KEY, '1');
-}
-function clearAuth() {
-  sessionStorage.removeItem(AUTH_KEY);
-  localStorage.removeItem(AUTH_KEY);
-}
-
 async function handleLogin(ev) {
   ev.preventDefault();
   const email = document.getElementById('loginEmail').value.trim().toLowerCase();
   const password = document.getElementById('loginPassword').value;
-  const remember = document.getElementById('rememberMe').checked;
   const errEl = document.getElementById('loginError');
   const hash = await sha256Hex(password);
   if (email === AUTH_USER.toLowerCase() && hash === AUTH_PASSWORD_HASH) {
-    setAuthed(remember);
+    isAuthedInMemory = true;
+    document.getElementById('loginPassword').value = '';
     showApp();
-    // Offer biometric registration after successful password login
-    setTimeout(() => offerBiometricRegistration(), 600);
   } else {
     errEl.textContent = 'メールアドレスまたはパスワードが違います';
   }
   return false;
 }
 function logout() {
-  clearAuth();
+  isAuthedInMemory = false;
   location.reload();
 }
 function showApp() {
@@ -962,84 +1007,9 @@ function showApp() {
   document.getElementById('appRoot').style.display = '';
 }
 function checkAuth() {
-  // show biometric button if a passkey is registered
-  if (localStorage.getItem(PASSKEY_KEY) && isPasskeyAvailable()) {
-    document.getElementById('biometricBtn').style.display = '';
-    document.getElementById('orDivider').style.display = '';
-  }
-  if (isAuthed()) { showApp(); return true; }
+  // Always require password on each page load (no persistence)
   setTimeout(() => document.getElementById('loginEmail')?.focus(), 50);
   return false;
-}
-
-// ----- WebAuthn / Passkey -----
-function isPasskeyAvailable() {
-  return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
-}
-function bufToB64(buf) {
-  return btoa(String.fromCharCode(...new Uint8Array(buf)));
-}
-function b64ToBuf(b64) {
-  return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
-}
-async function registerPasskey() {
-  if (!isPasskeyAvailable()) { alert('このブラウザ・端末は生体認証に対応していません'); return false; }
-  try {
-    const challenge = crypto.getRandomValues(new Uint8Array(32));
-    const userId = crypto.getRandomValues(new Uint8Array(16));
-    const cred = await navigator.credentials.create({
-      publicKey: {
-        challenge,
-        rp: { name: 'NAORU整体 経営ダッシュボード' },
-        user: { id: userId, name: AUTH_USER, displayName: 'NAORU整体' },
-        pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
-        authenticatorSelection: { userVerification: 'preferred' },
-        timeout: 60000,
-      },
-    });
-    localStorage.setItem(PASSKEY_KEY, bufToB64(cred.rawId));
-    alert('✓ 指紋・顔認証を登録しました。次回からは生体認証でログインできます。');
-    return true;
-  } catch (e) {
-    console.error(e);
-    if (e.name !== 'NotAllowedError') alert('登録に失敗しました: ' + e.message);
-    return false;
-  }
-}
-async function authPasskey() {
-  if (!isPasskeyAvailable()) return false;
-  const credId = localStorage.getItem(PASSKEY_KEY);
-  if (!credId) return false;
-  try {
-    const challenge = crypto.getRandomValues(new Uint8Array(32));
-    await navigator.credentials.get({
-      publicKey: {
-        challenge,
-        allowCredentials: [{ type: 'public-key', id: b64ToBuf(credId) }],
-        userVerification: 'preferred',
-        timeout: 60000,
-      },
-    });
-    setAuthed(true);
-    document.getElementById('loginError').textContent = '';
-    showApp();
-    return true;
-  } catch (e) {
-    console.error(e);
-    if (e.name !== 'NotAllowedError') {
-      document.getElementById('loginError').textContent = '生体認証に失敗しました: ' + e.message;
-    }
-    return false;
-  }
-}
-function offerBiometricRegistration() {
-  if (localStorage.getItem(PASSKEY_KEY)) return; // already registered
-  if (!isPasskeyAvailable()) return;
-  if (confirm('🔒 次回から指紋・顔認証でログインできるように設定しますか？\n（端末の生体認証を使用します）')) {
-    registerPasskey();
-  } else {
-    localStorage.setItem(PASSKEY_KEY + '_declined', '1');
-  }
 }
 
 // ===== Persistence =====
@@ -2190,7 +2160,7 @@ function viewStaffAttendance() {
   const lastDay = new Date(y, m, 0).getDate();
   const days = Array.from({ length: lastDay }, (_, i) => i + 1);
   const today = ymd(new Date());
-  const cols = `170px repeat(${lastDay}, 36px) 70px`;
+  const cols = `200px repeat(${lastDay}, 44px) 90px`;
 
   const renderStaffRow = (s, clinicName) => {
     let offCount = 0;
@@ -2202,12 +2172,11 @@ function viewStaffAttendance() {
       const label = shift === '休み' ? '休' : shift === '半休' ? '半' : '◯';
       if (shift === '休み') offCount++;
       else if (shift === '半休') offCount += 0.5;
-      const isToday = dateStr === today ? ' today' : '';
-      cellsHtml += `<div class="att-cell ${cls}${isToday}" onclick="cycleShift('${s.id}','${dateStr}')" title="${shift} (クリックで変更)">${label}</div>`;
+      cellsHtml += `<div class="att-cell ${cls}" onclick="cycleShift('${s.id}','${dateStr}')" title="${shift} (クリックで変更)">${label}</div>`;
     });
     const offStr = Number.isInteger(offCount) ? offCount : offCount.toFixed(1);
     return `
-      <div class="name">
+      <div class="name" onclick="openBulkShiftModal('${s.id}')" title="クリックで一括設定">
         <div>${s.name}</div>
         <div style="font-size:10px; color:var(--muted); font-weight:500;">${clinicName.replace('NAORU整体 ', '')} / ${s.role}</div>
       </div>
@@ -2224,10 +2193,12 @@ function viewStaffAttendance() {
     days.forEach(d => {
       const date = new Date(y, m - 1, d);
       const dow = date.getDay();
-      const cls = dow === 0 ? 'sun' : dow === 6 ? 'sat' : '';
-      body += `<div class="head ${cls}">${d}<br /><span style="font-weight:normal; font-size:9px;">${['日','月','火','水','木','金','土'][dow]}</span></div>`;
+      const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
+      const isToday = dateStr === today;
+      const cls = (isToday ? 'today' : '') + ' ' + (dow === 0 ? 'sun' : dow === 6 ? 'sat' : '');
+      body += `<div class="head ${cls.trim()}">${d}<br /><span style="font-weight:normal; font-size:10px;">${['日','月','火','水','木','金','土'][dow]}</span></div>`;
     });
-    body += `<div class="head" style="background:#fef3c7;">休日<br /><span style="font-weight:normal; font-size:9px;">合計</span></div>`;
+    body += `<div class="head" style="background:#fef3c7;">休日<br /><span style="font-weight:normal; font-size:10px;">合計</span></div>`;
     list.forEach(s => { body += renderStaffRow(s, CLINICS[clinicKey]); });
     body += `</div></div>`;
   });
@@ -2267,6 +2238,80 @@ function cycleShift(staffId, date) {
   const current = getShift(staffId, date);
   const next = current === '出勤' ? '休み' : current === '休み' ? '半休' : '出勤';
   setShift(staffId, date, next);
+}
+
+// ===== Bulk shift modal =====
+function findStaff(staffId) {
+  for (const list of Object.values(STAFF)) {
+    const s = list.find(x => x.id === staffId);
+    if (s) return s;
+  }
+  return null;
+}
+function openBulkShiftModal(staffId) {
+  const s = findStaff(staffId);
+  if (!s) return;
+  const [y, m] = state.attendanceMonth.split('-').map(Number);
+  document.getElementById('bulkShiftTitle').textContent = `${s.name} の勤怠を一括設定（${y}年 ${m}月）`;
+  document.getElementById('bulkShiftStaffId').value = staffId;
+  // reset checkboxes
+  [0,1,2,3,4,5,6].forEach(i => { const el = document.getElementById('bulk_dow_' + i); if (el) el.checked = false; });
+  document.getElementById('bulk_status').value = '休み';
+  document.getElementById('bulkShiftModal').classList.add('show');
+}
+function closeBulkShiftModal() {
+  document.getElementById('bulkShiftModal').classList.remove('show');
+}
+function applyBulkAllMonth(status) {
+  const staffId = document.getElementById('bulkShiftStaffId').value;
+  if (!staffId) return;
+  const [y, m] = state.attendanceMonth.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  for (let d = 1; d <= lastDay; d++) {
+    const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
+    state.shifts[shiftKey(staffId, dateStr)] = status;
+  }
+  save();
+  closeBulkShiftModal();
+  renderView();
+}
+function applyBulkWeekdays() {
+  const staffId = document.getElementById('bulkShiftStaffId').value;
+  if (!staffId) return;
+  const status = document.getElementById('bulk_status').value;
+  const selectedDows = [];
+  [0,1,2,3,4,5,6].forEach(i => {
+    if (document.getElementById('bulk_dow_' + i).checked) selectedDows.push(i);
+  });
+  if (selectedDows.length === 0) { alert('適用する曜日を選択してください'); return; }
+  const [y, m] = state.attendanceMonth.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  let count = 0;
+  for (let d = 1; d <= lastDay; d++) {
+    const date = new Date(y, m - 1, d);
+    if (selectedDows.includes(date.getDay())) {
+      const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
+      state.shifts[shiftKey(staffId, dateStr)] = status;
+      count++;
+    }
+  }
+  save();
+  closeBulkShiftModal();
+  renderView();
+}
+function resetBulkShift() {
+  const staffId = document.getElementById('bulkShiftStaffId').value;
+  if (!staffId) return;
+  if (!confirm('今月の勤怠設定をすべて解除しますか？\n（デフォルトの「出勤」に戻ります）')) return;
+  const [y, m] = state.attendanceMonth.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  for (let d = 1; d <= lastDay; d++) {
+    const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
+    delete state.shifts[shiftKey(staffId, dateStr)];
+  }
+  save();
+  closeBulkShiftModal();
+  renderView();
 }
 
 function viewImportCustomers() {
