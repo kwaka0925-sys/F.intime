@@ -437,6 +437,19 @@
   }
   .slot.mtg:hover { filter: brightness(0.97); }
   .slot.mtg.continued { border-left: none; color: transparent; }
+  .slot.conflict {
+    outline: 2px solid var(--danger);
+    outline-offset: -2px;
+    position: relative;
+  }
+  .slot.conflict::after {
+    content: '⚠';
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 12px;
+    color: var(--danger);
+  }
 
   /* ----- Calendar (light & airy palette) ----- */
   .cal-grid {
@@ -1950,6 +1963,15 @@ function getShift(staffId, date) {
   return (state.shifts && state.shifts[shiftKey(staffId, date)]) || '出勤';
 }
 function setShift(staffId, date, status) {
+  if (status === '休み') {
+    const existing = state.bookings.filter(b => b.staffId === staffId && b.date === date && b.type === '施術');
+    if (existing.length > 0) {
+      const staffName = (findStaff(staffId) || {}).name || staffId;
+      if (!confirm(`⚠️ ${staffName} の ${date} には既に ${existing.length} 件の施術予約があります。\nそれでも「休み」に変更しますか？\n（既存の予約はそのまま残ります）`)) {
+        return;
+      }
+    }
+  }
   state.shifts[shiftKey(staffId, date)] = status;
   save();
   renderView();
@@ -2123,7 +2145,9 @@ function renderScheduleGrid(staffList, date) {
           inner = `<div class="booking-name">${escapeHtml(b.customer || '施術')}</div>${b.menu ? `<div class="booking-menu">${escapeHtml(b.menu)}</div>` : ''}<div class="booking-time">${b.time}〜${endTime}</div>`;
           titleText = (b.customer || '施術') + (b.menu ? ' / ' + b.menu : '') + ' (' + b.time + '-' + endTime + ')';
         }
-        html += `<div class="slot ${typeCls}" style="grid-column: span ${span};" onclick="openBookingModal('${s.id}','${date}','${b.time}','${b.id}')" title="${titleText}">${inner}</div>`;
+        const conflictCls = isOff ? ' conflict' : '';
+        const conflictTitle = isOff ? `\n⚠ このスタッフはこの日が「休み」設定です` : '';
+        html += `<div class="slot ${typeCls}${conflictCls}" style="grid-column: span ${span};" onclick="openBookingModal('${s.id}','${date}','${b.time}','${b.id}')" title="${titleText}${conflictTitle}">${inner}</div>`;
       } else if (isOff) {
         html += `<div class="slot off">—</div>`;
       } else {
@@ -2230,6 +2254,19 @@ function saveBooking() {
     notes: document.getElementById('bk_notes').value.trim(),
   };
   if (!booking.date || !booking.time) { alert('日付と時刻は必須です'); return; }
+
+  // Block additions on a 休み day; warn on 半休
+  const shift = getShift(booking.staffId, booking.date);
+  const staff = findStaff(booking.staffId);
+  const staffName = staff ? staff.name : booking.staffId;
+  if (shift === '休み') {
+    alert(`⚠️ ${staffName} は ${booking.date} が「休み」に設定されています。\n\n勤怠表でその日を「出勤」に変更するか、別の日・別のスタッフへ変更してください。`);
+    return;
+  }
+  if (shift === '半休') {
+    if (!confirm(`⚠️ ${staffName} は ${booking.date} が「半休」に設定されています。\nこのまま登録しますか？`)) return;
+  }
+
   const idx = state.bookings.findIndex(b => b.id === id);
   if (idx >= 0) state.bookings[idx] = booking;
   else state.bookings.push(booking);
