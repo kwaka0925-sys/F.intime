@@ -356,13 +356,43 @@
     padding: 8px 2px;
   }
   .slot {
-    min-height: 44px;
+    min-height: 60px;
     cursor: pointer;
     position: relative;
     overflow: hidden;
+    font-size: 11px;
+    line-height: 1.25;
+    padding: 6px 8px;
+  }
+  .slot.booked, .slot.break, .slot.mtg {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    text-align: left;
+  }
+  .booking-name {
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .booking-menu {
     font-size: 10px;
+    opacity: 0.85;
     line-height: 1.2;
-    padding: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+  .booking-time {
+    font-size: 9px;
+    opacity: 0.65;
+    line-height: 1.1;
+    margin-top: 2px;
   }
   .slot:hover { background: #f3f4f6; }
   .slot.off {
@@ -719,14 +749,14 @@
 
 <!-- =================== LOGIN =================== -->
 <div class="login-overlay" id="loginOverlay">
-  <form class="login-card" id="loginForm" onsubmit="return handleLogin(event)" autocomplete="off">
+  <form class="login-card" id="loginForm" onsubmit="return handleLogin(event)">
     <h2>🏥 NAORU整体 経営ダッシュボード</h2>
     <div class="sub">サインインしてください</div>
 
     <label>メールアドレス (ID)</label>
-    <input type="email" id="loginEmail" autocomplete="off" required />
+    <input type="email" id="loginEmail" name="email" autocomplete="username" required />
     <label>パスワード</label>
-    <input type="password" id="loginPassword" autocomplete="new-password" required />
+    <input type="password" id="loginPassword" name="password" autocomplete="current-password" required />
     <button type="submit" style="margin-top:18px;">ログイン</button>
     <div class="login-error" id="loginError"></div>
   </form>
@@ -1163,6 +1193,9 @@ function filteredEntries() {
 // ===== Format =====
 function fmt(n) { return n.toLocaleString('ja-JP'); }
 function yen(n) { return '¥' + fmt(Math.round(n)); }
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
 
 // Chart-axis-friendly yen formatter (avoids floating point dust like 0.00005999...)
 function yenAxis(v) {
@@ -2066,27 +2099,34 @@ function renderScheduleGrid(staffList, date) {
     const shift = getShift(s.id, date);
     const shiftColor = shift === '休み' ? 'var(--danger)' : shift === '半休' ? 'var(--warning)' : 'var(--success)';
     html += `<div class="staff-label"><div class="name">${s.name}</div><div class="sub">${s.role} / <span style="color:${shiftColor};">${shift}</span></div></div>`;
-    TIME_SLOTS.forEach(time => {
-      const isOff = shift === '休み';
-      const b = bookingAtSlot(s.id, date, time);
+    const isOff = shift === '休み';
+    const covered = new Set();
+    TIME_SLOTS.forEach((time, slotIdx) => {
+      if (covered.has(slotIdx)) return;
+      // is there a booking that STARTS exactly here?
+      const b = state.bookings.find(x => x.staffId === s.id && x.date === date && x.time === time);
       if (b) {
-        const isStart = b.time === time;
-        let typeCls, labelText, titleText;
+        const span = Math.min(
+          Math.max(1, Math.round((b.durationMin || 60) / 30)),
+          TIME_SLOTS.length - slotIdx
+        );
+        for (let i = 0; i < span; i++) covered.add(slotIdx + i);
+        const endTime = TIME_SLOTS[Math.min(slotIdx + span, TIME_SLOTS.length - 1)] || '';
+        let typeCls, inner, titleText;
         if (b.type === '休憩') {
           typeCls = 'break';
-          labelText = isStart ? '☕ 休憩' : '';
-          titleText = '休憩';
+          inner = `<div class="booking-name">☕ 休憩</div><div class="booking-time">${b.time}〜${endTime} (${b.durationMin || 30}分)</div>`;
+          titleText = '休憩 ' + b.time + '-' + endTime + (b.notes ? ' / ' + b.notes : '');
         } else if (b.type === 'MTG') {
           typeCls = 'mtg';
-          labelText = isStart ? '👥 MTG' : '';
-          titleText = 'MTG' + (b.notes ? ' / ' + b.notes : '');
+          inner = `<div class="booking-name">👥 MTG</div><div class="booking-time">${b.time}〜${endTime} (${b.durationMin || 60}分)</div>${b.notes ? `<div class="booking-menu">${escapeHtml(b.notes)}</div>` : ''}`;
+          titleText = 'MTG ' + b.time + '-' + endTime + (b.notes ? ' / ' + b.notes : '');
         } else {
           typeCls = 'booked';
-          labelText = isStart ? `${(b.customer || '施術').slice(0, 6)}` : '';
-          titleText = (b.customer || '施術') + (b.menu ? ' / ' + b.menu : '');
+          inner = `<div class="booking-name">${escapeHtml(b.customer || '施術')}</div>${b.menu ? `<div class="booking-menu">${escapeHtml(b.menu)}</div>` : ''}<div class="booking-time">${b.time}〜${endTime}</div>`;
+          titleText = (b.customer || '施術') + (b.menu ? ' / ' + b.menu : '') + ' (' + b.time + '-' + endTime + ')';
         }
-        const cls = `slot ${typeCls} ${isStart ? '' : 'continued'}`;
-        html += `<div class="${cls}" onclick="openBookingModal('${s.id}','${date}','${b.time}','${b.id}')" title="${titleText}">${labelText}</div>`;
+        html += `<div class="slot ${typeCls}" style="grid-column: span ${span};" onclick="openBookingModal('${s.id}','${date}','${b.time}','${b.id}')" title="${titleText}">${inner}</div>`;
       } else if (isOff) {
         html += `<div class="slot off">—</div>`;
       } else {
