@@ -589,6 +589,67 @@
   .mp-actions { margin-top: 10px; display: flex; gap: 6px; }
   .mp-actions button { flex: 1; padding: 6px; font-size: 11px; }
 
+  /* ----- Attendance grid ----- */
+  .att-wrap { overflow-x: auto; }
+  .att-grid {
+    display: grid;
+    gap: 3px;
+    min-width: max-content;
+  }
+  .att-grid > .head {
+    font-size: 10px;
+    text-align: center;
+    padding: 6px 2px;
+    background: linear-gradient(180deg, #f0f7ff 0%, #e0ecff 100%);
+    border-radius: 6px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .att-grid > .head.sun { background: linear-gradient(180deg, #ffe4e6 0%, #fecaca 100%); color: #be123c; }
+  .att-grid > .head.sat { background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%); color: #1d4ed8; }
+  .att-grid > .name {
+    padding: 8px 10px;
+    background: #fafbfc;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 12px;
+    border-left: 4px solid var(--primary);
+  }
+  .att-cell {
+    height: 34px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    transition: transform 0.1s;
+    user-select: none;
+  }
+  .att-cell:hover { transform: scale(1.15); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+  .att-cell.on { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #065f46; }
+  .att-cell.half { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
+  .att-cell.off { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #b91c1c; }
+  .att-cell.today { box-shadow: inset 0 0 0 2px var(--primary); }
+  .att-total {
+    height: 34px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    color: #92400e;
+  }
+  .att-clinic-label {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 14px 0 6px;
+  }
+
   /* ----- Modal ----- */
   .modal-backdrop {
     position: fixed; inset: 0;
@@ -744,7 +805,7 @@
       <div class="nav-group-title">マスタ管理</div>
       <div class="nav-item" data-view="clinics"><span class="icon">🏥</span>店舗</div>
       <div class="nav-item" data-view="staff"><span class="icon">🧑‍⚕️</span>スタッフ<span class="badge-sm">準備中</span></div>
-      <div class="nav-item" data-view="menu"><span class="icon">🍽️</span>メニュー<span class="badge-sm">準備中</span></div>
+      <div class="nav-item" data-view="staff-attendance"><span class="icon">📋</span>勤怠表</div>
     </div>
 
     <div class="nav-group">
@@ -844,7 +905,7 @@ const VIEWS = {
   'line':                 { title: 'LINEチャット',     crumb: '顧客管理 / LINEチャット',                filters: false },
   'clinics':              { title: '店舗マスタ',       crumb: 'マスタ管理 / 店舗',                      filters: false },
   'staff':                { title: 'スタッフ',         crumb: 'マスタ管理 / スタッフ',                  filters: false },
-  'menu':                 { title: 'メニュー',         crumb: 'マスタ管理 / メニュー',                  filters: false },
+  'staff-attendance':     { title: 'スタッフ勤怠表',   crumb: 'マスタ管理 / 勤怠表',                    filters: false },
   'data':                 { title: 'データ管理',       crumb: '設定 / データ管理',                      filters: false },
   'import-customers':     { title: '顧客データ移行',   crumb: '設定 / 顧客データ移行',                  filters: false },
   'import-reservations':  { title: '予約データ移行',   crumb: '設定 / 予約データ移行',                  filters: false },
@@ -994,6 +1055,7 @@ function load() {
   if (!state.calMonth) state.calMonth = new Date().toISOString().slice(0, 7);
   if (!state.calWeekStart) state.calWeekStart = new Date().toISOString().slice(0, 10);
   if (!state.calView) state.calView = 'month';
+  if (!state.attendanceMonth) state.attendanceMonth = ymOf(new Date());
 }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
@@ -1083,14 +1145,9 @@ function syncRangeInputs() {
     fromEl.value = from;
     toEl.value = to;
   }
-  if (fromTrigger) {
-    fromTrigger.textContent = fromEl.value ? formatYM(fromEl.value) : '月を選択';
-    fromTrigger.disabled = !isCustom;
-  }
-  if (toTrigger) {
-    toTrigger.textContent = toEl.value ? formatYM(toEl.value) : '月を選択';
-    toTrigger.disabled = !isCustom;
-  }
+  if (fromTrigger) fromTrigger.textContent = fromEl.value ? formatYM(fromEl.value) : '月を選択';
+  if (toTrigger) toTrigger.textContent = toEl.value ? formatYM(toEl.value) : '月を選択';
+  // Don't disable — let the user click any time. Picking a month auto-switches to custom mode.
 }
 
 function filteredEntries() {
@@ -2127,13 +2184,89 @@ function deleteBooking() {
   closeBookingModal();
   renderView();
 }
-function viewMenu() {
-  return placeholder('メニュー管理', '🍽️', [
-    '施術メニュー（名称 / 時間 / 料金）',
-    'カテゴリ分類',
-    '店舗別の取扱メニュー',
-    'メニュー別売上ランキング',
-  ], '回数券・サブスクメニューにも対応予定です。');
+function viewStaffAttendance() {
+  const month = state.attendanceMonth;
+  const [y, m] = month.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const days = Array.from({ length: lastDay }, (_, i) => i + 1);
+  const today = ymd(new Date());
+  const cols = `170px repeat(${lastDay}, 36px) 70px`;
+
+  const renderStaffRow = (s, clinicName) => {
+    let offCount = 0;
+    let cellsHtml = '';
+    days.forEach(d => {
+      const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
+      const shift = getShift(s.id, dateStr);
+      const cls = shift === '休み' ? 'off' : shift === '半休' ? 'half' : 'on';
+      const label = shift === '休み' ? '休' : shift === '半休' ? '半' : '◯';
+      if (shift === '休み') offCount++;
+      else if (shift === '半休') offCount += 0.5;
+      const isToday = dateStr === today ? ' today' : '';
+      cellsHtml += `<div class="att-cell ${cls}${isToday}" onclick="cycleShift('${s.id}','${dateStr}')" title="${shift} (クリックで変更)">${label}</div>`;
+    });
+    const offStr = Number.isInteger(offCount) ? offCount : offCount.toFixed(1);
+    return `
+      <div class="name">
+        <div>${s.name}</div>
+        <div style="font-size:10px; color:var(--muted); font-weight:500;">${clinicName.replace('NAORU整体 ', '')} / ${s.role}</div>
+      </div>
+      ${cellsHtml}
+      <div class="att-total">${offStr}日</div>
+    `;
+  };
+
+  let body = '';
+  Object.entries(STAFF).forEach(([clinicKey, list]) => {
+    body += `<div class="att-clinic-label">🏥 ${CLINICS[clinicKey]}</div>`;
+    body += `<div class="att-wrap"><div class="att-grid" style="grid-template-columns:${cols};">`;
+    body += `<div class="head" style="background:#fafbfc;">スタッフ</div>`;
+    days.forEach(d => {
+      const date = new Date(y, m - 1, d);
+      const dow = date.getDay();
+      const cls = dow === 0 ? 'sun' : dow === 6 ? 'sat' : '';
+      body += `<div class="head ${cls}">${d}<br /><span style="font-weight:normal; font-size:9px;">${['日','月','火','水','木','金','土'][dow]}</span></div>`;
+    });
+    body += `<div class="head" style="background:#fef3c7;">休日<br /><span style="font-weight:normal; font-size:9px;">合計</span></div>`;
+    list.forEach(s => { body += renderStaffRow(s, CLINICS[clinicKey]); });
+    body += `</div></div>`;
+  });
+
+  return `
+    <div class="card" style="margin-bottom:18px;">
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <h2 style="margin:0;">📋 スタッフ勤怠表（全スタッフ）</h2>
+        <div style="flex:1;"></div>
+        <button class="ghost" onclick="shiftAttendanceMonth(-1)">← 前月</button>
+        <div style="font-weight:700; font-size:16px; min-width:130px; text-align:center;">${y}年 ${m}月</div>
+        <button class="ghost" onclick="shiftAttendanceMonth(1)">翌月 →</button>
+        <button class="ghost" onclick="state.attendanceMonth='${ymOf(new Date())}'; save(); renderView();">今月</button>
+      </div>
+      <div style="margin-top:10px; font-size:12px; color:var(--muted); display:flex; gap:18px; flex-wrap:wrap;">
+        <span><span class="att-cell on" style="display:inline-flex; width:24px; height:18px; vertical-align:middle;">◯</span> 出勤</span>
+        <span><span class="att-cell half" style="display:inline-flex; width:24px; height:18px; vertical-align:middle;">半</span> 半休</span>
+        <span><span class="att-cell off" style="display:inline-flex; width:24px; height:18px; vertical-align:middle;">休</span> 休み</span>
+        <span style="margin-left:auto;">💡 セルをクリックで「出勤 → 休み → 半休」と切替</span>
+      </div>
+    </div>
+    <div class="card">
+      ${body}
+    </div>
+  `;
+}
+
+function shiftAttendanceMonth(delta) {
+  const [y, m] = state.attendanceMonth.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  state.attendanceMonth = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+  save();
+  renderView();
+}
+
+function cycleShift(staffId, date) {
+  const current = getShift(staffId, date);
+  const next = current === '出勤' ? '休み' : current === '休み' ? '半休' : '出勤';
+  setShift(staffId, date, next);
 }
 
 function viewImportCustomers() {
@@ -2512,7 +2645,7 @@ const VIEW_RENDER = {
   'line':                 { html: viewLine },
   'clinics':              { html: viewClinics },
   'staff':                { html: viewStaff },
-  'menu':                 { html: viewMenu },
+  'staff-attendance':     { html: viewStaffAttendance },
   'data':                 { html: viewData },
   'import-customers':     { html: viewImportCustomers },
   'import-reservations':  { html: viewImportReservations },
