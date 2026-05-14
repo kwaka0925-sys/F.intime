@@ -517,6 +517,67 @@
   .view-toggle button.active { background: white; color: var(--primary); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
   .view-toggle button:hover { color: var(--text); }
 
+  /* ----- Month picker popup ----- */
+  .month-picker { position: relative; display: block; width: 100%; }
+  .month-picker-trigger {
+    width: 100%;
+    padding: 9px 12px;
+    text-align: left;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+    font-family: inherit;
+  }
+  .month-picker-trigger:hover { border-color: var(--primary); }
+  .month-picker-trigger::after { content: '📅'; float: right; }
+  .mp-popup {
+    display: none;
+    position: absolute;
+    top: 100%; left: 0;
+    margin-top: 4px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    padding: 14px;
+    z-index: 200;
+    width: 280px;
+  }
+  .mp-popup.show { display: block; }
+  .mp-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .mp-year { font-weight: 700; font-size: 15px; color: var(--text); }
+  .mp-nav {
+    background: transparent; color: var(--text);
+    padding: 4px 10px; font-size: 14px; border-radius: 6px;
+  }
+  .mp-nav:hover { background: #f3f4f6; }
+  .mp-months {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .mp-month {
+    padding: 10px 4px;
+    text-align: center;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    background: #f8fafc;
+    color: var(--text);
+    border: 1px solid transparent;
+  }
+  .mp-month:hover { background: #dbeafe; border-color: var(--primary); }
+  .mp-month.selected { background: var(--primary); color: white; font-weight: 700; border-color: var(--primary); }
+  .mp-month.current { color: var(--primary); font-weight: 700; }
+  .mp-actions { margin-top: 10px; display: flex; gap: 6px; }
+  .mp-actions button { flex: 1; padding: 6px; font-size: 11px; }
+
   /* ----- Modal ----- */
   .modal-backdrop {
     position: fixed; inset: 0;
@@ -1052,14 +1113,35 @@ function viewRevenueEntry() {
     <div class="card">
       <h2>📝 月次データを追加・更新</h2>
       <div class="form-grid">
-        <label>対象月<input type="month" id="f_month" value="${defaultMonth}" /></label>
+        <label>対象月
+          <div class="month-picker" id="f_monthWrapper">
+            <button type="button" class="month-picker-trigger" id="f_monthTrigger" onclick="toggleMonthPicker()">${formatYM(defaultMonth)}</button>
+            <input type="hidden" id="f_month" value="${defaultMonth}" />
+            <div class="mp-popup" id="f_monthPopup"></div>
+          </div>
+        </label>
         <label>店舗
           <select id="f_clinic">
             <option value="nakamozu">NAORU整体 中百舌鳥院</option>
             <option value="tenrokuten">NAORU整体 天満天六院</option>
           </select>
         </label>
-        <label>売上 (円)<input type="number" id="f_revenue" min="0" step="1000" placeholder="例: 1500000" /></label>
+      </div>
+
+      <h3 style="font-size:13px; margin:18px 0 8px; color:var(--muted);">💰 売上内訳 (支払方法別)</h3>
+      <div class="form-grid">
+        <label>現金売上 (円)<input type="number" id="f_revCash" min="0" step="1000" placeholder="例: 300000" oninput="updateRevenueTotal()" /></label>
+        <label>Square売上 (円)<input type="number" id="f_revSquare" min="0" step="1000" placeholder="例: 800000" oninput="updateRevenueTotal()" /></label>
+        <label>HPBポイント (円)<input type="number" id="f_revHpb" min="0" step="1000" placeholder="例: 50000" oninput="updateRevenueTotal()" /></label>
+        <label>その他決済 (円)<input type="number" id="f_revOther" min="0" step="1000" placeholder="例: 20000" oninput="updateRevenueTotal()" /></label>
+      </div>
+      <div style="background:#f0f9ff; padding:10px 14px; border-radius:8px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:12px; color:var(--muted);">合計売上</span>
+        <span id="f_revTotal" style="font-size:18px; font-weight:700; color:var(--primary);">¥0</span>
+      </div>
+
+      <h3 style="font-size:13px; margin:18px 0 8px; color:var(--muted);">📣 広告・集客</h3>
+      <div class="form-grid">
         <label>広告費 (円)<input type="number" id="f_adspend" min="0" step="1000" placeholder="例: 200000" /></label>
         <label>新規顧客数<input type="number" id="f_new" min="0" placeholder="例: 35" /></label>
         <label>リピート来院数<input type="number" id="f_repeat" min="0" placeholder="例: 120" /></label>
@@ -1081,17 +1163,19 @@ function viewRevenueEntry() {
     <div class="card" style="margin-top:18px;">
       <h2>登録済みデータ (全件)</h2>
       <table>
-        <thead><tr><th>年月</th><th>店舗</th><th class="num">売上</th><th class="num">広告費</th><th class="num">新規</th><th class="num">リピート</th><th>チャネル</th><th></th></tr></thead>
+        <thead><tr><th>年月</th><th>店舗</th><th class="num">現金</th><th class="num">Square</th><th class="num">HPB</th><th class="num">その他</th><th class="num">合計</th><th class="num">広告費</th><th class="num">新規</th><th></th></tr></thead>
         <tbody>
-          ${state.entries.length === 0 ? '<tr><td colspan="8" class="empty">まだデータがありません。</td></tr>' :
+          ${state.entries.length === 0 ? '<tr><td colspan="10" class="empty">まだデータがありません。</td></tr>' :
             state.entries.map(e => `<tr>
-              <td>${e.month}</td>
+              <td>${formatYM(e.month)}</td>
               <td>${CLINICS[e.clinic]}</td>
-              <td class="num">${yen(e.revenue)}</td>
+              <td class="num">${e.revenueCash != null ? yen(e.revenueCash) : '—'}</td>
+              <td class="num">${e.revenueSquare != null ? yen(e.revenueSquare) : '—'}</td>
+              <td class="num">${e.revenueHpb != null ? yen(e.revenueHpb) : '—'}</td>
+              <td class="num">${e.revenueOther != null ? yen(e.revenueOther) : '—'}</td>
+              <td class="num"><strong>${yen(e.revenue)}</strong></td>
               <td class="num">${yen(e.adspend)}</td>
               <td class="num">${e.newCustomers}</td>
-              <td class="num">${e.repeatVisits}</td>
-              <td>${CHANNEL_LABELS[e.channel] || '-'}</td>
               <td class="row-actions">
                 <button class="ghost sm" onclick="editEntry('${e.month}','${e.clinic}')">編集</button>
                 <button class="danger sm" onclick="if(confirm('削除しますか？')) deleteEntry('${e.month}','${e.clinic}')">削除</button>
@@ -1103,13 +1187,86 @@ function viewRevenueEntry() {
   `;
 }
 
+function formatYM(ym) {
+  if (!ym) return '月を選択';
+  const [y, m] = ym.split('-');
+  return `${y}年 ${Number(m)}月`;
+}
+
+function updateRevenueTotal() {
+  const cash   = Number(document.getElementById('f_revCash').value) || 0;
+  const square = Number(document.getElementById('f_revSquare').value) || 0;
+  const hpb    = Number(document.getElementById('f_revHpb').value) || 0;
+  const other  = Number(document.getElementById('f_revOther').value) || 0;
+  const total  = cash + square + hpb + other;
+  document.getElementById('f_revTotal').textContent = yen(total);
+}
+
+// ----- Month picker popup -----
+let monthPickerYear = new Date().getFullYear();
+function toggleMonthPicker() {
+  const popup = document.getElementById('f_monthPopup');
+  const current = document.getElementById('f_month').value;
+  if (current) monthPickerYear = Number(current.slice(0, 4));
+  popup.classList.toggle('show');
+  if (popup.classList.contains('show')) renderMonthPicker();
+}
+function shiftMonthPickerYear(d) {
+  monthPickerYear += d;
+  renderMonthPicker();
+}
+function renderMonthPicker() {
+  const popup = document.getElementById('f_monthPopup');
+  const current = document.getElementById('f_month').value;
+  const today = new Date();
+  const todayYM = ymOf(today);
+  let html = `
+    <div class="mp-header">
+      <button class="mp-nav" onclick="shiftMonthPickerYear(-1)">‹</button>
+      <div class="mp-year">${monthPickerYear}年</div>
+      <button class="mp-nav" onclick="shiftMonthPickerYear(1)">›</button>
+    </div>
+    <div class="mp-months">
+  `;
+  for (let m = 1; m <= 12; m++) {
+    const ym = `${monthPickerYear}-${pad2(m)}`;
+    const cls = (current === ym ? 'selected ' : '') + (todayYM === ym ? 'current ' : '');
+    html += `<div class="mp-month ${cls}" onclick="pickMonth('${ym}')">${m}月</div>`;
+  }
+  html += `</div>
+    <div class="mp-actions">
+      <button class="ghost" onclick="pickMonth('${todayYM}')">今月</button>
+      <button class="ghost" onclick="document.getElementById('f_monthPopup').classList.remove('show')">閉じる</button>
+    </div>`;
+  popup.innerHTML = html;
+}
+function pickMonth(ym) {
+  document.getElementById('f_month').value = ym;
+  document.getElementById('f_monthTrigger').textContent = formatYM(ym);
+  document.getElementById('f_monthPopup').classList.remove('show');
+}
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('f_monthWrapper');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('f_monthPopup')?.classList.remove('show');
+  }
+});
+
 function saveEntry() {
   const month = document.getElementById('f_month').value;
-  if (!month) { alert('対象月を入力してください'); return; }
+  if (!month) { alert('対象月を選択してください'); return; }
+  const cash   = Number(document.getElementById('f_revCash').value) || 0;
+  const square = Number(document.getElementById('f_revSquare').value) || 0;
+  const hpb    = Number(document.getElementById('f_revHpb').value) || 0;
+  const other  = Number(document.getElementById('f_revOther').value) || 0;
   upsertEntry({
     month,
     clinic: document.getElementById('f_clinic').value,
-    revenue: Number(document.getElementById('f_revenue').value) || 0,
+    revenueCash: cash,
+    revenueSquare: square,
+    revenueHpb: hpb,
+    revenueOther: other,
+    revenue: cash + square + hpb + other,
     adspend: Number(document.getElementById('f_adspend').value) || 0,
     newCustomers: Number(document.getElementById('f_new').value) || 0,
     repeatVisits: Number(document.getElementById('f_repeat').value) || 0,
@@ -1126,33 +1283,64 @@ function editEntry(month, clinic) {
     const e = state.entries.find(x => x.month === month && x.clinic === clinic);
     if (!e) return;
     document.getElementById('f_month').value = e.month;
+    document.getElementById('f_monthTrigger').textContent = formatYM(e.month);
     document.getElementById('f_clinic').value = e.clinic;
-    document.getElementById('f_revenue').value = e.revenue;
+    document.getElementById('f_revCash').value   = e.revenueCash   != null ? e.revenueCash   : '';
+    document.getElementById('f_revSquare').value = e.revenueSquare != null ? e.revenueSquare : '';
+    document.getElementById('f_revHpb').value    = e.revenueHpb    != null ? e.revenueHpb    : '';
+    document.getElementById('f_revOther').value  = e.revenueOther  != null ? e.revenueOther  : (e.revenueCash == null && e.revenueSquare == null ? e.revenue : '');
     document.getElementById('f_adspend').value = e.adspend;
     document.getElementById('f_new').value = e.newCustomers;
     document.getElementById('f_repeat').value = e.repeatVisits;
     document.getElementById('f_reservations').value = e.reservations;
     document.getElementById('f_channel').value = e.channel;
+    updateRevenueTotal();
   }, 50);
 }
 
 function viewRevenueList() {
   const entries = filteredEntries();
-  return `<div class="card"><h2>📋 売上一覧 (フィルタ適用済)</h2>
-    <table>
-      <thead><tr><th>年月</th><th>店舗</th><th class="num">売上</th><th class="num">広告費</th><th class="num">新規</th><th class="num">リピート</th><th class="num">CPA</th><th class="num">ROAS</th></tr></thead>
-      <tbody>${entries.length === 0 ? '<tr><td colspan="8" class="empty">該当データがありません。</td></tr>' :
-        entries.map(e => {
-          const cpa = e.newCustomers > 0 ? e.adspend / e.newCustomers : 0;
-          const roas = e.adspend > 0 ? (e.revenue / e.adspend) * 100 : 0;
-          return `<tr>
-            <td>${e.month}</td><td>${CLINICS[e.clinic]}</td>
-            <td class="num">${yen(e.revenue)}</td><td class="num">${yen(e.adspend)}</td>
-            <td class="num">${e.newCustomers}</td><td class="num">${e.repeatVisits}</td>
-            <td class="num">${yen(cpa)}</td><td class="num">${roas.toFixed(0)}%</td>
-          </tr>`;
-        }).join('')}</tbody>
-    </table></div>`;
+  // Aggregate payment-method totals across filtered period
+  const sum = entries.reduce((a, e) => ({
+    cash: a.cash + (e.revenueCash || 0),
+    square: a.square + (e.revenueSquare || 0),
+    hpb: a.hpb + (e.revenueHpb || 0),
+    other: a.other + (e.revenueOther || 0),
+    total: a.total + (e.revenue || 0),
+  }), { cash: 0, square: 0, hpb: 0, other: 0, total: 0 });
+
+  return `
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">💵 現金売上</div><div class="kpi-value">${yen(sum.cash)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">💳 Square売上</div><div class="kpi-value">${yen(sum.square)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">🎫 HPBポイント</div><div class="kpi-value">${yen(sum.hpb)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">🔖 その他決済</div><div class="kpi-value">${yen(sum.other)}</div></div>
+      <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:var(--primary);">${yen(sum.total)}</div></div>
+    </div>
+    <div class="card"><h2>📋 売上明細 (フィルタ適用済)</h2>
+      <table>
+        <thead><tr>
+          <th>年月</th><th>店舗</th>
+          <th class="num">💵 現金</th><th class="num">💳 Square</th><th class="num">🎫 HPB</th><th class="num">🔖 その他</th>
+          <th class="num">合計</th><th class="num">広告費</th><th class="num">新規</th><th class="num">リピート</th><th class="num">CPA</th>
+        </tr></thead>
+        <tbody>${entries.length === 0 ? '<tr><td colspan="11" class="empty">該当データがありません。</td></tr>' :
+          entries.map(e => {
+            const cpa = e.newCustomers > 0 ? e.adspend / e.newCustomers : 0;
+            return `<tr>
+              <td>${formatYM(e.month)}</td><td>${CLINICS[e.clinic]}</td>
+              <td class="num">${e.revenueCash   != null ? yen(e.revenueCash)   : '—'}</td>
+              <td class="num">${e.revenueSquare != null ? yen(e.revenueSquare) : '—'}</td>
+              <td class="num">${e.revenueHpb    != null ? yen(e.revenueHpb)    : '—'}</td>
+              <td class="num">${e.revenueOther  != null ? yen(e.revenueOther)  : '—'}</td>
+              <td class="num"><strong>${yen(e.revenue)}</strong></td>
+              <td class="num">${yen(e.adspend)}</td>
+              <td class="num">${e.newCustomers}</td><td class="num">${e.repeatVisits}</td>
+              <td class="num">${e.newCustomers > 0 ? yen(cpa) : '—'}</td>
+            </tr>`;
+          }).join('')}</tbody>
+      </table>
+    </div>`;
 }
 
 function viewRevenueTrend() {
@@ -2236,10 +2424,21 @@ function loadSample() {
   if (state.entries.length > 0 && !confirm('既存データを上書きします。よろしいですか？')) return;
   const months = ['2025-10','2025-11','2025-12','2026-01','2026-02','2026-03','2026-04','2026-05'];
   const sample = [];
+  const buildRow = (m, clinic, base) => {
+    const total = base + Math.floor(Math.random() * 100000);
+    const square = Math.floor(total * 0.55);
+    const cash   = Math.floor(total * 0.25);
+    const hpb    = Math.floor(total * 0.12);
+    const other  = total - square - cash - hpb;
+    return {
+      month: m, clinic,
+      revenueCash: cash, revenueSquare: square, revenueHpb: hpb, revenueOther: other,
+      revenue: cash + square + hpb + other,
+    };
+  };
   months.forEach((m, i) => {
     sample.push({
-      month: m, clinic: 'nakamozu',
-      revenue: 1200000 + i * 50000 + Math.floor(Math.random()*100000),
+      ...buildRow(m, 'nakamozu', 1200000 + i * 50000),
       adspend: 180000 + Math.floor(Math.random()*40000),
       newCustomers: 28 + Math.floor(Math.random()*10),
       repeatVisits: 95 + i * 5,
@@ -2247,8 +2446,7 @@ function loadSample() {
       channel: ['google','meta','hotpepper'][i % 3],
     });
     sample.push({
-      month: m, clinic: 'tenrokuten',
-      revenue: 980000 + i * 40000 + Math.floor(Math.random()*80000),
+      ...buildRow(m, 'tenrokuten', 980000 + i * 40000),
       adspend: 150000 + Math.floor(Math.random()*30000),
       newCustomers: 22 + Math.floor(Math.random()*8),
       repeatVisits: 75 + i * 4,
