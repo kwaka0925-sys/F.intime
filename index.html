@@ -2335,15 +2335,83 @@ function updateDailyCell(dateStr, clinic, field, valueStr) {
   });
 }
 
+function parseSheetNum(v) {
+  if (v == null || v === '') return 0;
+  const n = Number(String(v).replace(/[¥,\s円]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+
+// Aggregate daily sheet entries into (month, clinic) groups for the revenue list view.
+function aggregateDailyForRevenueList(clinicFilter, from, to) {
+  const map = {};
+  state.dailyEntries.forEach(e => {
+    if (clinicFilter !== 'all' && e.clinic !== clinicFilter) return;
+    const month = (e.date || '').slice(0, 7);
+    if (!month) return;
+    if (from && month < from) return;
+    if (to && month > to) return;
+    const key = month + '__' + e.clinic;
+    if (!map[key]) {
+      map[key] = { month, clinic: e.clinic, cash: 0, square: 0, hpb: 0, other: 0, total: 0, days: 0 };
+    }
+    const c = e.cells || {};
+    map[key].cash   += parseSheetNum(c['現金売上']);
+    map[key].square += parseSheetNum(c['スクエア']);
+    map[key].hpb    += parseSheetNum(c['ホットポイント']);
+    map[key].other  += parseSheetNum(c['PayPay']);
+    map[key].total  += parseSheetNum(c['総売上']);
+    if (Object.keys(c).length > 0) map[key].days += 1;
+  });
+  return map;
+}
+
+function jumpToDailySales(month, clinic) {
+  state.dailyMonth = month;
+  state.dailyClinic = clinic;
+  save();
+  switchView('daily-sales');
+}
+
 function viewRevenueList() {
-  const entries = filteredEntries();
-  // Aggregate payment-method totals across filtered period
-  const sum = entries.reduce((a, e) => ({
-    cash: a.cash + (e.revenueCash || 0),
-    square: a.square + (e.revenueSquare || 0),
-    hpb: a.hpb + (e.revenueHpb || 0),
-    other: a.other + (e.revenueOther || 0),
-    total: a.total + (e.revenue || 0),
+  const clinicFilter = document.getElementById('clinicSelect').value;
+  const { from, to } = getPeriodRange();
+
+  // Daily-sales rollup
+  const dailyAgg = aggregateDailyForRevenueList(clinicFilter, from, to);
+
+  // Monthly manual entries (for adspend / customer counts)
+  const monthlyMap = {};
+  state.entries.filter(e => {
+    if (clinicFilter !== 'all' && e.clinic !== clinicFilter) return false;
+    if (from && e.month < from) return false;
+    if (to && e.month > to) return false;
+    return true;
+  }).forEach(e => { monthlyMap[e.month + '__' + e.clinic] = e; });
+
+  // Union of (month, clinic) keys from both sources
+  const allKeys = new Set([...Object.keys(dailyAgg), ...Object.keys(monthlyMap)]);
+  const rows = [...allKeys].map(key => {
+    const [month, clinic] = key.split('__');
+    const agg = dailyAgg[key];
+    const mon = monthlyMap[key];
+    const hasDaily = !!agg;
+    return {
+      month, clinic,
+      cash:   hasDaily ? agg.cash   : (mon && mon.revenueCash   != null ? mon.revenueCash   : 0),
+      square: hasDaily ? agg.square : (mon && mon.revenueSquare != null ? mon.revenueSquare : 0),
+      hpb:    hasDaily ? agg.hpb    : (mon && mon.revenueHpb    != null ? mon.revenueHpb    : 0),
+      other:  hasDaily ? agg.other  : (mon && mon.revenueOther  != null ? mon.revenueOther  : 0),
+      total:  hasDaily ? agg.total  : (mon && mon.revenue       != null ? mon.revenue       : 0),
+      adspend:      mon ? (mon.adspend      || 0) : 0,
+      newCustomers: mon ? (mon.newCustomers || 0) : 0,
+      repeatVisits: mon ? (mon.repeatVisits || 0) : 0,
+      hasDaily,
+    };
+  }).sort((a, b) => a.month.localeCompare(b.month) || a.clinic.localeCompare(b.clinic));
+
+  const sum = rows.reduce((a, r) => ({
+    cash: a.cash + r.cash, square: a.square + r.square, hpb: a.hpb + r.hpb,
+    other: a.other + r.other, total: a.total + r.total,
   }), { cash: 0, square: 0, hpb: 0, other: 0, total: 0 });
 
   return `
@@ -2354,26 +2422,28 @@ function viewRevenueList() {
       <div class="kpi-card"><div class="kpi-label">🔖 その他決済</div><div class="kpi-value">${yen(sum.other)}</div></div>
       <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:var(--primary);">${yen(sum.total)}</div></div>
     </div>
-    <div class="card"><h2>📋 売上明細 (フィルタ適用済)</h2>
+    <div class="card"><h2>📋 売上明細 (日次売上の月次集計)</h2>
+      <p style="font-size:12px; color:var(--muted); margin:-6px 0 12px;">💡 各行をクリックすると、その月の日次売上画面に移動します。日次売上で入力した「現金売上 / スクエア / ホットポイント / PayPay / 総売上」を月別に集計しています。</p>
       <table>
         <thead><tr>
           <th>年月</th><th>店舗</th>
           <th class="num">💵 現金</th><th class="num">💳 Square</th><th class="num">🎫 HPB</th><th class="num">🔖 その他</th>
-          <th class="num">合計</th><th class="num">広告費</th><th class="num">新規</th><th class="num">リピート</th><th class="num">CPA</th>
+          <th class="num">合計</th><th class="num">広告費</th><th class="num">新規</th><th class="num">リピート</th><th class="num">CPA</th><th>ソース</th>
         </tr></thead>
-        <tbody>${entries.length === 0 ? '<tr><td colspan="11" class="empty">該当データがありません。</td></tr>' :
-          entries.map(e => {
-            const cpa = e.newCustomers > 0 ? e.adspend / e.newCustomers : 0;
-            return `<tr>
-              <td>${formatYM(e.month)}</td><td>${CLINICS[e.clinic]}</td>
-              <td class="num">${e.revenueCash   != null ? yen(e.revenueCash)   : '—'}</td>
-              <td class="num">${e.revenueSquare != null ? yen(e.revenueSquare) : '—'}</td>
-              <td class="num">${e.revenueHpb    != null ? yen(e.revenueHpb)    : '—'}</td>
-              <td class="num">${e.revenueOther  != null ? yen(e.revenueOther)  : '—'}</td>
-              <td class="num"><strong>${yen(e.revenue)}</strong></td>
-              <td class="num">${yen(e.adspend)}</td>
-              <td class="num">${e.newCustomers}</td><td class="num">${e.repeatVisits}</td>
-              <td class="num">${e.newCustomers > 0 ? yen(cpa) : '—'}</td>
+        <tbody>${rows.length === 0 ? '<tr><td colspan="12" class="empty">該当データがありません。<br /><span style="font-size:11px;">「日次売上」で日報シートを同期するか、「月次売上入力」から手入力してください。</span></td></tr>' :
+          rows.map(r => {
+            const cpa = r.newCustomers > 0 ? r.adspend / r.newCustomers : 0;
+            return `<tr style="cursor:pointer;" onclick="jumpToDailySales('${r.month}','${r.clinic}')">
+              <td>${formatYM(r.month)}</td><td>${CLINICS[r.clinic]}</td>
+              <td class="num">${yen(r.cash)}</td>
+              <td class="num">${yen(r.square)}</td>
+              <td class="num">${yen(r.hpb)}</td>
+              <td class="num">${yen(r.other)}</td>
+              <td class="num"><strong>${yen(r.total)}</strong></td>
+              <td class="num">${yen(r.adspend)}</td>
+              <td class="num">${r.newCustomers}</td><td class="num">${r.repeatVisits}</td>
+              <td class="num">${r.newCustomers > 0 ? yen(cpa) : '—'}</td>
+              <td><span class="pill" style="${r.hasDaily ? 'background:#d1fae5; color:#065f46;' : 'background:#fef3c7; color:#92400e;'}">${r.hasDaily ? '日次集計' : '月次手入力'}</span></td>
             </tr>`;
           }).join('')}</tbody>
       </table>
