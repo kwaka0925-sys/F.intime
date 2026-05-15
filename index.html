@@ -137,6 +137,20 @@
     background: white;
     font-family: inherit;
   }
+  /* Remove the up/down spinner buttons on number inputs */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] { -moz-appearance: textfield; }
+  /* Visual style when a payment field is read-only because it mirrors the daily sheet */
+  input.readonly-amount {
+    background: #f8fafc;
+    color: var(--text-dark);
+    cursor: not-allowed;
+    font-weight: 600;
+  }
   textarea { font-size: 15px; font-family: inherit; }
   button {
     padding: 9px 18px;
@@ -1685,16 +1699,41 @@ function viewSummary() {
     const [month, clinic] = key.split('__');
     const mon = entries.find(e => e.month === month && e.clinic === clinic);
     if (mon) {
-      // Replace the monthly entry's revenue with the sheet's actual total to avoid double-counting.
       t.revenue = t.revenue - (mon.revenue || 0) + agg.total;
     } else {
       t.revenue += agg.total;
     }
   });
-  const totalDailyClinics = new Set(Object.keys(dailyAgg).map(k => k.split('__')[1])).size;
+
+  // Per-clinic revenue breakdown (always computed, regardless of filter)
+  function revenueForClinic(c) {
+    const cEntries = state.entries.filter(e => {
+      if (e.clinic !== c) return false;
+      if (from && e.month < from) return false;
+      if (to && e.month > to) return false;
+      return true;
+    });
+    let rev = cEntries.reduce((s, e) => s + (e.revenue || 0), 0);
+    const cDaily = aggregateDailyForRevenueList(c, from, to);
+    Object.entries(cDaily).forEach(([key, agg]) => {
+      const m = key.split('__')[0];
+      const mon = cEntries.find(e => e.month === m);
+      if (mon) rev = rev - (mon.revenue || 0) + agg.total;
+      else rev += agg.total;
+    });
+    return { revenue: rev, hasDaily: Object.keys(cDaily).length > 0 };
+  }
+  const naka = revenueForClinic('nakamozu');
+  const tenroku = revenueForClinic('tenrokuten');
   const groupNote = clinicFilter === 'all'
     ? '中百舌鳥院 + 天満天六院 の合計'
     : `${CLINICS[clinicFilter]} のみ`;
+  const breakdownHtml = clinicFilter === 'all'
+    ? `<div style="margin-top:6px; font-size:11px; line-height:1.5;">
+         <div><span style="color:#dc2626;">中百舌鳥院 (既存データ): ${yen(naka.revenue)}</span></div>
+         <div><span style="color:var(--text);">天満天六院: <strong>${yen(tenroku.revenue)}</strong></span></div>
+       </div>`
+    : '';
 
   const cpa = t.newCustomers > 0 ? t.adspend / t.newCustomers : 0;
   const roas = t.adspend > 0 ? (t.revenue / t.adspend) * 100 : 0;
@@ -1707,7 +1746,7 @@ function viewSummary() {
 
   return `
     <div class="kpi-grid">
-      <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:var(--primary);">${yen(t.revenue)}</div><div class="kpi-sub">${groupNote}</div></div>
+      <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:var(--primary);">${yen(t.revenue)}</div><div class="kpi-sub">${groupNote}</div>${breakdownHtml}</div>
       <div class="kpi-card"><div class="kpi-label">広告費</div><div class="kpi-value">${yen(t.adspend)}</div></div>
       <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(t.newCustomers)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
       <div class="kpi-card"><div class="kpi-label">リピート来院</div><div class="kpi-value">${fmt(t.repeatVisits)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
@@ -1825,10 +1864,10 @@ function viewRevenueEntry() {
       </div>
       <div id="entryFromDailyNote" style="font-size:11px; color:${noteColor}; margin-bottom:6px;">${noteText}</div>
       <div class="form-grid">
-        <label>現金売上 (円)<input type="number" id="f_revCash" min="0" step="1000" value="${initCash}" placeholder="例: 300000" oninput="updateRevenueTotal()" /></label>
-        <label>Square売上 (円)<input type="number" id="f_revSquare" min="0" step="1000" value="${initSquare}" placeholder="例: 800000" oninput="updateRevenueTotal()" /></label>
-        <label>HPBポイント (円)<input type="number" id="f_revHpb" min="0" step="1000" value="${initHpb}" placeholder="例: 50000" oninput="updateRevenueTotal()" /></label>
-        <label>その他決済 (円)<input type="number" id="f_revOther" min="0" step="1000" value="${initOther}" placeholder="例: 20000" oninput="updateRevenueTotal()" /></label>
+        <label>現金売上 (円)<input type="number" id="f_revCash" min="0" step="1000" value="${initCash}" placeholder="例: 300000" oninput="updateRevenueTotal()" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
+        <label>Square売上 (円)<input type="number" id="f_revSquare" min="0" step="1000" value="${initSquare}" placeholder="例: 800000" oninput="updateRevenueTotal()" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
+        <label>HPBポイント (円)<input type="number" id="f_revHpb" min="0" step="1000" value="${initHpb}" placeholder="例: 50000" oninput="updateRevenueTotal()" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
+        <label>その他決済 (円)<input type="number" id="f_revOther" min="0" step="1000" value="${initOther}" placeholder="例: 20000" oninput="updateRevenueTotal()" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
       </div>
       <div style="background:#f0f9ff; padding:10px 14px; border-radius:8px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
         <span style="font-size:12px; color:var(--muted);">合計売上</span>
@@ -1892,11 +1931,14 @@ function refreshEntryFromDaily() {
   const mon = state.entries.find(e => e.month === month && e.clinic === clinic);
   const note = document.getElementById('entryFromDailyNote');
 
-  const setRevFields = (cash, square, hpb, other) => {
-    document.getElementById('f_revCash').value   = cash   != null ? cash   : '';
-    document.getElementById('f_revSquare').value = square != null ? square : '';
-    document.getElementById('f_revHpb').value    = hpb    != null ? hpb    : '';
-    document.getElementById('f_revOther').value  = other  != null ? other  : '';
+  const setRevFields = (cash, square, hpb, other, readonly) => {
+    ['f_revCash','f_revSquare','f_revHpb','f_revOther'].forEach((id, i) => {
+      const el = document.getElementById(id);
+      const val = [cash, square, hpb, other][i];
+      el.value = val != null ? val : '';
+      if (readonly) { el.setAttribute('readonly',''); el.classList.add('readonly-amount'); }
+      else { el.removeAttribute('readonly'); el.classList.remove('readonly-amount'); }
+    });
   };
   const setAdFields = (adspend, nc, rp, rsv, channel) => {
     document.getElementById('f_adspend').value      = adspend != null ? adspend : '';
@@ -1907,22 +1949,21 @@ function refreshEntryFromDaily() {
   };
 
   if (agg) {
-    setRevFields(agg.cash, agg.square, agg.hpb, agg.other);
-    // ad-related fields fall back to manual entry even when daily exists
+    setRevFields(agg.cash, agg.square, agg.hpb, agg.other, true);
     setAdFields(mon && mon.adspend, mon && mon.newCustomers, mon && mon.repeatVisits, mon && mon.reservations, mon && mon.channel);
     if (note) {
       note.style.color = 'var(--success)';
-      note.textContent = `✓ 日次売上シートから自動反映済み（${formatYM(month)} ${CLINICS[clinic]}）`;
+      note.textContent = `✓ 日次売上シートから自動反映（読み取り専用）（${formatYM(month)} ${CLINICS[clinic]}）`;
     }
   } else if (mon) {
-    setRevFields(mon.revenueCash, mon.revenueSquare, mon.revenueHpb, mon.revenueOther);
+    setRevFields(mon.revenueCash, mon.revenueSquare, mon.revenueHpb, mon.revenueOther, false);
     setAdFields(mon.adspend, mon.newCustomers, mon.repeatVisits, mon.reservations, mon.channel);
     if (note) {
       note.style.color = 'var(--warning)';
       note.textContent = `📝 手入力データを表示中（${formatYM(month)} ${CLINICS[clinic]}）`;
     }
   } else {
-    setRevFields('', '', '', '');
+    setRevFields('', '', '', '', false);
     setAdFields('', '', '', '', '');
     if (note) {
       note.style.color = 'var(--muted)';
