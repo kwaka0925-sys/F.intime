@@ -1737,25 +1737,32 @@ function viewSummary() {
        </div>`
     : '';
 
-  const cpa = t.newCustomers > 0 ? t.adspend / t.newCustomers : 0;
-  const roas = t.adspend > 0 ? (t.revenue / t.adspend) * 100 : 0;
+  // Pull 広告費 / 予約数 from Meta広告データ when available (overrides manual entries)
+  const metaSummary = aggregateMetaForPeriod(clinicFilter, from, to);
+  const hasMeta = metaSummary.hasData;
+  const adspend = hasMeta ? metaSummary.adspend : t.adspend;
+  const reservations = hasMeta ? metaSummary.registrations : t.reservations;
+
+  const cpa = reservations > 0 ? adspend / reservations : 0;
+  const roas = adspend > 0 ? (t.revenue / adspend) * 100 : 0;
   const avgPerCust = (t.newCustomers + t.repeatVisits) > 0 ? t.revenue / (t.newCustomers + t.repeatVisits) : 0;
 
   const dash = '—';
-  const showRoas = t.adspend > 0;
-  const showCpa = t.newCustomers > 0;
+  const showRoas = adspend > 0;
+  const showCpa = reservations > 0 && adspend > 0;
   const showAvg = (t.newCustomers + t.repeatVisits) > 0;
+  const metaTag = hasMeta ? '<span style="font-size:10px; color:var(--primary); background:#eff6ff; padding:1px 5px; border-radius:3px; margin-left:4px;">Meta連携</span>' : '';
 
   return `
     <div class="kpi-grid">
       <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:var(--primary);">${yen(t.revenue)}</div><div class="kpi-sub">${groupNote}</div>${breakdownHtml}</div>
-      <div class="kpi-card"><div class="kpi-label">広告費</div><div class="kpi-value">${yen(t.adspend)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">広告費${metaTag}</div><div class="kpi-value">${yen(adspend)}</div></div>
       <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(t.newCustomers)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
       <div class="kpi-card"><div class="kpi-label">リピート来院</div><div class="kpi-value">${fmt(t.repeatVisits)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
-      <div class="kpi-card"><div class="kpi-label">CPA</div><div class="kpi-value">${showCpa ? yen(cpa) : dash}</div><div class="kpi-sub">${showCpa ? '顧客獲得単価' : 'データなし'}</div></div>
-      <div class="kpi-card"><div class="kpi-label">ROAS</div><div class="kpi-value">${showRoas ? Math.round(roas) + '%' : dash}</div><div class="kpi-sub ${showRoas ? (roas >= 300 ? 'up' : 'down') : ''}">${showRoas ? (roas >= 300 ? '良好' : '要改善 (目安300%以上)') : 'データなし'}</div></div>
+      <div class="kpi-card"><div class="kpi-label">CPA${metaTag}</div><div class="kpi-value">${showCpa ? yen(cpa) : dash}</div><div class="kpi-sub">${showCpa ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
+      <div class="kpi-card"><div class="kpi-label">ROAS</div><div class="kpi-value">${showRoas ? Math.round(roas) + '%' : dash}</div><div class="kpi-sub ${showRoas ? (roas >= 300 ? 'up' : 'down') : ''}">${showRoas ? (roas >= 300 ? '良好 (売上 ÷ 広告費)' : '要改善 (目安300%以上)') : 'データなし'}</div></div>
       <div class="kpi-card"><div class="kpi-label">客単価</div><div class="kpi-value">${showAvg ? yen(avgPerCust) : dash}</div></div>
-      <div class="kpi-card"><div class="kpi-label">予約数</div><div class="kpi-value">${fmt(t.reservations)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">予約数${metaTag}</div><div class="kpi-value">${fmt(reservations)}</div></div>
     </div>
     <div class="grid-2">
       <div class="card"><h2>📈 月次売上推移</h2><canvas id="chart_summary_revenue" height="180"></canvas></div>
@@ -2655,6 +2662,34 @@ function getFilteredMetaRows() {
   }
   const keyword = clinicFilter === 'nakamozu' ? '中百舌鳥' : '天満天六';
   return allRows.filter(r => r.campaign && r.campaign.includes(keyword));
+}
+
+// Aggregate Meta ad data for a clinic filter ('all' | 'nakamozu' | 'tenrokuten')
+// and YYYY-MM period range. Used by 経営サマリー to surface Meta-derived
+// adspend / 予約数 / CPA without manual entry.
+function aggregateMetaForPeriod(clinicFilter, fromMonth, toMonth) {
+  const allRows = state.metaRows || [];
+  let rows;
+  if (clinicFilter === 'all') {
+    rows = allRows.filter(r => getMetaClinicFromCampaign(r.campaign));
+  } else {
+    const keyword = clinicFilter === 'nakamozu' ? '中百舌鳥' : '天満天六';
+    rows = allRows.filter(r => r.campaign && r.campaign.includes(keyword));
+  }
+  const inRange = rows.filter(r => {
+    if (!r.date) return false;
+    const ym = r.date.slice(0, 7);
+    if (fromMonth && ym < fromMonth) return false;
+    if (toMonth && ym > toMonth) return false;
+    return true;
+  });
+  const adspend = inRange.reduce((s, r) => s + (r.amountSpent || 0), 0);
+  const registrations = inRange.reduce((s, r) => s + (r.registrations || 0), 0);
+  return {
+    adspend,
+    registrations,
+    hasData: inRange.length > 0 && (adspend > 0 || registrations > 0),
+  };
 }
 
 function renderMetaDebug() {
