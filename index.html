@@ -2085,8 +2085,9 @@ async function fetchDailyReportSheet(manual) {
   };
   setStatus('⏳ 日報シートから同期中...');
 
-  // Try the direct URL first, then fall back through CORS proxies.
+  // Same-origin Vercel function first; fall back through public CORS proxies.
   const candidates = [
+    { label: 'サーバー関数経由', url: '/api/sheet' },
     { label: '直接', url: DAILY_REPORT_SHEET_URL },
     { label: 'corsproxy.io 経由', url: 'https://corsproxy.io/?' + encodeURIComponent(DAILY_REPORT_SHEET_URL) },
     { label: 'allorigins 経由', url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(DAILY_REPORT_SHEET_URL) },
