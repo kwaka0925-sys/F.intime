@@ -1235,9 +1235,10 @@ function showApp() {
   document.getElementById('appRoot').style.display = '';
 }
 function checkAuth() {
-  // Always require password on each page load (no persistence)
-  setTimeout(() => document.getElementById('loginEmail')?.focus(), 50);
-  return false;
+  // Login is temporarily disabled — skip the overlay and open the app directly.
+  isAuthedInMemory = true;
+  showApp();
+  return true;
 }
 
 // ===== Persistence =====
@@ -1999,6 +2000,13 @@ const DAILY_SKIP_HEADERS = new Set([
 ]);
 // Columns from this header (inclusive) to the right are hidden from the daily-sales table.
 const DAILY_HIDE_FROM_HEADER = '口座へ入金';
+// Display-only header rename map. Keys are sheet column names; values are what we show on the table.
+const DAILY_HEADER_ALIASES = {
+  'Hotpoint': 'HPB point',
+};
+function displayHeader(h) {
+  return DAILY_HEADER_ALIASES[h] || h;
+}
 
 function getDailyDataHeaders() {
   // Prefer headers from the synced sheet
@@ -2052,7 +2060,7 @@ function viewDailySales() {
 
   // header
   let head = `<tr><th>営業日</th><th>曜日</th>` +
-    dataHeaders.map(h => `<th class="${isHlHeader(h) ? 'hl' : ''}" style="min-width:${isWideHeader(h) ? 90 : 70}px;">${escapeHtml(h)}</th>`).join('') +
+    dataHeaders.map(h => `<th class="${isHlHeader(h) ? 'hl' : ''}" style="min-width:${isWideHeader(h) ? 90 : 70}px;">${escapeHtml(displayHeader(h))}</th>`).join('') +
     `</tr>`;
 
   // body
