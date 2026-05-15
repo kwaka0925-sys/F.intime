@@ -1992,13 +1992,17 @@ function getDailyEntry(date, clinic) {
 
 // Headers we never display as a regular data column (handled separately or duplicate of left columns)
 const DAILY_SKIP_HEADERS = new Set(['日付','営業日','日報日','曜日','曜','店舗','院','所属','clinic','date']);
+// Columns from this header (inclusive) to the right are hidden from the daily-sales table.
+const DAILY_HIDE_FROM_HEADER = '口座へ入金';
 
 function getDailyDataHeaders() {
   // Prefer headers from the synced sheet
   if (state.dailyHeaders && state.dailyHeaders.length > 0) {
-    return state.dailyHeaders
+    const all = state.dailyHeaders
       .map(h => (h || '').toString().trim())
       .filter(h => h && !DAILY_SKIP_HEADERS.has(h));
+    const stopIdx = all.findIndex(h => h === DAILY_HIDE_FROM_HEADER);
+    return stopIdx >= 0 ? all.slice(0, stopIdx) : all;
   }
   // Fallback: use legacy hard-coded columns
   return DAILY_COLS.map(c => c.label);
