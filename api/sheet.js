@@ -1,9 +1,9 @@
 // Vercel serverless function: server-side proxy for Google Sheets published CSV.
-// Avoids CORS issues by fetching from the server instead of the browser.
+// Uses CommonJS export so it works regardless of how Vercel resolves the module type.
 
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQHICtJp0nIwhdHGKwLoPkidVl3MgI-HDxJdNHoaHv3g9SQ6KT4h7O5w0EJcTGwCIK4OFxQmybYpinO/pub?gid=2129032732&single=true&output=csv';
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   try {
     const response = await fetch(SHEET_URL, {
       redirect: 'follow',
@@ -13,22 +13,30 @@ export default async function handler(req, res) {
       },
     });
 
-    if (!response.ok) {
-      res.status(response.status).send(`HTTP ${response.status} from Google Sheets`);
-      return;
-    }
-
     const text = await response.text();
-    if (text.trim().startsWith('<')) {
-      res.status(502).send('Google returned HTML (sheet not published?)');
+
+    if (!response.ok) {
+      res.statusCode = response.status;
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.end(`Upstream HTTP ${response.status}\n${text.slice(0, 500)}`);
       return;
     }
 
+    if (text.trim().startsWith('<')) {
+      res.statusCode = 502;
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.end(`Google returned HTML (sheet not published?)\n${text.slice(0, 500)}`);
+      return;
+    }
+
+    res.statusCode = 200;
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.status(200).send(text);
+    res.end(text);
   } catch (e) {
-    res.status(500).send(`Fetch failed: ${e.message || e}`);
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.end(`Fetch failed: ${e && e.message ? e.message : String(e)}`);
   }
-}
+};
