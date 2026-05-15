@@ -1192,6 +1192,8 @@ function load() {
   if (!state.bookings) state.bookings = [];
   if (!state.staffViewClinic) state.staffViewClinic = 'nakamozu';
   if (!state.staffViewDate) state.staffViewDate = new Date().toISOString().slice(0, 10);
+  if (!state.staffViewMode) state.staffViewMode = 'day';
+  if (!state.staffWeekStart) state.staffWeekStart = new Date().toISOString().slice(0, 10);
   if (!state.calClinic) state.calClinic = 'nakamozu';
   if (!state.calMonth) state.calMonth = new Date().toISOString().slice(0, 7);
   if (!state.calWeekStart) state.calWeekStart = new Date().toISOString().slice(0, 10);
@@ -2338,7 +2340,19 @@ function changeStaffDate(date) {
   renderView();
 }
 
+function switchStaffMode(mode) {
+  state.staffViewMode = mode;
+  save();
+  renderView();
+}
+function shiftStaffWeek(days) {
+  state.staffWeekStart = ymdShift(state.staffWeekStart, days);
+  save();
+  renderView();
+}
+
 function viewStaff() {
+  if (state.staffViewMode === 'week') return viewStaffWeek();
   const date = state.staffViewDate;
   const clinic = state.staffViewClinic;
   const staffList = STAFF[clinic] || [];
@@ -2359,6 +2373,10 @@ function viewStaff() {
 
     <div class="card" style="margin-bottom:18px;">
       <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+        <div class="view-toggle">
+          <button class="active" onclick="switchStaffMode('day')">日表示</button>
+          <button onclick="switchStaffMode('week')">週表示</button>
+        </div>
         <div>
           <label style="font-size:11px; color:var(--muted); display:block;">対象日</label>
           <input type="date" value="${date}" onchange="changeStaffDate(this.value)" style="padding:8px 10px;" />
@@ -2429,6 +2447,95 @@ function viewStaff() {
       `}
     </div>
   `;
+}
+
+function viewStaffWeek() {
+  const days = getWeekDays(state.staffWeekStart);
+  const today = ymd(new Date());
+
+  // total counts for header
+  let totalOn = 0, totalOff = 0, totalTreatments = 0;
+  Object.values(STAFF).flat().forEach(s => {
+    days.forEach(d => {
+      const sh = getShift(s.id, d);
+      if (sh === '出勤') totalOn++;
+      else if (sh === '休み') totalOff++;
+    });
+  });
+  totalTreatments = state.bookings.filter(b =>
+    days.includes(b.date) && b.type !== '休憩' && b.type !== 'MTG'
+  ).length;
+
+  let body = '';
+  Object.entries(STAFF).forEach(([clinicKey, list]) => {
+    body += `<div class="att-clinic-label">🏥 ${CLINICS[clinicKey]}</div>`;
+    body += `<div class="week-grid" style="grid-template-columns: 150px repeat(7, 1fr);">`;
+    body += `<div class="head">スタッフ</div>`;
+    days.forEach(d => {
+      const dd = new Date(d);
+      const dow = dd.getDay();
+      const isToday = d === today;
+      const dowCls = dow === 0 ? 'sun' : dow === 6 ? 'sat' : '';
+      body += `<div class="head ${isToday ? 'today' : dowCls}">${jpDate(d)}</div>`;
+    });
+    list.forEach(s => {
+      body += `<div class="staff-name">${s.name}<br /><span style="font-size:11px; color:var(--muted); font-weight:500;">${s.role}</span></div>`;
+      days.forEach(d => {
+        const shift = getShift(s.id, d);
+        const isOff = shift === '休み';
+        const bs = state.bookings.filter(b => b.staffId === s.id && b.date === d)
+          .sort((a, b) => a.time.localeCompare(b.time));
+        const treatments = bs.filter(b => b.type !== '休憩' && b.type !== 'MTG');
+        if (isOff && bs.length === 0) {
+          body += `<div class="week-cell off">休み</div>`;
+        } else {
+          const lines = bs.slice(0, 5).map(b => {
+            const t = b.type === '予約' ? '施術' : (b.type || '施術');
+            if (t === '休憩') return `${b.time} ☕休憩`;
+            if (t === 'MTG') return `${b.time} 👥MTG`;
+            return `${b.time} ${escapeHtml((b.customer || '施術')).slice(0, 8)}`;
+          }).join('<br />');
+          const more = bs.length > 5 ? `<br /><span style="color:var(--muted);">他${bs.length - 5}件</span>` : '';
+          body += `<div class="week-cell ${isOff ? 'conflict' : ''}" onclick="jumpToStaffDayInClinic('${d}','${clinicKey}')">
+            ${treatments.length > 0 ? `<span class="count">${treatments.length}件</span>` : (bs.length > 0 ? '' : '<span style="color:var(--muted-2); font-size:11px;">空</span>')}
+            <div class="b-list">${lines}${more}</div>
+          </div>`;
+        }
+      });
+    });
+    body += `</div>`;
+  });
+
+  return `
+    <div class="card" style="margin-bottom:18px;">
+      <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+        <div class="view-toggle">
+          <button onclick="switchStaffMode('day')">日表示</button>
+          <button class="active" onclick="switchStaffMode('week')">週表示</button>
+        </div>
+        <div style="flex:1;"></div>
+        <button class="ghost" onclick="shiftStaffWeek(-7)">← 前週</button>
+        <div style="font-weight:700; font-size:15px; min-width:220px; text-align:center;">${jpDate(days[0])} 〜 ${jpDate(days[6])}</div>
+        <button class="ghost" onclick="shiftStaffWeek(7)">翌週 →</button>
+        <button class="ghost" onclick="state.staffWeekStart='${today}'; save(); renderView();">今週</button>
+      </div>
+      <div style="margin-top:10px; font-size:12px; color:var(--muted);">
+        📊 全店舗 出勤 ${totalOn} / 休み ${totalOff} 日数 / 施術予約 ${totalTreatments}件
+        <span style="margin-left:16px;">💡 セルをクリックでその日の詳細画面へ移動</span>
+      </div>
+    </div>
+    <div class="card">
+      ${body}
+    </div>
+  `;
+}
+
+function jumpToStaffDayInClinic(date, clinic) {
+  state.staffViewDate = date;
+  state.staffViewClinic = clinic;
+  state.staffViewMode = 'day';
+  save();
+  renderView();
 }
 
 function ymdShift(ymd, days) {
