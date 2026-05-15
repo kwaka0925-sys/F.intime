@@ -2084,18 +2084,43 @@ async function fetchDailyReportSheet(manual) {
     if (el) el.textContent = msg;
   };
   setStatus('⏳ 日報シートから同期中...');
-  try {
-    const res = await fetch(DAILY_REPORT_SHEET_URL, { cache: 'no-store' });
-    if (!res.ok) {
-      if (res.status === 404) {
-        throw new Error('シートが「ウェブに公開」されていません or URL/gidが違います');
+
+  // Try the direct URL first, then fall back through CORS proxies.
+  const candidates = [
+    { label: '直接', url: DAILY_REPORT_SHEET_URL },
+    { label: 'corsproxy.io 経由', url: 'https://corsproxy.io/?' + encodeURIComponent(DAILY_REPORT_SHEET_URL) },
+    { label: 'allorigins 経由', url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(DAILY_REPORT_SHEET_URL) },
+  ];
+
+  let lastError = '';
+  let text = null;
+  let usedLabel = '';
+
+  for (const c of candidates) {
+    try {
+      setStatus('⏳ ' + c.label + 'で取得中...');
+      const res = await fetch(c.url, { cache: 'no-store' });
+      if (!res.ok) { lastError = `${c.label}: HTTP ${res.status}`; continue; }
+      const t = await res.text();
+      if (!t || t.trim().startsWith('<') || /<!DOCTYPE/i.test(t.slice(0, 200))) {
+        lastError = `${c.label}: HTMLが返されました（公開未設定?）`;
+        continue;
       }
-      throw new Error('HTTP ' + res.status);
+      text = t;
+      usedLabel = c.label;
+      break;
+    } catch (e) {
+      lastError = `${c.label}: ${e.message || e}`;
     }
-    const text = await res.text();
-    if (text.trim().startsWith('<') || /<!DOCTYPE/i.test(text.slice(0, 200))) {
-      throw new Error('CSVではなくHTMLが返されました（シート未公開の可能性）');
-    }
+  }
+
+  if (!text) {
+    setStatus('✕ 同期失敗: ' + lastError);
+    sheetFetchInFlight = false;
+    return;
+  }
+
+  try {
     const rows = parseCsv(text);
     if (rows.length < 2) throw new Error('行が見つかりません');
     const headers = rows[0];
@@ -2110,16 +2135,15 @@ async function fetchDailyReportSheet(manual) {
     });
     save();
     const ts = new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-    setStatus(`✓ ${imported}件を取込${skipped > 0 ? ` / ${skipped}件スキップ` : ''} (${ts})`);
+    setStatus(`✓ ${imported}件を取込${skipped > 0 ? ` / ${skipped}件スキップ` : ''} (${usedLabel} / ${ts})`);
     if (manual) renderView();
     else {
-      // Refresh table body silently
       const card = document.querySelector('.daily-wrap');
       if (card) renderView();
     }
   } catch (e) {
     console.error(e);
-    setStatus('✕ 同期失敗: ' + (e.message || e));
+    setStatus('✕ 解析失敗: ' + (e.message || e));
   } finally {
     sheetFetchInFlight = false;
   }
