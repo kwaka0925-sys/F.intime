@@ -1777,15 +1777,29 @@ function viewSummaryAfter() {
 
 function viewRevenueEntry() {
   const today = new Date();
-  const defaultMonth = ymOf(today);
-  const defaultClinic = 'nakamozu';
+  const defaultMonth = state.lastEntryMonth || ymOf(today);
+  const defaultClinic = state.lastEntryClinic || 'nakamozu';
+  // Look up data: daily aggregation OR existing manual entry
   const dailyAgg = aggregateDailyForRevenueList('all', defaultMonth, defaultMonth);
   const agg = dailyAgg[defaultMonth + '__' + defaultClinic];
-  const initCash   = agg ? agg.cash   : '';
-  const initSquare = agg ? agg.square : '';
-  const initHpb    = agg ? agg.hpb    : '';
-  const initOther  = agg ? agg.other  : '';
-  const initTotal  = agg ? agg.total  : 0;
+  const mon = state.entries.find(e => e.month === defaultMonth && e.clinic === defaultClinic);
+  const source = agg ? 'daily' : (mon ? 'manual' : '');
+  const initCash   = agg ? agg.cash   : (mon && mon.revenueCash   != null ? mon.revenueCash   : '');
+  const initSquare = agg ? agg.square : (mon && mon.revenueSquare != null ? mon.revenueSquare : '');
+  const initHpb    = agg ? agg.hpb    : (mon && mon.revenueHpb    != null ? mon.revenueHpb    : '');
+  const initOther  = agg ? agg.other  : (mon && mon.revenueOther  != null ? mon.revenueOther  : '');
+  const initTotal  = agg ? agg.total  : (mon ? (mon.revenue || 0) : 0);
+  const initAdspend     = mon ? (mon.adspend      || '') : '';
+  const initNew         = mon ? (mon.newCustomers || '') : '';
+  const initRepeat      = mon ? (mon.repeatVisits || '') : '';
+  const initReservations= mon ? (mon.reservations || '') : '';
+  const initChannel     = mon ? (mon.channel || 'google') : 'google';
+  const noteColor = source === 'daily' ? 'var(--success)' : source === 'manual' ? 'var(--warning)' : 'var(--muted)';
+  const noteText  = source === 'daily'
+    ? `✓ 日次売上シートから自動反映済み（${formatYM(defaultMonth)} ${CLINICS[defaultClinic]}）`
+    : source === 'manual'
+      ? `📝 手入力データを表示中（${formatYM(defaultMonth)} ${CLINICS[defaultClinic]}）`
+      : `※ ${formatYM(defaultMonth)} ${CLINICS[defaultClinic]} のデータがまだありません`;
   return `
     <div class="card">
       <h2>📝 月次データを追加・更新</h2>
@@ -1799,8 +1813,8 @@ function viewRevenueEntry() {
         </label>
         <label>店舗
           <select id="f_clinic" onchange="refreshEntryFromDaily()">
-            <option value="nakamozu">NAORU整体 中百舌鳥院</option>
-            <option value="tenrokuten">NAORU整体 天満天六院</option>
+            <option value="nakamozu" ${defaultClinic === 'nakamozu' ? 'selected' : ''}>NAORU整体 中百舌鳥院</option>
+            <option value="tenrokuten" ${defaultClinic === 'tenrokuten' ? 'selected' : ''}>NAORU整体 天満天六院</option>
           </select>
         </label>
       </div>
@@ -1809,7 +1823,7 @@ function viewRevenueEntry() {
         <h3 style="font-size:13px; margin:0; color:var(--muted);">💰 売上内訳 (支払方法別)</h3>
         <button type="button" class="ghost sm" onclick="refreshEntryFromDaily()">🔄 日次売上から反映</button>
       </div>
-      <div id="entryFromDailyNote" style="font-size:11px; color:${agg ? 'var(--success)' : 'var(--muted)'}; margin-bottom:6px;">${agg ? `✓ 日次売上シートから自動反映済み（${defaultMonth.replace('-','年')}月 ${CLINICS[defaultClinic]}）` : '※ 日次売上に該当データがない月は手入力してください'}</div>
+      <div id="entryFromDailyNote" style="font-size:11px; color:${noteColor}; margin-bottom:6px;">${noteText}</div>
       <div class="form-grid">
         <label>現金売上 (円)<input type="number" id="f_revCash" min="0" step="1000" value="${initCash}" placeholder="例: 300000" oninput="updateRevenueTotal()" /></label>
         <label>Square売上 (円)<input type="number" id="f_revSquare" min="0" step="1000" value="${initSquare}" placeholder="例: 800000" oninput="updateRevenueTotal()" /></label>
@@ -1823,18 +1837,13 @@ function viewRevenueEntry() {
 
       <h3 style="font-size:13px; margin:18px 0 8px; color:var(--muted);">📣 広告・集客</h3>
       <div class="form-grid">
-        <label>広告費 (円)<input type="number" id="f_adspend" min="0" step="1000" placeholder="例: 200000" /></label>
-        <label>新規顧客数<input type="number" id="f_new" min="0" placeholder="例: 35" /></label>
-        <label>リピート来院数<input type="number" id="f_repeat" min="0" placeholder="例: 120" /></label>
-        <label>予約数 (全体)<input type="number" id="f_reservations" min="0" placeholder="例: 180" /></label>
+        <label>広告費 (円)<input type="number" id="f_adspend" min="0" step="1000" value="${initAdspend}" placeholder="例: 200000" /></label>
+        <label>新規顧客数<input type="number" id="f_new" min="0" value="${initNew}" placeholder="例: 35" /></label>
+        <label>リピート来院数<input type="number" id="f_repeat" min="0" value="${initRepeat}" placeholder="例: 120" /></label>
+        <label>予約数 (全体)<input type="number" id="f_reservations" min="0" value="${initReservations}" placeholder="例: 180" /></label>
         <label>主要集客チャネル
           <select id="f_channel">
-            <option value="google">Google広告</option>
-            <option value="meta">Meta広告 (Instagram/FB)</option>
-            <option value="hotpepper">ホットペッパー</option>
-            <option value="referral">口コミ・紹介</option>
-            <option value="organic">自然検索 / MEO</option>
-            <option value="other">その他</option>
+            ${['google','meta','hotpepper','referral','organic','other'].map(c => `<option value="${c}" ${c === initChannel ? 'selected' : ''}>${CHANNEL_LABELS[c]}</option>`).join('')}
           </select>
         </label>
       </div>
@@ -1880,24 +1889,44 @@ function refreshEntryFromDaily() {
   if (!month || !clinic) return;
   const dailyAgg = aggregateDailyForRevenueList('all', month, month);
   const agg = dailyAgg[month + '__' + clinic];
+  const mon = state.entries.find(e => e.month === month && e.clinic === clinic);
   const note = document.getElementById('entryFromDailyNote');
+
+  const setRevFields = (cash, square, hpb, other) => {
+    document.getElementById('f_revCash').value   = cash   != null ? cash   : '';
+    document.getElementById('f_revSquare').value = square != null ? square : '';
+    document.getElementById('f_revHpb').value    = hpb    != null ? hpb    : '';
+    document.getElementById('f_revOther').value  = other  != null ? other  : '';
+  };
+  const setAdFields = (adspend, nc, rp, rsv, channel) => {
+    document.getElementById('f_adspend').value      = adspend != null ? adspend : '';
+    document.getElementById('f_new').value          = nc      != null ? nc      : '';
+    document.getElementById('f_repeat').value       = rp      != null ? rp      : '';
+    document.getElementById('f_reservations').value = rsv     != null ? rsv     : '';
+    if (channel) document.getElementById('f_channel').value = channel;
+  };
+
   if (agg) {
-    document.getElementById('f_revCash').value   = agg.cash   || '';
-    document.getElementById('f_revSquare').value = agg.square || '';
-    document.getElementById('f_revHpb').value    = agg.hpb    || '';
-    document.getElementById('f_revOther').value  = agg.other  || '';
+    setRevFields(agg.cash, agg.square, agg.hpb, agg.other);
+    // ad-related fields fall back to manual entry even when daily exists
+    setAdFields(mon && mon.adspend, mon && mon.newCustomers, mon && mon.repeatVisits, mon && mon.reservations, mon && mon.channel);
     if (note) {
       note.style.color = 'var(--success)';
       note.textContent = `✓ 日次売上シートから自動反映済み（${formatYM(month)} ${CLINICS[clinic]}）`;
     }
+  } else if (mon) {
+    setRevFields(mon.revenueCash, mon.revenueSquare, mon.revenueHpb, mon.revenueOther);
+    setAdFields(mon.adspend, mon.newCustomers, mon.repeatVisits, mon.reservations, mon.channel);
+    if (note) {
+      note.style.color = 'var(--warning)';
+      note.textContent = `📝 手入力データを表示中（${formatYM(month)} ${CLINICS[clinic]}）`;
+    }
   } else {
-    document.getElementById('f_revCash').value   = '';
-    document.getElementById('f_revSquare').value = '';
-    document.getElementById('f_revHpb').value    = '';
-    document.getElementById('f_revOther').value  = '';
+    setRevFields('', '', '', '');
+    setAdFields('', '', '', '', '');
     if (note) {
       note.style.color = 'var(--muted)';
-      note.textContent = `※ ${formatYM(month)} ${CLINICS[clinic]} の日次売上データが未登録です。手入力してください。`;
+      note.textContent = `※ ${formatYM(month)} ${CLINICS[clinic]} のデータがまだありません。手入力してください。`;
     }
   }
   updateRevenueTotal();
@@ -1972,10 +2001,14 @@ document.addEventListener('click', (e) => {
 function saveEntry() {
   const month = document.getElementById('f_month').value;
   if (!month) { alert('対象月を選択してください'); return; }
+  const clinicVal = document.getElementById('f_clinic').value;
   const cash   = Number(document.getElementById('f_revCash').value) || 0;
   const square = Number(document.getElementById('f_revSquare').value) || 0;
   const hpb    = Number(document.getElementById('f_revHpb').value) || 0;
   const other  = Number(document.getElementById('f_revOther').value) || 0;
+  // Remember last edit so the form re-opens to the same month/clinic
+  state.lastEntryMonth = month;
+  state.lastEntryClinic = clinicVal;
   upsertEntry({
     month,
     clinic: document.getElementById('f_clinic').value,
