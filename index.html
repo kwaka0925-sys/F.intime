@@ -1126,10 +1126,11 @@ const STAFF = {
 };
 const TIME_SLOTS = (() => {
   const arr = [];
-  for (let h = 9; h <= 20; h++) {
+  for (let h = 10; h <= 19; h++) {
     arr.push(`${pad2(h)}:00`);
     arr.push(`${pad2(h)}:30`);
   }
+  arr.push('20:00');
   return arr;
 })();
 function menuClass(menu) {
@@ -1254,6 +1255,71 @@ function load() {
     state.weekBookingsSeeded = true;
     save();
   }
+  if (!state.nishikawaSeeded) {
+    seedNishikawaWeekBookings();
+    state.nishikawaSeeded = true;
+    save();
+  }
+}
+
+function seedNishikawaWeekBookings() {
+  state.shifts = state.shifts || {};
+  state.shifts[shiftKey('nishikawa', '2026-05-21')] = '休み';
+
+  const NEW = 'NAORUプラン';        // チラシ新規限定 系
+  const M30 = 'ボディーケア30分';
+  const data = [
+    // 5/16(土)
+    ['nishikawa', '2026-05-16', '10:00', 60, '川島 淳嗣 (新規)',           NEW],
+    ['nishikawa', '2026-05-16', '11:00', 60, '吉野 由有 (新規)',           NEW],
+    ['nishikawa', '2026-05-16', '12:00', 60, '坂東 千鶴 (新規)',           NEW],
+    ['nishikawa', '2026-05-16', '13:00', 60, '休憩',                        '', '休憩'],
+    ['nishikawa', '2026-05-16', '14:00', 60, '上尾 真子 (新規)',           NEW],
+    ['nishikawa', '2026-05-16', '15:00', 60, '大野 ゆかり (新規)',         NEW],
+    ['nishikawa', '2026-05-16', '16:00', 60, '原 哲也 (新規)',             NEW],
+    ['nishikawa', '2026-05-16', '17:00', 60, '谷口 美里 (新規)',           NEW],
+    ['nishikawa', '2026-05-16', '18:00', 60, '柴田 翔 (新規)',             NEW],
+    // 5/17(日)
+    ['nishikawa', '2026-05-17', '10:00', 60, '江本 久哉 (新規)',           NEW],
+    ['nishikawa', '2026-05-17', '11:00', 60, '薫 綾美 (新規)',             NEW],
+    ['nishikawa', '2026-05-17', '12:00', 60, '三牧 晃平 (新規)',           NEW],
+    ['nishikawa', '2026-05-17', '13:00', 60, '金澤 佑季奈 (新規)',         NEW],
+    ['nishikawa', '2026-05-17', '14:00', 60, '坂本 大 (新規)',             NEW],
+    ['nishikawa', '2026-05-17', '15:00', 60, '休憩',                        '', '休憩'],
+    ['nishikawa', '2026-05-17', '16:00', 60, '丸山 翔大 (新規)',           NEW],
+    ['nishikawa', '2026-05-17', '17:00', 60, '山田 哲 (新規)',             NEW],
+    ['nishikawa', '2026-05-17', '18:00', 60, '小澤 祥一 (新規)',           NEW],
+    // 5/18(月)
+    ['nishikawa', '2026-05-18', '10:00', 60, '山本 響子 (新規)',           NEW],
+    ['nishikawa', '2026-05-18', '11:00', 60, 'イシツダ リトシヒロ (新規)', NEW],
+    ['nishikawa', '2026-05-18', '13:00', 60, '休憩',                        '', '休憩'],
+    ['nishikawa', '2026-05-18', '16:00', 60, '園 響杏子 (新規)',           NEW],
+    ['nishikawa', '2026-05-18', '17:00', 60, '米谷 聡史 (新規)',           NEW],
+    ['nishikawa', '2026-05-18', '18:00', 30, '兼城 えみり',                 M30],
+    // 5/19(火)
+    ['nishikawa', '2026-05-19', '11:00', 60, '吉岡 暢彩 (新規)',           NEW],
+    ['nishikawa', '2026-05-19', '12:00', 30, 'ウエダ スズヨ',               M30],
+    ['nishikawa', '2026-05-19', '13:00', 60, '阿江 天統 (新規)',           NEW],
+    ['nishikawa', '2026-05-19', '14:00', 60, '休憩',                        '', '休憩'],
+    ['nishikawa', '2026-05-19', '16:00', 60, 'クラシマ エイコ (新規)',     NEW],
+    // 5/20(水)
+    ['nishikawa', '2026-05-20', '13:00', 60, '徳田 竜一 (新規)',           NEW],
+    ['nishikawa', '2026-05-20', '14:00', 60, '休憩',                        '', '休憩'],
+    ['nishikawa', '2026-05-20', '17:00', 60, 'コイズミ エイコ (新規)',     NEW],
+    // 5/22(金)
+    ['nishikawa', '2026-05-22', '16:00', 30, 'クロダ ハスエ',               M30],
+  ];
+  data.forEach(([staffId, date, time, durationMin, customer, menu, type]) => {
+    state.bookings.push({
+      id: 'seed_n_' + Math.random().toString(36).slice(2, 10),
+      type: type || '施術',
+      staffId, clinic: 'tenrokuten',
+      date, time, durationMin,
+      customer: type === '休憩' ? '' : customer,
+      menu: type === '休憩' ? '' : (menu || ''),
+      notes: '',
+    });
+  });
 }
 
 function seedNakamozuWeekBookings() {
@@ -2708,7 +2774,7 @@ function ymdShift(ymd, days) {
 
 function renderScheduleGrid(staffList, date, opts) {
   if (staffList.length === 0) return '<div class="empty">スタッフがいません</div>';
-  const slotWidth = 78;
+  const slotWidth = 90;
   const labelWidth = 140;
   const cols = `${labelWidth}px repeat(${TIME_SLOTS.length}, ${slotWidth}px)`;
   let html = `<div class="schedule-wrap"><div class="schedule-grid" style="grid-template-columns: ${cols};">`;
