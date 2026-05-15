@@ -72,6 +72,16 @@
     border-left: 3px solid var(--primary);
     background: linear-gradient(90deg, #ede9fe 0%, transparent 60%);
   }
+  .nav-group.collapsible .nav-group-title { cursor: pointer; user-select: none; display: flex; align-items: center; }
+  .nav-group.collapsible .nav-group-title:hover { background: linear-gradient(90deg, #ddd6fe 0%, transparent 60%); }
+  .nav-group.collapsible .nav-group-title .chevron {
+    margin-left: auto;
+    font-size: 11px;
+    transition: transform 0.18s;
+    color: var(--primary);
+  }
+  .nav-group.collapsible.collapsed .nav-item { display: none; }
+  .nav-group.collapsible.collapsed .nav-group-title .chevron { transform: rotate(-90deg); }
   .nav-item {
     display: flex;
     align-items: center;
@@ -1065,8 +1075,10 @@
       <div class="nav-item" data-view="clinics"><span class="icon">🏥</span>店舗</div>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-group-title">設定</div>
+    <div class="nav-group collapsible" id="settingsGroup">
+      <div class="nav-group-title" onclick="toggleSettingsGroup()">
+        設定<span class="chevron">▾</span>
+      </div>
       <div class="nav-item" data-view="data"><span class="icon">⚙️</span>データ管理</div>
       <div class="nav-item" data-view="import-customers"><span class="icon">📥</span>顧客データ移行</div>
       <div class="nav-item" data-view="import-reservations"><span class="icon">📅</span>予約データ移行</div>
@@ -1260,6 +1272,17 @@ function load() {
     state.nishikawaSeeded = true;
     save();
   }
+  if (state.settingsCollapsed === undefined) state.settingsCollapsed = true;
+}
+
+function toggleSettingsGroup() {
+  state.settingsCollapsed = !state.settingsCollapsed;
+  save();
+  applySettingsCollapse();
+}
+function applySettingsCollapse() {
+  const el = document.getElementById('settingsGroup');
+  if (el) el.classList.toggle('collapsed', !!state.settingsCollapsed);
 }
 
 function seedNishikawaWeekBookings() {
@@ -3628,6 +3651,7 @@ function initApp() {
     document.getElementById('periodSelect').value = 'custom'; renderView();
   });
   load();
+  applySettingsCollapse();
   switchView('summary');
 }
 
