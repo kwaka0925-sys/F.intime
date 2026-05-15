@@ -2086,8 +2086,16 @@ async function fetchDailyReportSheet(manual) {
   setStatus('⏳ 日報シートから同期中...');
   try {
     const res = await fetch(DAILY_REPORT_SHEET_URL, { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      if (res.status === 404) {
+        throw new Error('シートが「ウェブに公開」されていません or URL/gidが違います');
+      }
+      throw new Error('HTTP ' + res.status);
+    }
     const text = await res.text();
+    if (text.trim().startsWith('<') || /<!DOCTYPE/i.test(text.slice(0, 200))) {
+      throw new Error('CSVではなくHTMLが返されました（シート未公開の可能性）');
+    }
     const rows = parseCsv(text);
     if (rows.length < 2) throw new Error('行が見つかりません');
     const headers = rows[0];
