@@ -1948,6 +1948,9 @@ function editEntry(month, clinic) {
 }
 
 // ===== Daily sales view =====
+const DAILY_REPORT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQHICtJp0nIwhdHGKwLoPkidVl3MgI-HDxJdNHoaHv3g9SQ6KT4h7O5w0EJcTGwCIK4OFxQmybYpinO/pub?gid=2129032732&single=true&output=csv';
+let lastSheetFetchTime = 0;
+let sheetFetchInFlight = false;
 const DAILY_COLS = [
   { key: 'newPatient',    label: '新患',    hl: true,  readonly: true },
   { key: 'referralCount', label: '紹介数' },
@@ -2044,6 +2047,10 @@ function viewDailySales() {
         <button class="ghost" onclick="shiftDailyMonth(1)">翌月 →</button>
         <button class="ghost" onclick="state.dailyMonth='${ymOf(new Date())}'; save(); renderView();">今月</button>
       </div>
+      <div style="margin-top:10px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <button onclick="fetchDailyReportSheet(true)" style="background:linear-gradient(135deg,#10b981,#059669);">🔄 セラピスト日報シートから同期</button>
+        <span id="sheetSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastSheetSyncMsg || '※ ページを開くたびに自動で最新を取り込みます'}</span>
+      </div>
       <div style="margin-top:8px; font-size:12px; color:var(--muted);">
         💡 各セルをクリックして数値を入力すると自動保存。「新患」は集客チャネルの合計が自動計算されます。
       </div>
@@ -2058,6 +2065,134 @@ function viewDailySales() {
       </div>
     </div>
   `;
+}
+
+// Auto-trigger sheet fetch when entering the daily-sales view (debounced)
+function maybeAutoFetchDailyReport() {
+  if (sheetFetchInFlight) return;
+  if (Date.now() - lastSheetFetchTime < 5000) return; // throttle to 5s
+  fetchDailyReportSheet(false);
+}
+
+async function fetchDailyReportSheet(manual) {
+  if (sheetFetchInFlight) return;
+  sheetFetchInFlight = true;
+  lastSheetFetchTime = Date.now();
+  const setStatus = (msg) => {
+    state.lastSheetSyncMsg = msg;
+    const el = document.getElementById('sheetSyncStatus');
+    if (el) el.textContent = msg;
+  };
+  setStatus('⏳ 日報シートから同期中...');
+  try {
+    const res = await fetch(DAILY_REPORT_SHEET_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const rows = parseCsv(text);
+    if (rows.length < 2) throw new Error('行が見つかりません');
+    const headers = rows[0];
+    let imported = 0, skipped = 0;
+    rows.slice(1).forEach(row => {
+      const entry = mapDailyReportRow(headers, row);
+      if (!entry) { skipped++; return; }
+      const existing = state.dailyEntries.find(e => e.date === entry.date && e.clinic === entry.clinic);
+      if (existing) Object.assign(existing, entry);
+      else state.dailyEntries.push(entry);
+      imported++;
+    });
+    save();
+    const ts = new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    setStatus(`✓ ${imported}件を取込${skipped > 0 ? ` / ${skipped}件スキップ` : ''} (${ts})`);
+    if (manual) renderView();
+    else {
+      // Refresh table body silently
+      const card = document.querySelector('.daily-wrap');
+      if (card) renderView();
+    }
+  } catch (e) {
+    console.error(e);
+    setStatus('✕ 同期失敗: ' + (e.message || e));
+  } finally {
+    sheetFetchInFlight = false;
+  }
+}
+
+function mapDailyReportRow(headers, row) {
+  const findIdx = (...names) => {
+    // exact match first
+    for (const n of names) {
+      const i = headers.findIndex(h => h && h.toString().trim() === n);
+      if (i >= 0) return i;
+    }
+    // partial (case-insensitive)
+    for (const n of names) {
+      const lo = n.toLowerCase();
+      const i = headers.findIndex(h => h && h.toString().toLowerCase().trim().includes(lo));
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+  const val = (...names) => {
+    const i = findIdx(...names);
+    return i >= 0 ? (row[i] || '').toString().trim() : '';
+  };
+  const num = (...names) => {
+    const s = val(...names).replace(/[¥,\s円]/g, '');
+    const n = Number(s);
+    return isNaN(n) ? 0 : n;
+  };
+
+  const dateRaw = val('日付', '営業日', '日報日', 'date');
+  if (!dateRaw) return null;
+  let date;
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateRaw)) {
+    date = dateRaw.slice(0, 10);
+  } else if (/^\d{4}\/\d{1,2}\/\d{1,2}/.test(dateRaw)) {
+    const [y, mo, d] = dateRaw.split(/[\/-]/).map(Number);
+    date = `${y}-${pad2(mo)}-${pad2(d)}`;
+  } else if (/^\d{1,2}\/\d{1,2}/.test(dateRaw)) {
+    const [mo, d] = dateRaw.split('/').map(Number);
+    const y = new Date().getFullYear();
+    date = `${y}-${pad2(mo)}-${pad2(d)}`;
+  } else if (/^\d{1,2}月\d{1,2}日/.test(dateRaw)) {
+    const m = dateRaw.match(/(\d{1,2})月(\d{1,2})日/);
+    if (m) {
+      const y = new Date().getFullYear();
+      date = `${y}-${pad2(Number(m[1]))}-${pad2(Number(m[2]))}`;
+    }
+  }
+  if (!date) return null;
+
+  // Clinic detection: prefer 店舗/院 column; fall back to currently-viewed clinic
+  const clinicRaw = val('店舗', '院', '所属', 'clinic');
+  let clinic = state.dailyClinic;
+  if (clinicRaw.includes('中百舌鳥') || clinicRaw.toLowerCase().includes('nakamozu')) clinic = 'nakamozu';
+  else if (clinicRaw.includes('天満') || clinicRaw.includes('天六') || clinicRaw.toLowerCase().includes('tenroku')) clinic = 'tenrokuten';
+
+  const entry = {
+    date, clinic,
+    referralCount:  num('紹介数'),
+    chanHpb:        num('HPB', 'ホットペッパー'),
+    chanHp:         num('HP', 'ホームページ'),
+    chanFlyer:      num('チラシ'),
+    chanMeta:       num('メタ広告', 'メタ', 'インスタ', 'Meta'),
+    chanMinimo:     num('minimo'),
+    chanReferral:   num('紹介'),
+    chanBoneFix:    num('骨FIX', 'BoneFIX'),
+    chanMeo:        num('MEO'),
+    chanGmap:       num('Gマップ', 'Googleマップ'),
+    chanOther:      num('その他チャネル', 'その他'),
+    returning:      num('再診'),
+    smile:          num('スマイル'),
+    reservations:   num('予約人数', '予約数'),
+    cancellations:  num('赤キャンセル', 'キャンセル'),
+    actualVisits:   num('実来院数', '実来院', '来院数'),
+    otherCash:      num('その他自費', '自費'),
+    memberSales:    num('会員売上', '売上'),
+    newPatient: 0,
+  };
+  recomputeNewPatient(entry);
+  return entry;
 }
 
 function updateDailyCell(dateStr, clinic, field, valueStr) {
@@ -3576,7 +3711,7 @@ function viewImportSales() {
 const VIEW_RENDER = {
   'summary':              { html: viewSummary, after: viewSummaryAfter },
   'revenue-entry':        { html: viewRevenueEntry },
-  'daily-sales':          { html: viewDailySales },
+  'daily-sales':          { html: viewDailySales, after: maybeAutoFetchDailyReport },
   'revenue-list':         { html: viewRevenueList },
   'revenue-trend':        { html: viewRevenueTrend, after: viewRevenueTrendAfter },
   'ad-cost':              { html: viewAdCost, after: viewAdCostAfter },
