@@ -1037,48 +1037,46 @@
       <div class="sub">経営ダッシュボード</div>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-group-title">ダッシュボード</div>
+    <div class="nav-group collapsible" id="grp-dashboard">
+      <div class="nav-group-title" onclick="toggleNavGroup('dashboard')">ダッシュボード<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="summary"><span class="icon">📊</span>経営サマリー</div>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-group-title">売上管理</div>
+    <div class="nav-group collapsible" id="grp-sales">
+      <div class="nav-group-title" onclick="toggleNavGroup('sales')">売上管理<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="revenue-entry"><span class="icon">📝</span>月次売上入力</div>
       <div class="nav-item" data-view="daily-sales"><span class="icon">📅</span>日次売上</div>
       <div class="nav-item" data-view="revenue-list"><span class="icon">📋</span>売上一覧</div>
       <div class="nav-item" data-view="revenue-trend"><span class="icon">📈</span>売上推移</div>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-group-title">広告・集客</div>
+    <div class="nav-group collapsible" id="grp-ads">
+      <div class="nav-group-title" onclick="toggleNavGroup('ads')">広告・集客<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="ad-cost"><span class="icon">💰</span>広告費管理</div>
       <div class="nav-item" data-view="channel"><span class="icon">📣</span>集客チャネル</div>
       <div class="nav-item" data-view="cpa-roas"><span class="icon">🎯</span>CPA / ROAS分析</div>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-group-title">予約管理</div>
+    <div class="nav-group collapsible" id="grp-reservations">
+      <div class="nav-group-title" onclick="toggleNavGroup('reservations')">予約管理<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="staff"><span class="icon">🧑‍⚕️</span>スタッフ別予約</div>
       <div class="nav-item" data-view="reservation-calendar"><span class="icon">🗓️</span>カレンダー</div>
       <div class="nav-item" data-view="staff-attendance"><span class="icon">📋</span>勤怠表</div>
       <div class="nav-item" data-view="reservation-list"><span class="icon">📅</span>予約一覧<span class="badge-sm">準備中</span></div>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-group-title">顧客管理</div>
+    <div class="nav-group collapsible" id="grp-customers">
+      <div class="nav-group-title" onclick="toggleNavGroup('customers')">顧客管理<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="customers"><span class="icon">👥</span>顧客一覧</div>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-group-title">マスタ管理</div>
+    <div class="nav-group collapsible" id="grp-master">
+      <div class="nav-group-title" onclick="toggleNavGroup('master')">マスタ管理<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="clinics"><span class="icon">🏥</span>店舗</div>
     </div>
 
-    <div class="nav-group collapsible" id="settingsGroup">
-      <div class="nav-group-title" onclick="toggleSettingsGroup()">
-        設定<span class="chevron">▾</span>
-      </div>
+    <div class="nav-group collapsible" id="grp-settings">
+      <div class="nav-group-title" onclick="toggleNavGroup('settings')">設定<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="data"><span class="icon">⚙️</span>データ管理</div>
       <div class="nav-item" data-view="import-customers"><span class="icon">📥</span>顧客データ移行</div>
       <div class="nav-item" data-view="import-reservations"><span class="icon">📅</span>予約データ移行</div>
@@ -1272,17 +1270,26 @@ function load() {
     state.nishikawaSeeded = true;
     save();
   }
-  if (state.settingsCollapsed === undefined) state.settingsCollapsed = true;
+  if (state.collapsedGroups === undefined) {
+    // migrate legacy settingsCollapsed flag if present
+    const legacy = state.settingsCollapsed;
+    state.collapsedGroups = { ads: true, settings: legacy === false ? false : true };
+  }
 }
 
-function toggleSettingsGroup() {
-  state.settingsCollapsed = !state.settingsCollapsed;
+function toggleNavGroup(name) {
+  state.collapsedGroups = state.collapsedGroups || {};
+  state.collapsedGroups[name] = !state.collapsedGroups[name];
   save();
-  applySettingsCollapse();
+  applyNavCollapse();
 }
-function applySettingsCollapse() {
-  const el = document.getElementById('settingsGroup');
-  if (el) el.classList.toggle('collapsed', !!state.settingsCollapsed);
+function applyNavCollapse() {
+  document.querySelectorAll('.nav-group.collapsible').forEach(el => {
+    const id = el.id;
+    if (!id || !id.startsWith('grp-')) return;
+    const name = id.slice(4);
+    el.classList.toggle('collapsed', !!(state.collapsedGroups || {})[name]);
+  });
 }
 
 function seedNishikawaWeekBookings() {
@@ -3651,7 +3658,7 @@ function initApp() {
     document.getElementById('periodSelect').value = 'custom'; renderView();
   });
   load();
-  applySettingsCollapse();
+  applyNavCollapse();
   switchView('summary');
 }
 
