@@ -1990,6 +1990,48 @@ function getDailyEntry(date, clinic) {
   return state.dailyEntries.find(e => e.date === date && e.clinic === clinic);
 }
 
+// Headers we never display as a regular data column (handled separately or duplicate of left columns)
+const DAILY_SKIP_HEADERS = new Set(['日付','営業日','日報日','曜日','曜','店舗','院','所属','clinic','date']);
+
+function getDailyDataHeaders() {
+  // Prefer headers from the synced sheet
+  if (state.dailyHeaders && state.dailyHeaders.length > 0) {
+    return state.dailyHeaders
+      .map(h => (h || '').toString().trim())
+      .filter(h => h && !DAILY_SKIP_HEADERS.has(h));
+  }
+  // Fallback: use legacy hard-coded columns
+  return DAILY_COLS.map(c => c.label);
+}
+
+function isHlHeader(h) {
+  return h === '新患' || h === '実来院数';
+}
+function isWideHeader(h) {
+  return /売上|自費|金額|円/.test(h);
+}
+
+// Legacy field names map (for entries created before the dynamic schema)
+const LEGACY_HEADER_KEY = {
+  '新患':'newPatient','紹介数':'referralCount','HPB':'chanHpb','HP':'chanHp',
+  'チラシ':'chanFlyer','メタ広告':'chanMeta','minimo':'chanMinimo','紹介':'chanReferral',
+  '骨FIX':'chanBoneFix','MEO':'chanMeo','Gマップ':'chanGmap','その他':'chanOther',
+  '再診':'returning','スマイル':'smile','予約人数':'reservations','赤キャンセル':'cancellations',
+  '実来院数':'actualVisits','その他自費':'otherCash','会員売上':'memberSales',
+};
+
+function getCellValue(entry, header) {
+  if (!entry) return '';
+  if (entry.cells && entry.cells[header] != null && entry.cells[header] !== '') return entry.cells[header];
+  const k = LEGACY_HEADER_KEY[header];
+  if (k && entry[k] != null && entry[k] !== 0) return entry[k];
+  return '';
+}
+
+function cellAttrId(dateStr, header) {
+  return 'dc_' + dateStr + '_' + btoa(unescape(encodeURIComponent(header))).replace(/=/g, '');
+}
+
 function viewDailySales() {
   const clinic = state.dailyClinic;
   const month = state.dailyMonth;
@@ -1997,40 +2039,47 @@ function viewDailySales() {
   const lastDay = new Date(y, m, 0).getDate();
   const dowChars = ['日','月','火','水','木','金','土'];
 
+  const dataHeaders = getDailyDataHeaders();
+
   // header
   let head = `<tr><th>営業日</th><th>曜日</th>` +
-    DAILY_COLS.map(c => `<th class="${c.hl ? 'hl' : ''}" style="${c.wide ? 'min-width:84px;' : ''}">${c.label}</th>`).join('') +
+    dataHeaders.map(h => `<th class="${isHlHeader(h) ? 'hl' : ''}" style="min-width:${isWideHeader(h) ? 90 : 70}px;">${escapeHtml(h)}</th>`).join('') +
     `</tr>`;
 
-  // body rows
+  // body
   let body = '';
   for (let d = 1; d <= lastDay; d++) {
     const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
     const dow = new Date(y, m - 1, d).getDay();
-    const e = getDailyEntry(dateStr, clinic) || createEmptyDaily(dateStr, clinic);
+    const e = getDailyEntry(dateStr, clinic);
     const dowCls = dow === 0 ? 'dow-sun' : dow === 6 ? 'dow-sat' : '';
     body += `<tr>
       <td class="date-cell">${m}/${d}</td>
       <td class="${dowCls}">${dowChars[dow]}</td>` +
-      DAILY_COLS.map(c => {
-        const val = e[c.key] || 0;
-        const display = val || '';
-        if (c.readonly) {
-          return `<td class="hl daily-cell"><input id="np_${dateStr}" type="number" value="${display}" readonly /></td>`;
-        }
-        return `<td class="${c.hl ? 'hl' : ''} daily-cell"><input type="number" min="0" value="${display}" onchange="updateDailyCell('${dateStr}','${clinic}','${c.key}',this.value)" /></td>`;
+      dataHeaders.map(h => {
+        const val = getCellValue(e, h);
+        const display = val === 0 ? '' : (val == null ? '' : String(val));
+        const enc = encodeURIComponent(h);
+        return `<td class="${isHlHeader(h) ? 'hl' : ''} daily-cell"><input type="text" value="${escapeHtml(display)}" onchange="updateDailyCellByHeader('${dateStr}','${clinic}','${enc}',this.value)" /></td>`;
       }).join('') + `</tr>`;
   }
 
-  // footer totals
+  // footer totals (sum numeric values per column)
   const totals = {};
-  DAILY_COLS.forEach(c => totals[c.key] = 0);
+  dataHeaders.forEach(h => totals[h] = 0);
   state.dailyEntries.filter(e => e.clinic === clinic && e.date.startsWith(month)).forEach(e => {
-    DAILY_COLS.forEach(c => totals[c.key] += (e[c.key] || 0));
+    dataHeaders.forEach(h => {
+      const v = getCellValue(e, h);
+      const n = Number(String(v).replace(/[¥,\s円]/g, ''));
+      if (!isNaN(n) && isFinite(n)) totals[h] += n;
+    });
   });
   let foot = `<tr><td colspan="2">合計</td>` +
-    DAILY_COLS.map(c => `<td class="${c.hl ? 'hl' : ''}" id="total_${c.key}">${c.wide ? fmt(totals[c.key]) : (totals[c.key] || 0)}</td>`).join('') +
+    dataHeaders.map(h => `<td class="${isHlHeader(h) ? 'hl' : ''}" id="total_${encodeURIComponent(h)}">${isWideHeader(h) ? fmt(totals[h] || 0) : (totals[h] || '')}</td>`).join('') +
     `</tr>`;
+
+  const colCount = dataHeaders.length;
+  const synced = state.dailyHeaders && state.dailyHeaders.length > 0;
 
   return `
     <div class="clinic-tabs">
@@ -2052,7 +2101,7 @@ function viewDailySales() {
         <span id="sheetSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastSheetSyncMsg || '※ ページを開くたびに自動で最新を取り込みます'}</span>
       </div>
       <div style="margin-top:8px; font-size:12px; color:var(--muted);">
-        💡 各セルをクリックして数値を入力すると自動保存。「新患」は集客チャネルの合計が自動計算されます。
+        💡 ${synced ? `シートの ${colCount} 列をそのまま反映しています。各セルは手入力でも編集可能です。` : '各セルをクリックして数値を入力すると自動保存します。'}
       </div>
     </div>
     <div class="card">
@@ -2131,13 +2180,15 @@ async function fetchDailyReportSheet(manual) {
   try {
     const rows = parseCsv(text);
     if (rows.length < 2) throw new Error('行が見つかりません');
-    const headers = rows[0];
+    const headers = rows[0].map(h => (h || '').toString().trim());
+    // Remember the sheet column order so the table mirrors the sheet exactly.
+    state.dailyHeaders = headers.filter(h => h);
     let imported = 0, skipped = 0;
     rows.slice(1).forEach(row => {
       const entry = mapDailyReportRow(headers, row);
       if (!entry) { skipped++; return; }
-      const existing = state.dailyEntries.find(e => e.date === entry.date && e.clinic === entry.clinic);
-      if (existing) Object.assign(existing, entry);
+      const idx = state.dailyEntries.findIndex(e => e.date === entry.date && e.clinic === entry.clinic);
+      if (idx >= 0) state.dailyEntries[idx] = entry;
       else state.dailyEntries.push(entry);
       imported++;
     });
@@ -2159,12 +2210,10 @@ async function fetchDailyReportSheet(manual) {
 
 function mapDailyReportRow(headers, row) {
   const findIdx = (...names) => {
-    // exact match first
     for (const n of names) {
       const i = headers.findIndex(h => h && h.toString().trim() === n);
       if (i >= 0) return i;
     }
-    // partial (case-insensitive)
     for (const n of names) {
       const lo = n.toLowerCase();
       const i = headers.findIndex(h => h && h.toString().toLowerCase().trim().includes(lo));
@@ -2176,12 +2225,8 @@ function mapDailyReportRow(headers, row) {
     const i = findIdx(...names);
     return i >= 0 ? (row[i] || '').toString().trim() : '';
   };
-  const num = (...names) => {
-    const s = val(...names).replace(/[¥,\s円]/g, '');
-    const n = Number(s);
-    return isNaN(n) ? 0 : n;
-  };
 
+  // Date detection
   const dateRaw = val('日付', '営業日', '日報日', 'date');
   if (!dateRaw) return null;
   let date;
@@ -2195,44 +2240,58 @@ function mapDailyReportRow(headers, row) {
     const y = new Date().getFullYear();
     date = `${y}-${pad2(mo)}-${pad2(d)}`;
   } else if (/^\d{1,2}月\d{1,2}日/.test(dateRaw)) {
-    const m = dateRaw.match(/(\d{1,2})月(\d{1,2})日/);
-    if (m) {
+    const mm = dateRaw.match(/(\d{1,2})月(\d{1,2})日/);
+    if (mm) {
       const y = new Date().getFullYear();
-      date = `${y}-${pad2(Number(m[1]))}-${pad2(Number(m[2]))}`;
+      date = `${y}-${pad2(Number(mm[1]))}-${pad2(Number(mm[2]))}`;
     }
   }
   if (!date) return null;
 
-  // Clinic detection: prefer 店舗/院 column; fall back to currently-viewed clinic
+  // Clinic detection
   const clinicRaw = val('店舗', '院', '所属', 'clinic');
   let clinic = state.dailyClinic;
   if (clinicRaw.includes('中百舌鳥') || clinicRaw.toLowerCase().includes('nakamozu')) clinic = 'nakamozu';
   else if (clinicRaw.includes('天満') || clinicRaw.includes('天六') || clinicRaw.toLowerCase().includes('tenroku')) clinic = 'tenrokuten';
 
-  const entry = {
-    date, clinic,
-    referralCount:  num('紹介数'),
-    chanHpb:        num('HPB', 'ホットペッパー'),
-    chanHp:         num('HP', 'ホームページ'),
-    chanFlyer:      num('チラシ'),
-    chanMeta:       num('メタ広告', 'メタ', 'インスタ', 'Meta'),
-    chanMinimo:     num('minimo'),
-    chanReferral:   num('紹介'),
-    chanBoneFix:    num('骨FIX', 'BoneFIX'),
-    chanMeo:        num('MEO'),
-    chanGmap:       num('Gマップ', 'Googleマップ'),
-    chanOther:      num('その他チャネル', 'その他'),
-    returning:      num('再診'),
-    smile:          num('スマイル'),
-    reservations:   num('予約人数', '予約数'),
-    cancellations:  num('赤キャンセル', 'キャンセル'),
-    actualVisits:   num('実来院数', '実来院', '来院数'),
-    otherCash:      num('その他自費', '自費'),
-    memberSales:    num('会員売上', '売上'),
-    newPatient: 0,
-  };
-  recomputeNewPatient(entry);
-  return entry;
+  // Store every sheet column verbatim so the table can mirror the sheet 1:1
+  const cells = {};
+  headers.forEach((h, i) => {
+    if (!h) return;
+    const v = (row[i] != null ? row[i] : '').toString().trim();
+    cells[h] = v;
+  });
+
+  return { date, clinic, cells };
+}
+
+function updateDailyCellByHeader(dateStr, clinic, encodedHeader, value) {
+  const header = decodeURIComponent(encodedHeader);
+  let entry = getDailyEntry(dateStr, clinic);
+  if (!entry) {
+    entry = { date: dateStr, clinic, cells: {} };
+    state.dailyEntries.push(entry);
+  }
+  if (!entry.cells) entry.cells = {};
+  entry.cells[header] = value;
+  save();
+  refreshDailyTotals();
+}
+
+function refreshDailyTotals() {
+  const clinic = state.dailyClinic;
+  const month = state.dailyMonth;
+  const dataHeaders = getDailyDataHeaders();
+  dataHeaders.forEach(h => {
+    let total = 0;
+    state.dailyEntries.filter(e => e.clinic === clinic && e.date.startsWith(month)).forEach(e => {
+      const v = getCellValue(e, h);
+      const n = Number(String(v).replace(/[¥,\s円]/g, ''));
+      if (!isNaN(n) && isFinite(n)) total += n;
+    });
+    const el = document.getElementById('total_' + encodeURIComponent(h));
+    if (el) el.textContent = isWideHeader(h) ? fmt(total || 0) : (total || '');
+  });
 }
 
 function updateDailyCell(dateStr, clinic, field, valueStr) {
