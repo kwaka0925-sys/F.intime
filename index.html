@@ -2525,10 +2525,30 @@ async function fetchMetaAds(manual) {
   try {
     const rows = parseCsv(text);
     if (rows.length < 2) throw new Error('行が見つかりません');
-    const headers = rows[0].map(h => (h || '').toString().trim());
+    // Detect a "title row" at the top (e.g. "NAORU広告データ Last updated ..." in column 1
+    // with the rest of the row empty). Google Sheets' published CSV puts that on row 1
+    // and the real column headers on row 2.
+    const isLikelyTitleRow = (row) => {
+      if (!row || row.length === 0) return false;
+      const nonEmpty = row.filter(c => (c || '').toString().trim() !== '');
+      // Single populated cell + at least one empty trailing cell → looks like a banner
+      return nonEmpty.length <= 1 && row.length >= 2;
+    };
+    const looksLikeHeaderRow = (row) => {
+      if (!row) return false;
+      const joined = row.map(c => (c || '').toString().toLowerCase()).join(' ');
+      return /campaign|impression|click|amount spent|キャンペーン|表示回数|クリック/.test(joined);
+    };
+    let headerIdx = 0;
+    if (isLikelyTitleRow(rows[0]) && rows.length >= 2) {
+      headerIdx = 1;
+    } else if (!looksLikeHeaderRow(rows[0]) && rows[1] && looksLikeHeaderRow(rows[1])) {
+      headerIdx = 1;
+    }
+    const headers = (rows[headerIdx] || []).map(h => (h || '').toString().trim());
     state.metaHeaders = headers;
-    state.metaRows = rows.slice(1).map(row => parseMetaRow(headers, row)).filter(r => r);
-    state.metaSampleFirstRow = rows[1] || [];
+    state.metaRows = rows.slice(headerIdx + 1).map(row => parseMetaRow(headers, row)).filter(r => r);
+    state.metaSampleFirstRow = rows[headerIdx + 1] || [];
     save();
     const ts = new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' });
     if (state.metaRows.length === 0) {
