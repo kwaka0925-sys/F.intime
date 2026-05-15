@@ -2526,10 +2526,18 @@ async function fetchMetaAds(manual) {
     const rows = parseCsv(text);
     if (rows.length < 2) throw new Error('行が見つかりません');
     const headers = rows[0].map(h => (h || '').toString().trim());
+    state.metaHeaders = headers;
     state.metaRows = rows.slice(1).map(row => parseMetaRow(headers, row)).filter(r => r);
+    state.metaSampleFirstRow = rows[1] || [];
     save();
     const ts = new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-    setStatus(`✓ ${state.metaRows.length} 行を取込 (${usedLabel} / ${ts})`);
+    if (state.metaRows.length === 0) {
+      console.warn('Meta CSV headers:', headers);
+      console.warn('Sample row:', rows[1]);
+      setStatus(`⚠️ CSVは取得できましたが解析できた行は0件です。列名や日付フォーマットを下のデバッグ情報で確認してください。`);
+    } else {
+      setStatus(`✓ ${state.metaRows.length} 行を取込 (${usedLabel} / ${ts})`);
+    }
     renderView();
   } catch (e) {
     console.error(e);
@@ -2537,6 +2545,35 @@ async function fetchMetaAds(manual) {
   } finally {
     metaFetchInFlight = false;
   }
+}
+
+function parseMetaDate(raw) {
+  if (!raw) return null;
+  const s = raw.toString().trim();
+  if (!s) return null;
+  // YYYY-MM-DD (allow time suffix)
+  let m;
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) {
+    return `${m[1]}-${pad2(Number(m[2]))}-${pad2(Number(m[3]))}`;
+  }
+  // YYYY/MM/DD
+  if ((m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/))) {
+    return `${m[1]}-${pad2(Number(m[2]))}-${pad2(Number(m[3]))}`;
+  }
+  // YYYY年M月D日
+  if ((m = s.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日/))) {
+    return `${m[1]}-${pad2(Number(m[2]))}-${pad2(Number(m[3]))}`;
+  }
+  // M/D (current year)
+  if ((m = s.match(/^(\d{1,2})\/(\d{1,2})$/))) {
+    return `${new Date().getFullYear()}-${pad2(Number(m[1]))}-${pad2(Number(m[2]))}`;
+  }
+  // Fallback to native Date parsing for things like "Aug 25, 2025"
+  const d = new Date(s);
+  if (!isNaN(d.getTime()) && d.getFullYear() > 2000 && d.getFullYear() < 2100) {
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+  return null;
 }
 
 function parseMetaRow(headers, row) {
@@ -2562,37 +2599,24 @@ function parseMetaRow(headers, row) {
     return isNaN(n) ? 0 : n;
   };
 
-  const campaign = val('Campaign name');
+  const campaign = val('Campaign name', 'Campaign Name', 'Campaign', 'キャンペーン名', 'キャンペーン');
   if (!campaign) return null;
-  const dayRaw = val('Day');
-  if (!dayRaw) return null;
-  let date;
-  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(dayRaw)) {
-    const [y, m, d] = dayRaw.slice(0, 10).split('-').map(Number);
-    date = `${y}-${pad2(m)}-${pad2(d)}`;
-  } else if (/^\d{4}\/\d{1,2}\/\d{1,2}/.test(dayRaw)) {
-    const [y, m, d] = dayRaw.split(/[\/-]/).map(Number);
-    date = `${y}-${pad2(m)}-${pad2(d)}`;
-  } else if (/^\d{1,2}\/\d{1,2}/.test(dayRaw)) {
-    const [m, d] = dayRaw.split('/').map(Number);
-    const y = new Date().getFullYear();
-    date = `${y}-${pad2(m)}-${pad2(d)}`;
-  } else {
-    return null;
-  }
+  const dayRaw = val('Day', 'Date', '日付', '日', 'Reporting Day');
+  const date = parseMetaDate(dayRaw);
+  if (!date) return null;
 
   return {
     campaign,
     date,
-    impressions: num('Impressions'),
-    clicks:      num('Clicks (all)', 'Clicks'),
-    ctr:         num('CTR (all)', 'CTR'),
-    costPerResult: num('Cost Per Result'),
-    amountSpent: num('Amount spent', 'Amount Spent'),
-    frequency:   num('Frequency'),
-    cpm:         num('CPM'),
-    registrations: num('Registrations Completed', 'Registrations'),
-    costPerRegistration: num('Cost per registration completed'),
+    impressions:    num('Impressions', 'インプレッション'),
+    clicks:         num('Clicks (all)', 'Clicks', 'クリック数', 'クリック'),
+    ctr:            num('CTR (all)', 'CTR', 'クリック率'),
+    costPerResult:  num('Cost Per Result', 'Cost per Result', '結果単価'),
+    amountSpent:    num('Amount spent', 'Amount Spent', '消化金額', '広告費'),
+    frequency:      num('Frequency', 'フリクエンシー'),
+    cpm:            num('CPM'),
+    registrations:  num('Registrations Completed', 'Registrations', '登録完了', '登録'),
+    costPerRegistration: num('Cost per registration completed', 'CPR', '登録単価'),
   };
 }
 
@@ -2613,12 +2637,60 @@ function getFilteredMetaRows() {
   return allRows.filter(r => r.campaign && r.campaign.includes(keyword));
 }
 
+function renderMetaDebug() {
+  if (!state.metaHeaders || state.metaHeaders.length === 0) return '';
+  return `<details style="margin-top:14px; font-size:12px;">
+    <summary style="cursor:pointer; color:var(--muted);">🐛 デバッグ情報（CSVヘッダー / 1行目サンプル）</summary>
+    <div style="margin-top:8px; background:#fafbfc; padding:10px; border-radius:6px;">
+      <div style="font-weight:600; margin-bottom:4px;">ヘッダー（${state.metaHeaders.length}列）:</div>
+      <div style="font-family:monospace; font-size:11px; word-break:break-all;">${state.metaHeaders.map(h => escapeHtml(h || '(空)')).join(' | ')}</div>
+      ${state.metaSampleFirstRow ? `<div style="margin-top:8px; font-weight:600;">1行目サンプル:</div>
+      <div style="font-family:monospace; font-size:11px; word-break:break-all;">${(state.metaSampleFirstRow || []).map(v => escapeHtml(v || '(空)')).join(' | ')}</div>` : ''}
+    </div>
+  </details>`;
+}
+
+function metaKpiBlock(label, rows, clinicLabel, withGraph) {
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonth = `${prev.getFullYear()}-${pad2(prev.getMonth() + 1)}`;
+
+  const thisMonthRows = rows.filter(r => r.date.startsWith(thisMonth));
+  const lastMonthRows = rows.filter(r => r.date.startsWith(lastMonth));
+  const sumKey = (arr, key) => arr.reduce((s, r) => s + (r[key] || 0), 0);
+  const tSpent = sumKey(thisMonthRows, 'amountSpent');
+  const tRegs  = sumKey(thisMonthRows, 'registrations');
+  const tCpa   = tRegs > 0 ? tSpent / tRegs : 0;
+  const tImpr  = sumKey(thisMonthRows, 'impressions');
+  const tClicks= sumKey(thisMonthRows, 'clicks');
+  const lSpent = sumKey(lastMonthRows, 'amountSpent');
+  const lRegs  = sumKey(lastMonthRows, 'registrations');
+  const lCpa   = lRegs > 0 ? lSpent / lRegs : 0;
+  const pct = (cur, prv) => prv > 0 ? ((cur - prv) / prv) * 100 : null;
+  const fmtPct = (v) => v == null ? '前月データなし' : `前月比 ${v >= 0 ? '+' : ''}${v.toFixed(1)}%`;
+  const pctColor = (v, betterDown) => v == null ? 'var(--muted)' : (betterDown ? v <= 0 : v >= 0) ? 'var(--success)' : 'var(--danger)';
+
+  return `
+    <div style="margin-top:18px;">
+      <h3 style="margin:0 0 10px; font-size:15px; font-weight:700; color:var(--text-dark);">🏥 ${clinicLabel} (${rows.length}行)</h3>
+      <div class="kpi-grid">
+        <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">💰 今月の広告費</div><div class="kpi-value" style="color:var(--primary);">${yen(tSpent)}</div><div class="kpi-sub" style="color:${pctColor(pct(tSpent, lSpent), true)};">${fmtPct(pct(tSpent, lSpent))} (先月 ${yen(lSpent)})</div></div>
+        <div class="kpi-card"><div class="kpi-label">✅ 登録完了</div><div class="kpi-value">${fmt(tRegs)} <span style="font-size:14px; color:var(--muted);">件</span></div><div class="kpi-sub" style="color:${pctColor(pct(tRegs, lRegs), false)};">${fmtPct(pct(tRegs, lRegs))} (先月 ${fmt(lRegs)}件)</div></div>
+        <div class="kpi-card"><div class="kpi-label">🎯 CPA</div><div class="kpi-value">${tRegs > 0 ? yen(tCpa) : '—'}</div><div class="kpi-sub" style="color:${pctColor(pct(tCpa, lCpa), true)};">${fmtPct(pct(tCpa, lCpa))} (先月 ${lRegs > 0 ? yen(lCpa) : '—'})</div></div>
+        <div class="kpi-card"><div class="kpi-label">👁 表示 / 🖱 クリック</div><div class="kpi-value" style="font-size:18px;">${fmt(tImpr)}<br /><span style="font-size:14px; color:var(--muted);">${fmt(tClicks)} click</span></div></div>
+      </div>
+    </div>
+  `;
+}
+
 function viewMetaAds() {
   const clinicFilter = document.getElementById('clinicSelect').value;
   const allRows = state.metaRows || [];
   const filtered = getFilteredMetaRows();
   const clinicLabel = clinicFilter === 'all' ? '全店舗合算' : CLINICS[clinicFilter];
 
+  // 0 rows yet (never synced)
   if (allRows.length === 0) {
     return `
       <div class="card">
@@ -2630,42 +2702,29 @@ function viewMetaAds() {
         <div style="margin-top:8px;">
           <span id="metaSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastMetaSyncMsg || '※ ボタンを押すとスプレッドシートから最新を取得します'}</span>
         </div>
+        ${renderMetaDebug()}
         <div class="empty" style="margin-top:20px;">まだMeta広告データが読み込まれていません。<br /><span style="font-size:11px;">右上の「🔄 Meta広告データを取込」を押してください。</span></div>
       </div>
     `;
   }
 
-  // Current month and previous month (in JST)
+  // Current month + previous month
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
-  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonth = `${prev.getFullYear()}-${pad2(prev.getMonth() + 1)}`;
+
+  // When filter is 'all', split KPIs per clinic + show combined block
+  let kpisHtml;
+  if (clinicFilter === 'all') {
+    const nakaRows = allRows.filter(r => r.campaign && r.campaign.includes('中百舌鳥'));
+    const tenrRows = allRows.filter(r => r.campaign && r.campaign.includes('天満天六'));
+    kpisHtml = metaKpiBlock('combined', filtered, '両院合算', false)
+             + metaKpiBlock('nakamozu', nakaRows, 'NAORU整体 中百舌鳥院', false)
+             + metaKpiBlock('tenrokuten', tenrRows, 'NAORU整体 天満天六院', false);
+  } else {
+    kpisHtml = metaKpiBlock(clinicFilter, filtered, clinicLabel, true);
+  }
 
   const thisMonthRows = filtered.filter(r => r.date.startsWith(thisMonth));
-  const lastMonthRows = filtered.filter(r => r.date.startsWith(lastMonth));
-  const sumKey = (arr, key) => arr.reduce((s, r) => s + (r[key] || 0), 0);
-
-  const thisSpent  = sumKey(thisMonthRows, 'amountSpent');
-  const thisRegs   = sumKey(thisMonthRows, 'registrations');
-  const thisCpa    = thisRegs > 0 ? thisSpent / thisRegs : 0;
-  const thisImpr   = sumKey(thisMonthRows, 'impressions');
-  const thisClicks = sumKey(thisMonthRows, 'clicks');
-
-  const lastSpent  = sumKey(lastMonthRows, 'amountSpent');
-  const lastRegs   = sumKey(lastMonthRows, 'registrations');
-  const lastCpa    = lastRegs > 0 ? lastSpent / lastRegs : 0;
-
-  const pct = (cur, prv) => prv > 0 ? ((cur - prv) / prv) * 100 : null;
-  const fmtPct = (v) => {
-    if (v == null) return '前月データなし';
-    const sign = v >= 0 ? '+' : '';
-    return `前月比 ${sign}${v.toFixed(1)}%`;
-  };
-  const pctColor = (v, betterDown) => {
-    if (v == null) return 'var(--muted)';
-    const good = betterDown ? v <= 0 : v >= 0;
-    return good ? 'var(--success)' : 'var(--danger)';
-  };
 
   return `
     <div class="card" style="margin-bottom:18px;">
@@ -2677,15 +2736,10 @@ function viewMetaAds() {
       <div style="margin-top:8px;">
         <span id="metaSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastMetaSyncMsg || '※ ページを開くたびに自動で最新を取り込みます'}</span>
       </div>
-      <div style="margin-top:8px; font-size:11px; color:var(--muted);">💡 トップバーの店舗フィルタでクリニックを切替できます（${filtered.length} 行をフィルタ中）</div>
+      <div style="margin-top:8px; font-size:11px; color:var(--muted);">💡 トップバーの店舗フィルタでクリニックを切替できます（${filtered.length} / 全 ${allRows.length} 行をフィルタ中）</div>
     </div>
 
-    <div class="kpi-grid">
-      <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">💰 今月の広告費</div><div class="kpi-value" style="color:var(--primary);">${yen(thisSpent)}</div><div class="kpi-sub" style="color:${pctColor(pct(thisSpent, lastSpent), true)};">${fmtPct(pct(thisSpent, lastSpent))} (先月 ${yen(lastSpent)})</div></div>
-      <div class="kpi-card"><div class="kpi-label">✅ 登録完了</div><div class="kpi-value">${fmt(thisRegs)} <span style="font-size:14px; color:var(--muted);">件</span></div><div class="kpi-sub" style="color:${pctColor(pct(thisRegs, lastRegs), false)};">${fmtPct(pct(thisRegs, lastRegs))} (先月 ${fmt(lastRegs)}件)</div></div>
-      <div class="kpi-card"><div class="kpi-label">🎯 CPA (1件あたり)</div><div class="kpi-value">${thisRegs > 0 ? yen(thisCpa) : '—'}</div><div class="kpi-sub" style="color:${pctColor(pct(thisCpa, lastCpa), true)};">${fmtPct(pct(thisCpa, lastCpa))} (先月 ${lastRegs > 0 ? yen(lastCpa) : '—'})</div></div>
-      <div class="kpi-card"><div class="kpi-label">👁 インプレッション</div><div class="kpi-value">${fmt(thisImpr)}</div><div class="kpi-sub">クリック ${fmt(thisClicks)}</div></div>
-    </div>
+    ${kpisHtml}
 
     <div class="card">
       <h2>📈 日別広告費推移 (直近30日)</h2>
@@ -2717,6 +2771,8 @@ function viewMetaAds() {
         </tbody>
       </table>
     </div>
+
+    ${renderMetaDebug()}
   `;
 }
 
