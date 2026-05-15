@@ -1990,8 +1990,13 @@ function getDailyEntry(date, clinic) {
   return state.dailyEntries.find(e => e.date === date && e.clinic === clinic);
 }
 
-// Headers we never display as a regular data column (handled separately or duplicate of left columns)
-const DAILY_SKIP_HEADERS = new Set(['日付','営業日','日報日','曜日','曜','店舗','院','所属','clinic','date']);
+// Headers we never display as a regular data column (handled separately or hidden by request)
+const DAILY_SKIP_HEADERS = new Set([
+  // Already-displayed-elsewhere columns
+  '日付','営業日','日報日','曜日','曜','店舗','院','所属','clinic','date',
+  // Hidden by user request
+  '再診','スマイル','予約率','物販','会員','ミニモ','ホネフィックス',
+]);
 // Columns from this header (inclusive) to the right are hidden from the daily-sales table.
 const DAILY_HIDE_FROM_HEADER = '口座へ入金';
 
