@@ -4,30 +4,40 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>NAORU整体 経営ダッシュボード</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root {
-    --bg: #f5f7fb;
+    --bg: #fdfbff;
     --card: #ffffff;
     --sidebar: #ffffff;
-    --sidebar-hover: #f3f4f6;
-    --primary: #2563eb;
-    --primary-dark: #1d4ed8;
-    --text: #1f2937;
-    --muted: #6b7280;
-    --muted-2: #9ca3af;
-    --border: #e5e7eb;
-    --success: #10b981;
-    --danger: #ef4444;
-    --warning: #f59e0b;
+    --sidebar-hover: #f5f3ff;
+    --primary: #6366f1;
+    --primary-dark: #4f46e5;
+    --primary-soft: #c7d2fe;
+    --accent: #f472b6;
+    --text: #475569;
+    --text-dark: #1e293b;
+    --muted: #94a3b8;
+    --muted-2: #cbd5e1;
+    --border: #ede9fe;
+    --border-soft: #f1f5f9;
+    --success: #34d399;
+    --danger: #fb7185;
+    --warning: #fbbf24;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", "Segoe UI", sans-serif;
+    font-family: "Noto Sans JP", -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", "Segoe UI", sans-serif;
     background: var(--bg);
     color: var(--text);
-    line-height: 1.6;
+    line-height: 1.65;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   .app { display: flex; min-height: 100vh; }
@@ -44,26 +54,40 @@
     max-height: 100vh;
   }
   .sidebar-header {
-    padding: 18px 20px;
+    padding: 20px 20px;
     border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, #fce7f3 0%, #ede9fe 100%);
   }
-  .sidebar-header .logo { font-size: 15px; font-weight: 700; color: var(--text); }
-  .sidebar-header .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .sidebar-header .logo { font-size: 17px; font-weight: 800; color: var(--text-dark); }
+  .sidebar-header .sub { font-size: 12px; color: var(--primary); margin-top: 3px; font-weight: 500; }
 
-  .nav-group { padding: 12px 0 4px; }
+  .nav-group { padding: 14px 0 6px; }
   .nav-group-title {
-    padding: 4px 20px;
-    font-size: 11px;
-    color: var(--muted-2);
-    font-weight: 600;
-    letter-spacing: 0.04em;
+    padding: 6px 20px;
+    margin-bottom: 4px;
+    font-size: 13px;
+    color: var(--primary-dark);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    border-left: 3px solid var(--primary);
+    background: linear-gradient(90deg, #ede9fe 0%, transparent 60%);
   }
+  .nav-group.collapsible .nav-group-title { cursor: pointer; user-select: none; display: flex; align-items: center; }
+  .nav-group.collapsible .nav-group-title:hover { background: linear-gradient(90deg, #ddd6fe 0%, transparent 60%); }
+  .nav-group.collapsible .nav-group-title .chevron {
+    margin-left: auto;
+    font-size: 11px;
+    transition: transform 0.18s;
+    color: var(--primary);
+  }
+  .nav-group.collapsible.collapsed .nav-item { display: none; }
+  .nav-group.collapsible.collapsed .nav-group-title .chevron { transform: rotate(-90deg); }
   .nav-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 8px 20px;
-    font-size: 13px;
+    gap: 11px;
+    padding: 10px 20px;
+    font-size: 14px;
     color: var(--text);
     cursor: pointer;
     border-left: 3px solid transparent;
@@ -71,10 +95,10 @@
   }
   .nav-item:hover { background: var(--sidebar-hover); }
   .nav-item.active {
-    background: #eff6ff;
+    background: linear-gradient(90deg, #ede9fe 0%, #fce7f3 100%);
     border-left-color: var(--primary);
-    color: var(--primary);
-    font-weight: 600;
+    color: var(--primary-dark);
+    font-weight: 700;
   }
   .nav-item .icon { font-size: 16px; width: 18px; text-align: center; }
   .nav-item .badge-sm {
@@ -89,7 +113,7 @@
   /* ----- Main ----- */
   .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   .topbar {
-    background: white;
+    background: linear-gradient(180deg, #fdfaff 0%, #ffffff 100%);
     border-bottom: 1px solid var(--border);
     padding: 14px 28px;
     display: flex;
@@ -97,30 +121,31 @@
     gap: 16px;
     flex-wrap: wrap;
   }
-  .topbar h1 { margin: 0; font-size: 18px; font-weight: 600; }
-  .topbar .crumb { color: var(--muted); font-size: 12px; }
+  .topbar h1 { margin: 0; font-size: 20px; font-weight: 700; }
+  .topbar .crumb { color: var(--muted); font-size: 13px; }
   .topbar .filters { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .topbar label { font-size: 12px; color: var(--muted); margin-right: 4px; }
+  .topbar label { font-size: 13px; color: var(--muted); margin-right: 4px; }
 
   .content { padding: 24px 28px; }
 
   /* ----- Common form/input ----- */
-  select, input[type="number"], input[type="month"], input[type="text"], input[type="date"] {
-    padding: 7px 10px;
+  select, input[type="number"], input[type="month"], input[type="text"], input[type="date"], input[type="email"], input[type="password"] {
+    padding: 9px 12px;
     border: 1px solid var(--border);
     border-radius: 8px;
-    font-size: 13px;
+    font-size: 15px;
     background: white;
     font-family: inherit;
   }
+  textarea { font-size: 15px; font-family: inherit; }
   button {
-    padding: 8px 16px;
+    padding: 9px 18px;
     border: none;
     border-radius: 8px;
     background: var(--primary);
     color: white;
-    font-size: 13px;
-    font-weight: 500;
+    font-size: 14px;
+    font-weight: 600;
     cursor: pointer;
     font-family: inherit;
     transition: background 0.15s;
@@ -130,7 +155,7 @@
   button.ghost:hover { background: #f3f4f6; }
   button.danger { background: var(--danger); }
   button.danger:hover { background: #dc2626; }
-  button.sm { padding: 4px 10px; font-size: 12px; }
+  button.sm { padding: 5px 12px; font-size: 13px; }
 
   /* ----- Cards / KPI ----- */
   .kpi-grid {
@@ -140,14 +165,15 @@
     margin-bottom: 20px;
   }
   .kpi-card {
-    background: var(--card);
+    background: linear-gradient(135deg, #ffffff 0%, #fdfaff 100%);
     padding: 16px 18px;
-    border-radius: 12px;
+    border-radius: 14px;
     border: 1px solid var(--border);
+    box-shadow: 0 1px 3px rgba(99,102,241,0.04);
   }
-  .kpi-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-  .kpi-value { font-size: 22px; font-weight: 700; }
-  .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .kpi-label { font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
+  .kpi-value { font-size: 26px; font-weight: 800; color: var(--text-dark); }
+  .kpi-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .kpi-sub.up { color: var(--success); }
   .kpi-sub.down { color: var(--danger); }
 
@@ -164,11 +190,11 @@
     border: 1px solid var(--border);
     padding: 18px 20px;
   }
-  .card h2 { margin: 0 0 14px; font-size: 14px; font-weight: 600; }
+  .card h2 { margin: 0 0 16px; font-size: 16px; font-weight: 700; color: var(--text-dark); }
 
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
-  th { font-weight: 600; color: var(--muted); font-size: 11px; background: #fafbfc; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--border); }
+  th { font-weight: 700; color: var(--muted); font-size: 12px; background: #fafbfc; }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
   tr:hover td { background: #fafbfc; }
 
@@ -178,9 +204,9 @@
     gap: 12px;
     margin-bottom: 12px;
   }
-  .form-grid label { display: flex; flex-direction: column; font-size: 11px; color: var(--muted); gap: 4px; }
+  .form-grid label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); gap: 5px; font-weight: 500; }
 
-  .empty { color: var(--muted); text-align: center; padding: 32px 12px; font-size: 13px; }
+  .empty { color: var(--muted); text-align: center; padding: 32px 12px; font-size: 14px; }
   .row-actions button { margin-left: 4px; }
   .note {
     background: #fffbeb;
@@ -211,11 +237,802 @@
   .placeholder .big { font-size: 32px; margin-bottom: 10px; }
   .placeholder .title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
   .placeholder ul { text-align: left; max-width: 480px; margin: 16px auto 0; font-size: 13px; color: var(--text); }
+
+  /* ----- Login overlay ----- */
+  .login-overlay {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, #fbcfe8 0%, #ddd6fe 50%, #bae6fd 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .login-card {
+    background: white;
+    padding: 36px 40px;
+    border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+    width: 360px;
+    max-width: 90vw;
+  }
+  .login-card h2 { margin: 0 0 4px; font-size: 18px; }
+  .login-card .sub { color: var(--muted); font-size: 12px; margin-bottom: 22px; }
+  .login-card label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  .login-card input { width: 100%; padding: 10px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: 8px; }
+  .login-card button { width: 100%; margin-top: 18px; padding: 11px; font-size: 14px; }
+  .login-error { color: var(--danger); font-size: 12px; margin-top: 10px; min-height: 16px; }
+  .logout-btn {
+    margin: 8px 16px 16px;
+    display: block;
+    width: calc(100% - 32px);
+    background: white;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    padding: 6px;
+  }
+  .logout-btn:hover { background: var(--sidebar-hover); color: var(--text); }
+
+  /* ----- CSV import ----- */
+  .csv-drop {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 12px;
+    cursor: pointer;
+  }
+  .csv-drop:hover { border-color: var(--primary); color: var(--primary); }
+  .csv-preview { font-size: 12px; max-height: 240px; overflow: auto; margin-top: 12px; }
+  .csv-preview table { font-size: 12px; }
+  .csv-preview th, .csv-preview td { padding: 4px 6px; }
+
+  /* ----- Staff scheduler ----- */
+  .clinic-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .clinic-tab {
+    padding: 10px 20px;
+    border-radius: 10px 10px 0 0;
+    background: var(--sidebar-hover);
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+    border-bottom: 3px solid transparent;
+  }
+  .clinic-tab.active {
+    background: white;
+    color: var(--primary);
+    font-weight: 600;
+    border-bottom-color: var(--primary);
+  }
+  .staff-roster {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .staff-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .staff-card .name { font-weight: 600; font-size: 14px; }
+  .staff-card .role { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .staff-card .status-row { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+  .status-btn {
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .status-btn.active.on  { background: var(--success); color: white; border-color: var(--success); }
+  .status-btn.active.off { background: var(--danger);  color: white; border-color: var(--danger); }
+  .status-btn.active.half { background: var(--warning); color: white; border-color: var(--warning); }
+  .staff-card .stats { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  .schedule-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .schedule-grid {
+    display: grid;
+    gap: 1px;
+    background: var(--border);
+    font-size: 11px;
+    min-width: max-content;
+  }
+  .schedule-grid > div { background: white; padding: 6px 4px; box-sizing: border-box; }
+  .schedule-grid .head {
+    background: #fafbfc;
+    font-weight: 600;
+    text-align: center;
+    color: var(--text);
+    font-size: 11px;
+    position: sticky; top: 0; z-index: 2;
+  }
+  .schedule-grid .staff-label {
+    background: #fafbfc;
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 12px;
+    position: sticky; left: 0; z-index: 3;
+    border-right: 2px solid var(--border);
+  }
+  .schedule-grid .staff-label .name { font-size: 13px; }
+  .schedule-grid .staff-label .sub { font-size: 10px; color: var(--muted); font-weight: normal; }
+  .schedule-grid .time-head {
+    background: #fafbfc;
+    text-align: center;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    font-size: 10px;
+    padding: 8px 2px;
+  }
+  .slot {
+    min-height: 60px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    font-size: 11px;
+    line-height: 1.25;
+    padding: 6px 8px;
+  }
+  .slot.booked, .slot.break, .slot.mtg {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    text-align: left;
+  }
+  .booking-name {
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .booking-menu {
+    font-size: 10px;
+    opacity: 0.85;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+  .booking-time {
+    font-size: 9px;
+    opacity: 0.65;
+    line-height: 1.1;
+    margin-top: 2px;
+  }
+  .slot:hover { background: #f3f4f6; }
+  .slot.off {
+    background: repeating-linear-gradient(45deg, #fafbfc, #fafbfc 6px, #f3f4f6 6px, #f3f4f6 12px);
+    cursor: not-allowed; color: var(--muted-2);
+    text-align: center; line-height: 36px;
+  }
+  .slot.booked {
+    background: #dbeafe;
+    border-left: 3px solid var(--primary);
+    color: var(--primary-dark);
+    font-weight: 500;
+  }
+  .slot.booked:hover { filter: brightness(0.94); }
+  .slot.booked.continued {
+    background: #dbeafe;
+    border-left: none;
+    color: transparent;
+  }
+  /* Pale color variants per menu plan */
+  .slot.booked.menu-naoru        { background: #e0f2fe; border-left-color: #0284c7; color: #0c4a6e; }
+  .slot.booked.menu-care30       { background: #d1fae5; border-left-color: #10b981; color: #064e3b; }
+  .slot.booked.menu-care60       { background: #fce7f3; border-left-color: #ec4899; color: #831843; }
+  .slot.booked.menu-care90       { background: #fef9c3; border-left-color: #ca8a04; color: #713f12; }
+  .slot.booked.menu-maintenance  { background: #f3e8ff; border-left-color: #a855f7; color: #581c87; }
+  .slot.break {
+    background: repeating-linear-gradient(135deg, #fff7ed, #fff7ed 4px, #ffedd5 4px, #ffedd5 8px);
+    border-left: 3px solid var(--warning);
+    color: #92400e;
+    font-weight: 600;
+    text-align: center;
+  }
+  .slot.break:hover { filter: brightness(0.97); }
+  .slot.break.continued { border-left: none; color: transparent; }
+  .slot.mtg {
+    background: repeating-linear-gradient(135deg, #ede9fe, #ede9fe 4px, #ddd6fe 4px, #ddd6fe 8px);
+    border-left: 3px solid #8b5cf6;
+    color: #5b21b6;
+    font-weight: 600;
+    text-align: center;
+  }
+  .slot.mtg:hover { filter: brightness(0.97); }
+  .slot.mtg.continued { border-left: none; color: transparent; }
+  .slot.conflict {
+    outline: 2px solid var(--danger);
+    outline-offset: -2px;
+    position: relative;
+  }
+  .slot.conflict::after {
+    content: '⚠';
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 12px;
+    color: var(--danger);
+  }
+
+  /* ----- Calendar (light & airy palette) ----- */
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    background: transparent;
+    border: none;
+    border-radius: 12px;
+    padding: 4px;
+  }
+  .cal-grid > .dow {
+    background: linear-gradient(180deg, #f0f7ff 0%, #e0ecff 100%);
+    padding: 10px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #4b5563;
+    border-radius: 8px;
+  }
+  .cal-grid > .dow.sun { background: linear-gradient(180deg, #ffe4e6 0%, #fecaca 100%); color: #be123c; }
+  .cal-grid > .dow.sat { background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%); color: #1d4ed8; }
+  .cal-day {
+    background: white;
+    min-height: 110px;
+    padding: 8px 10px;
+    cursor: pointer;
+    position: relative;
+    border-radius: 10px;
+    border: 1px solid #f1f5f9;
+    transition: transform 0.1s, box-shadow 0.15s;
+  }
+  .cal-day:hover { background: #fefce8; box-shadow: 0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
+  .cal-day.other { background: #f8fafc; color: var(--muted-2); cursor: default; border-color: #f1f5f9; }
+  .cal-day.other:hover { background: #f8fafc; box-shadow: none; transform: none; }
+  .cal-day.sun-bg { background: #fff5f5; }
+  .cal-day.sat-bg { background: #f0f9ff; }
+  .cal-day.today { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-color: #fcd34d; }
+  .cal-day.today .date-num { color: #b45309; font-weight: 800; }
+  .cal-day .date-num { font-size: 14px; font-weight: 700; margin-bottom: 6px; color: #1f2937; }
+  .cal-day .date-num.sun { color: #dc2626; }
+  .cal-day .date-num.sat { color: #2563eb; }
+  .staff-chip {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 8px;
+    margin-top: 3px;
+    border-radius: 6px;
+    font-size: 11px;
+    background: #f8fafc;
+    color: #94a3b8;
+  }
+  .staff-chip.has { font-weight: 600; }
+  .staff-chip.has.c0 { background: #e0f2fe; color: #075985; }
+  .staff-chip.has.c1 { background: #f0fdf4; color: #15803d; }
+  .staff-chip.has.c2 { background: #fef3c7; color: #b45309; }
+  .staff-chip.has.c3 { background: #fce7f3; color: #be185d; }
+  .staff-chip.off  { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #b91c1c; font-weight: 700; }
+  .staff-chip.half { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; font-weight: 700; }
+  .staff-chip .badge-off { display:inline-flex; align-items:center; gap:3px; }
+  .cal-day.all-off { background: repeating-linear-gradient(45deg, #fff5f5 0 8px, #fef2f2 8px 16px) !important; }
+  .cal-day .day-total {
+    position: absolute;
+    top: 6px; right: 8px;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #818cf8, #6366f1);
+    color: white;
+    font-weight: 700;
+    box-shadow: 0 2px 4px rgba(99,102,241,0.3);
+  }
+
+  .week-grid {
+    display: grid;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    border-radius: 12px;
+    padding: 4px;
+  }
+  .week-grid > div { background: white; padding: 10px; font-size: 12px; border-radius: 8px; border: 1px solid #f1f5f9; }
+  .week-grid .head {
+    background: linear-gradient(180deg, #f0f7ff 0%, #e0ecff 100%);
+    font-weight: 700;
+    text-align: center;
+    font-size: 12px;
+    color: #4b5563;
+  }
+  .week-grid .head.today { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); color: #b45309; border-color: #fcd34d; }
+  .week-grid .head.sun { background: linear-gradient(180deg, #ffe4e6 0%, #fecaca 100%); color: #be123c; }
+  .week-grid .head.sat { background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%); color: #1d4ed8; }
+  .week-grid .staff-name { background: #fafbfc; font-weight: 700; font-size: 13px; padding: 12px; }
+  .week-cell {
+    cursor: pointer;
+    min-height: 72px;
+    line-height: 1.4;
+    transition: transform 0.1s, box-shadow 0.15s;
+  }
+  .week-cell:hover { background: #fefce8; box-shadow: 0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
+  .week-cell.off {
+    background: repeating-linear-gradient(45deg, #fefefe, #fefefe 4px, #f3f4f6 4px, #f3f4f6 8px);
+    color: var(--muted-2);
+    cursor: not-allowed;
+    text-align: center;
+  }
+  .week-cell.off:hover { box-shadow: none; transform: none; }
+  .week-cell .count {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #818cf8, #6366f1);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    box-shadow: 0 2px 4px rgba(99,102,241,0.3);
+  }
+  .week-cell .b-list { font-size: 11px; color: #475569; }
+  .view-toggle {
+    display: inline-flex;
+    background: #f3f4f6;
+    border-radius: 8px;
+    padding: 2px;
+  }
+  .view-toggle button {
+    background: transparent;
+    color: var(--muted);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .view-toggle button.active { background: white; color: var(--primary); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+  .view-toggle button:hover { color: var(--text); }
+
+  /* ----- Week view day-blocks (staff scheduler) ----- */
+  .day-block {
+    background: var(--card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin-bottom: 18px;
+    overflow: hidden;
+  }
+  .day-block-title {
+    padding: 12px 18px;
+    font-size: 16px;
+    font-weight: 700;
+    background: linear-gradient(180deg, #f0f7ff 0%, #e0ecff 100%);
+    color: var(--text-dark);
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .day-block-title.sun { background: linear-gradient(180deg, #ffe4e6, #fecaca); color: #be123c; }
+  .day-block-title.sat { background: linear-gradient(180deg, #dbeafe, #bfdbfe); color: #1d4ed8; }
+  .day-block-title.today { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
+  .day-block .schedule-wrap { padding: 14px 18px 6px; }
+  .day-block > div[style*="margin-top:10px"] { padding: 0 18px 14px; }
+
+  /* ----- Month picker popup ----- */
+  .month-picker { position: relative; display: block; width: 100%; }
+  .month-picker-trigger {
+    width: 100%;
+    padding: 9px 12px;
+    text-align: left;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+    font-family: inherit;
+  }
+  .month-picker-trigger:hover:not(:disabled) { border-color: var(--primary); }
+  .month-picker-trigger:disabled {
+    background: #f8fafc;
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+  .month-picker-trigger::after { content: '📅'; float: right; opacity: 0.7; }
+  .mp-popup {
+    display: none;
+    position: absolute;
+    top: 100%; left: 0;
+    margin-top: 4px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    padding: 14px;
+    z-index: 200;
+    width: 280px;
+  }
+  .mp-popup.show { display: block; }
+  .mp-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .mp-year { font-weight: 700; font-size: 15px; color: var(--text); }
+  .mp-nav {
+    background: transparent; color: var(--text);
+    padding: 4px 10px; font-size: 14px; border-radius: 6px;
+  }
+  .mp-nav:hover { background: #f3f4f6; }
+  .mp-months {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .mp-month {
+    padding: 10px 4px;
+    text-align: center;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    background: #f8fafc;
+    color: var(--text);
+    border: 1px solid transparent;
+  }
+  .mp-month:hover { background: #dbeafe; border-color: var(--primary); }
+  .mp-month.selected { background: var(--primary); color: white; font-weight: 700; border-color: var(--primary); }
+  .mp-month.current { color: var(--primary); font-weight: 700; }
+  .mp-actions { margin-top: 10px; display: flex; gap: 6px; }
+  .mp-actions button { flex: 1; padding: 6px; font-size: 11px; }
+
+  /* ----- Attendance grid ----- */
+  .att-wrap { overflow-x: auto; }
+  .att-grid {
+    display: grid;
+    gap: 3px;
+    min-width: max-content;
+  }
+  .att-grid > .head {
+    font-size: 14px;
+    text-align: center;
+    padding: 10px 4px;
+    background: linear-gradient(180deg, #f0f7ff 0%, #e0ecff 100%);
+    border-radius: 6px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .att-grid > .head.sun { background: linear-gradient(180deg, #ffe4e6 0%, #fecaca 100%); color: #be123c; }
+  .att-grid > .head.sat { background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%); color: #1d4ed8; }
+  .att-grid > .head.today { background: linear-gradient(180deg, #fde68a 0%, #fcd34d 100%); color: #92400e; }
+  .att-grid > .name {
+    padding: 14px 16px;
+    background: #fafbfc;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 14px;
+    border-left: 4px solid var(--primary);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .att-grid > .name:hover { background: #ede9fe; }
+  .att-grid > .name::after {
+    content: '⚙';
+    float: right;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .att-cell {
+    height: 52px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    font-weight: 700;
+    transition: transform 0.1s;
+    user-select: none;
+  }
+  .att-cell:hover { transform: scale(1.12); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+  .att-cell.on { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #065f46; }
+  .att-cell.half { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
+  .att-cell.off { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #b91c1c; }
+  .att-total {
+    height: 52px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    color: #92400e;
+  }
+  .dow-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 12px;
+    background: white;
+    user-select: none;
+  }
+  .dow-check:hover { background: var(--sidebar-hover); }
+  .dow-check input { width: auto; margin: 0; }
+  .att-clinic-label {
+    font-size: 16px;
+    color: var(--text-dark);
+    font-weight: 700;
+    margin-top: 40px;
+    padding-top: 20px;
+    padding-bottom: 12px;
+    border-top: 2px dashed var(--border);
+  }
+  .att-clinic-label:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  /* ----- Modal ----- */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 900;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    width: 420px;
+    max-width: 92vw;
+  }
+  .modal h3 { margin: 0 0 12px; font-size: 16px; }
+  .modal label { display: block; font-size: 11px; color: var(--muted); margin: 10px 0 4px; }
+  .modal input, .modal select, .modal textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit;
+  }
+  .modal textarea { min-height: 60px; resize: vertical; }
+  .modal-footer { margin-top: 18px; display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* ----- Customer autocomplete ----- */
+  .customer-suggestions {
+    display: none;
+    position: absolute;
+    top: 100%; left: 0; right: 0;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 1010;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+    margin-top: 4px;
+  }
+  .customer-suggestions.show { display: block; }
+  .cs-item {
+    padding: 9px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .cs-item:last-child { border-bottom: none; }
+  .cs-item:hover, .cs-item.kbd-active { background: #eff6ff; }
+  .cs-item .name { font-weight: 600; color: var(--text-dark); }
+  .cs-item .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .cs-empty { padding: 14px 12px; text-align: center; color: var(--muted); font-size: 13px; }
+  /* ----- Daily sales table ----- */
+  .daily-wrap { overflow-x: auto; margin-top: 8px; }
+  .daily-table {
+    border-collapse: collapse;
+    font-size: 12px;
+    border: 2px solid #94a3b8;
+  }
+  .daily-table th, .daily-table td {
+    background: white;
+    padding: 6px 8px;
+    text-align: center;
+    border: 1px solid #cbd5e1;
+    white-space: nowrap;
+  }
+  .daily-table thead th {
+    background: linear-gradient(180deg, #fef3c7, #fde68a);
+    color: #92400e;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 10px 8px;
+    border: 1px solid #ca8a04;
+  }
+  .daily-table thead th.hl { background: linear-gradient(180deg, #fed7aa, #fdba74); color: #9a3412; border-color: #c2410c; }
+  .daily-table tbody td.dow-sun { color: #dc2626; font-weight: 700; background: #fff5f5; }
+  .daily-table tbody td.dow-sat { color: #2563eb; font-weight: 700; background: #f0f9ff; }
+  .daily-table tbody td.date-cell { font-weight: 700; color: var(--text-dark); background: #fafbfc; }
+  .daily-table tbody td.hl { background: #fff7ed; }
+  .daily-table tfoot td {
+    background: #dbeafe;
+    font-weight: 800;
+    color: var(--primary-dark);
+    font-size: 13px;
+    border: 1px solid var(--primary);
+    border-top: 3px solid var(--primary);
+    padding: 8px;
+  }
+  .daily-cell { padding: 0 !important; }
+  .daily-cell input {
+    width: 100%;
+    min-width: 44px;
+    padding: 6px 4px;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    text-align: center;
+    font-family: inherit;
+    color: var(--text-dark);
+    box-sizing: border-box;
+  }
+  .daily-cell input:hover { background: #fef3c7; }
+  .daily-cell input:focus { outline: 2px solid var(--primary); outline-offset: -2px; background: white; }
+  .daily-cell input[readonly] { color: var(--text-dark); font-weight: 700; cursor: default; background: transparent; }
+  .daily-cell input[readonly]:hover { background: transparent; }
+
+  .search-input {
+    width: 100%;
+    padding: 11px 14px 11px 38px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 15px;
+    background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat 12px center / 18px 18px;
+    margin-bottom: 14px;
+  }
 </style>
 </head>
 <body>
 
-<div class="app">
+<!-- =================== LOGIN =================== -->
+<div class="login-overlay" id="loginOverlay">
+  <form class="login-card" id="loginForm" onsubmit="return handleLogin(event)">
+    <h2>🏥 NAORU整体 経営ダッシュボード</h2>
+    <div class="sub">サインインしてください</div>
+
+    <label>メールアドレス (ID)</label>
+    <input type="email" id="loginEmail" name="email" autocomplete="username" required />
+    <label>パスワード</label>
+    <input type="password" id="loginPassword" name="password" autocomplete="current-password" required />
+    <button type="submit" style="margin-top:18px;">ログイン</button>
+    <div class="login-error" id="loginError"></div>
+  </form>
+</div>
+
+<!-- =================== BOOKING MODAL =================== -->
+<div class="modal-backdrop" id="bookingModal">
+  <div class="modal">
+    <h3 id="bookingModalTitle">予約を追加</h3>
+    <input type="hidden" id="bk_id" />
+    <input type="hidden" id="bk_staffId" />
+
+    <label>種別</label>
+    <div style="display:flex; gap:6px;">
+      <label style="flex:1; cursor:pointer; padding:8px; border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; gap:6px; margin:0; justify-content:center;">
+        <input type="radio" name="bk_type" value="施術" checked onchange="toggleBookingType()" style="width:auto;" /> 🔵 施術
+      </label>
+      <label style="flex:1; cursor:pointer; padding:8px; border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; gap:6px; margin:0; justify-content:center;">
+        <input type="radio" name="bk_type" value="休憩" onchange="toggleBookingType()" style="width:auto;" /> 🟠 休憩
+      </label>
+      <label style="flex:1; cursor:pointer; padding:8px; border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; gap:6px; margin:0; justify-content:center;">
+        <input type="radio" name="bk_type" value="MTG" onchange="toggleBookingType()" style="width:auto;" /> 🟣 MTG
+      </label>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <div>
+        <label>スタッフ</label>
+        <div id="bk_staffLabel" style="font-weight:600; padding:6px 0;"></div>
+      </div>
+      <div>
+        <label>日付</label>
+        <input type="date" id="bk_date" />
+      </div>
+      <div>
+        <label>開始時刻</label>
+        <select id="bk_time"></select>
+      </div>
+      <div>
+        <label>所要時間（分）</label>
+        <select id="bk_duration">
+          <option value="30">30分</option>
+          <option value="45">45分</option>
+          <option value="60" selected>60分</option>
+          <option value="90">90分</option>
+          <option value="120">120分</option>
+        </select>
+      </div>
+    </div>
+    <div id="bk_customerField" style="position:relative;">
+      <label>顧客名</label>
+      <input type="text" id="bk_customer" placeholder="顧客一覧から検索 or 直接入力" autocomplete="off"
+             oninput="filterCustomerSuggestions()" onfocus="filterCustomerSuggestions()" />
+      <div id="bk_customerSuggestions" class="customer-suggestions"></div>
+    </div>
+    <div id="bk_menuField">
+      <label>メニュー</label>
+      <select id="bk_menu" onchange="onMenuChange()">
+        <option value="">（選択してください）</option>
+        <option value="NAORUプラン">NAORUプラン</option>
+        <option value="ボディーケア30分">ボディーケア30分</option>
+        <option value="ボディーケア60分">ボディーケア60分</option>
+        <option value="ボディーケア90分">ボディーケア90分</option>
+        <option value="メンテナンス">メンテナンス</option>
+      </select>
+    </div>
+    <label>メモ</label>
+    <textarea id="bk_notes" placeholder="任意"></textarea>
+    <div class="modal-footer">
+      <button id="bk_deleteBtn" class="danger" onclick="deleteBooking()" style="display:none;">削除</button>
+      <button class="ghost" onclick="closeBookingModal()">キャンセル</button>
+      <button onclick="saveBooking()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- =================== BULK SHIFT MODAL =================== -->
+<div class="modal-backdrop" id="bulkShiftModal">
+  <div class="modal" style="width:460px;">
+    <h3 id="bulkShiftTitle">勤怠を一括設定</h3>
+    <input type="hidden" id="bulkShiftStaffId" />
+
+    <div style="margin:14px 0;">
+      <label style="font-size:11px; color:var(--muted);">月全体の一括設定</label>
+      <div style="display:flex; gap:8px; margin-top:6px;">
+        <button onclick="applyBulkAllMonth('出勤')" style="flex:1; background:#10b981;">◯ 月すべて出勤</button>
+        <button onclick="applyBulkAllMonth('休み')" style="flex:1; background:#ef4444;">休 月すべて休み</button>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid var(--border); padding-top:14px;">
+      <label style="font-size:11px; color:var(--muted);">毎週固定の曜日設定（チェックした曜日に状態を一括適用）</label>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
+        <label class="dow-check"><input type="checkbox" id="bulk_dow_1" /> 月</label>
+        <label class="dow-check"><input type="checkbox" id="bulk_dow_2" /> 火</label>
+        <label class="dow-check"><input type="checkbox" id="bulk_dow_3" /> 水</label>
+        <label class="dow-check"><input type="checkbox" id="bulk_dow_4" /> 木</label>
+        <label class="dow-check"><input type="checkbox" id="bulk_dow_5" /> 金</label>
+        <label class="dow-check"><input type="checkbox" id="bulk_dow_6" /> 土</label>
+        <label class="dow-check"><input type="checkbox" id="bulk_dow_0" /> 日</label>
+      </div>
+      <label style="margin-top:12px;">状態</label>
+      <select id="bulk_status">
+        <option value="休み" selected>休み</option>
+        <option value="出勤">出勤</option>
+        <option value="半休">半休</option>
+      </select>
+      <button onclick="applyBulkWeekdays()" style="margin-top:10px; width:100%;">選択した曜日に適用</button>
+    </div>
+
+    <div class="modal-footer">
+      <button class="danger" onclick="resetBulkShift()">今月の設定を全解除</button>
+      <button class="ghost" onclick="closeBulkShiftModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div class="app" id="appRoot" style="display:none;">
 
   <!-- =================== SIDEBAR =================== -->
   <aside class="sidebar">
@@ -224,48 +1041,53 @@
       <div class="sub">経営ダッシュボード</div>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-group-title">ダッシュボード</div>
+    <div class="nav-group collapsible" id="grp-dashboard">
+      <div class="nav-group-title" onclick="toggleNavGroup('dashboard')">ダッシュボード<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="summary"><span class="icon">📊</span>経営サマリー</div>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-group-title">売上管理</div>
+    <div class="nav-group collapsible" id="grp-sales">
+      <div class="nav-group-title" onclick="toggleNavGroup('sales')">売上管理<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="revenue-entry"><span class="icon">📝</span>月次売上入力</div>
+      <div class="nav-item" data-view="daily-sales"><span class="icon">📅</span>日次売上</div>
       <div class="nav-item" data-view="revenue-list"><span class="icon">📋</span>売上一覧</div>
       <div class="nav-item" data-view="revenue-trend"><span class="icon">📈</span>売上推移</div>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-group-title">広告・集客</div>
+    <div class="nav-group collapsible" id="grp-ads">
+      <div class="nav-group-title" onclick="toggleNavGroup('ads')">広告・集客<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="ad-cost"><span class="icon">💰</span>広告費管理</div>
       <div class="nav-item" data-view="channel"><span class="icon">📣</span>集客チャネル</div>
       <div class="nav-item" data-view="cpa-roas"><span class="icon">🎯</span>CPA / ROAS分析</div>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-group-title">予約管理</div>
+    <div class="nav-group collapsible" id="grp-reservations">
+      <div class="nav-group-title" onclick="toggleNavGroup('reservations')">予約管理<span class="chevron">▾</span></div>
+      <div class="nav-item" data-view="staff"><span class="icon">🧑‍⚕️</span>スタッフ別予約</div>
+      <div class="nav-item" data-view="reservation-calendar"><span class="icon">🗓️</span>カレンダー</div>
+      <div class="nav-item" data-view="staff-attendance"><span class="icon">📋</span>勤怠表</div>
       <div class="nav-item" data-view="reservation-list"><span class="icon">📅</span>予約一覧<span class="badge-sm">準備中</span></div>
-      <div class="nav-item" data-view="reservation-calendar"><span class="icon">🗓️</span>カレンダー<span class="badge-sm">準備中</span></div>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-group-title">顧客管理</div>
-      <div class="nav-item" data-view="customers"><span class="icon">👥</span>顧客一覧<span class="badge-sm">準備中</span></div>
-      <div class="nav-item" data-view="line"><span class="icon">💬</span>LINEチャット<span class="badge-sm">準備中</span></div>
+    <div class="nav-group collapsible" id="grp-customers">
+      <div class="nav-group-title" onclick="toggleNavGroup('customers')">顧客管理<span class="chevron">▾</span></div>
+      <div class="nav-item" data-view="customers"><span class="icon">👥</span>顧客一覧</div>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-group-title">マスタ管理</div>
+    <div class="nav-group collapsible" id="grp-master">
+      <div class="nav-group-title" onclick="toggleNavGroup('master')">マスタ管理<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="clinics"><span class="icon">🏥</span>店舗</div>
-      <div class="nav-item" data-view="staff"><span class="icon">🧑‍⚕️</span>スタッフ<span class="badge-sm">準備中</span></div>
-      <div class="nav-item" data-view="menu"><span class="icon">🍽️</span>メニュー<span class="badge-sm">準備中</span></div>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-group-title">設定</div>
+    <div class="nav-group collapsible" id="grp-settings">
+      <div class="nav-group-title" onclick="toggleNavGroup('settings')">設定<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="data"><span class="icon">⚙️</span>データ管理</div>
+      <div class="nav-item" data-view="import-customers"><span class="icon">📥</span>顧客データ移行</div>
+      <div class="nav-item" data-view="import-reservations"><span class="icon">📅</span>予約データ移行</div>
+      <div class="nav-item" data-view="import-sales"><span class="icon">💵</span>売上データ移行</div>
     </div>
+
+    <button class="logout-btn" onclick="logout()">🚪 ログアウト</button>
   </aside>
 
   <!-- =================== MAIN =================== -->
@@ -284,9 +1106,17 @@
         </select>
         <label>期間</label>
         <select id="periodSelect"></select>
-        <input type="month" id="fromMonth" />
+        <div class="month-picker" id="fromMonthWrapper" style="width:140px;">
+          <button type="button" class="month-picker-trigger" id="fromMonthTrigger" onclick="toggleMonthPicker('fromMonth')">月を選択</button>
+          <input type="hidden" id="fromMonth" />
+          <div class="mp-popup" id="fromMonthPopup"></div>
+        </div>
         <span style="color: var(--muted); font-size: 12px;">〜</span>
-        <input type="month" id="toMonth" />
+        <div class="month-picker" id="toMonthWrapper" style="width:140px;">
+          <button type="button" class="month-picker-trigger" id="toMonthTrigger" onclick="toggleMonthPicker('toMonth')">月を選択</button>
+          <input type="hidden" id="toMonth" />
+          <div class="mp-popup" id="toMonthPopup"></div>
+        </div>
       </div>
     </div>
     <div class="content" id="viewContent"></div>
@@ -298,6 +1128,35 @@ const CLINICS = {
   nakamozu: 'NAORU整体 中百舌鳥院',
   tenrokuten: 'NAORU整体 天満天六院',
 };
+const STAFF = {
+  nakamozu: [
+    { id: 'anai',   name: '穴井 将太', role: '院長' },
+    { id: 'murata', name: '村田 鵬暢', role: 'スタッフ' },
+  ],
+  tenrokuten: [
+    { id: 'nakamura',  name: '中村 尭雅',  role: 'スタッフ' },
+    { id: 'nishikawa', name: '西川 慎太朗', role: 'スタッフ' },
+  ],
+};
+const TIME_SLOTS = (() => {
+  const arr = [];
+  for (let h = 10; h <= 19; h++) {
+    arr.push(`${pad2(h)}:00`);
+    arr.push(`${pad2(h)}:30`);
+  }
+  arr.push('20:00');
+  return arr;
+})();
+function menuClass(menu) {
+  if (!menu) return '';
+  if (menu === 'NAORUプラン') return 'menu-naoru';
+  if (menu === 'ボディーケア30分') return 'menu-care30';
+  if (menu === 'ボディーケア60分') return 'menu-care60';
+  if (menu === 'ボディーケア90分') return 'menu-care90';
+  if (menu === 'メンテナンス') return 'menu-maintenance';
+  return '';
+}
+function pad2(n) { return String(n).padStart(2, '0'); }
 const CHANNEL_LABELS = {
   google: 'Google広告',
   meta: 'Meta広告',
@@ -315,6 +1174,7 @@ const charts = {};
 const VIEWS = {
   'summary':              { title: '経営サマリー',     crumb: 'ダッシュボード / 経営サマリー',         filters: true },
   'revenue-entry':        { title: '月次売上入力',     crumb: '売上管理 / 月次売上入力',                filters: false },
+  'daily-sales':          { title: '日次売上',         crumb: '売上管理 / 日次売上',                    filters: false },
   'revenue-list':         { title: '売上一覧',         crumb: '売上管理 / 売上一覧',                    filters: true },
   'revenue-trend':        { title: '売上推移',         crumb: '売上管理 / 売上推移',                    filters: true },
   'ad-cost':              { title: '広告費管理',       crumb: '広告・集客 / 広告費管理',                filters: true },
@@ -323,18 +1183,330 @@ const VIEWS = {
   'reservation-list':     { title: '予約一覧',         crumb: '予約管理 / 予約一覧',                    filters: false },
   'reservation-calendar': { title: 'カレンダー',       crumb: '予約管理 / カレンダー',                  filters: false },
   'customers':            { title: '顧客一覧',         crumb: '顧客管理 / 顧客一覧',                    filters: false },
-  'line':                 { title: 'LINEチャット',     crumb: '顧客管理 / LINEチャット',                filters: false },
   'clinics':              { title: '店舗マスタ',       crumb: 'マスタ管理 / 店舗',                      filters: false },
-  'staff':                { title: 'スタッフ',         crumb: 'マスタ管理 / スタッフ',                  filters: false },
-  'menu':                 { title: 'メニュー',         crumb: 'マスタ管理 / メニュー',                  filters: false },
+  'staff':                { title: 'スタッフ別予約',   crumb: '予約管理 / スタッフ別予約',              filters: false },
+  'staff-attendance':     { title: 'スタッフ勤怠表',   crumb: '予約管理 / 勤怠表',                      filters: false },
   'data':                 { title: 'データ管理',       crumb: '設定 / データ管理',                      filters: false },
+  'import-customers':     { title: '顧客データ移行',   crumb: '設定 / 顧客データ移行',                  filters: false },
+  'import-reservations':  { title: '予約データ移行',   crumb: '設定 / 予約データ移行',                  filters: false },
+  'import-sales':         { title: '売上データ移行',   crumb: '設定 / 売上データ移行',                  filters: false },
 };
+
+// ===== Auth (password required on every page load) =====
+const AUTH_USER = 'k.waka0925@gmail.com';
+const AUTH_PASSWORD_HASH = '0414a7593846245ca82aa99ab0eee1068c2bfb2a3ee602e1aaf01eb7ed5f27b2'; // sha256('naoru')
+// Clean up any previously-persisted auth/passkey artifacts; require fresh login each time.
+try {
+  localStorage.removeItem('naoru_auth_v1');
+  sessionStorage.removeItem('naoru_auth_v1');
+  localStorage.removeItem('naoru_passkey_v1');
+  localStorage.removeItem('naoru_passkey_v1_declined');
+} catch (e) {}
+
+let isAuthedInMemory = false;
+
+async function sha256Hex(text) {
+  const buf = new TextEncoder().encode(text);
+  const hashBuf = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function handleLogin(ev) {
+  ev.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  const hash = await sha256Hex(password);
+  if (email === AUTH_USER.toLowerCase() && hash === AUTH_PASSWORD_HASH) {
+    isAuthedInMemory = true;
+    document.getElementById('loginPassword').value = '';
+    showApp();
+  } else {
+    errEl.textContent = 'メールアドレスまたはパスワードが違います';
+  }
+  return false;
+}
+function logout() {
+  isAuthedInMemory = false;
+  location.reload();
+}
+function showApp() {
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('appRoot').style.display = '';
+}
+function checkAuth() {
+  // Always require password on each page load (no persistence)
+  setTimeout(() => document.getElementById('loginEmail')?.focus(), 50);
+  return false;
+}
 
 // ===== Persistence =====
 function load() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) { try { state = JSON.parse(raw); } catch(e) { state = { entries: [] }; } }
   if (!state.entries) state.entries = [];
+  if (!state.shifts) state.shifts = {};
+  if (!state.bookings) state.bookings = [];
+  if (!state.staffViewClinic) state.staffViewClinic = 'nakamozu';
+  if (!state.staffViewDate) state.staffViewDate = new Date().toISOString().slice(0, 10);
+  if (!state.staffViewMode) state.staffViewMode = 'day';
+  if (!state.staffWeekStart) state.staffWeekStart = new Date().toISOString().slice(0, 10);
+  if (!state.calClinic) state.calClinic = 'nakamozu';
+  if (!state.calMonth) state.calMonth = new Date().toISOString().slice(0, 7);
+  if (!state.calWeekStart) state.calWeekStart = new Date().toISOString().slice(0, 10);
+  if (!state.calView) state.calView = 'month';
+  if (!state.attendanceMonth) state.attendanceMonth = ymOf(new Date());
+  if (!state.dailyEntries) state.dailyEntries = [];
+  if (!state.dailyClinic) state.dailyClinic = 'nakamozu';
+  if (!state.dailyMonth) state.dailyMonth = '2026-05';
+  if (!state.dailySeeded) {
+    seedDailySalesNakamozu();
+    state.dailySeeded = true;
+    save();
+  }
+  if (!state.weekBookingsSeeded) {
+    seedNakamozuWeekBookings();
+    state.weekBookingsSeeded = true;
+    save();
+  }
+  if (!state.nishikawaSeeded) {
+    seedNishikawaWeekBookings();
+    state.nishikawaSeeded = true;
+    save();
+  }
+  if (state.collapsedGroups === undefined) {
+    // migrate legacy settingsCollapsed flag if present
+    const legacy = state.settingsCollapsed;
+    state.collapsedGroups = { ads: true, settings: legacy === false ? false : true };
+  }
+}
+
+function toggleNavGroup(name) {
+  state.collapsedGroups = state.collapsedGroups || {};
+  state.collapsedGroups[name] = !state.collapsedGroups[name];
+  save();
+  applyNavCollapse();
+}
+function applyNavCollapse() {
+  document.querySelectorAll('.nav-group.collapsible').forEach(el => {
+    const id = el.id;
+    if (!id || !id.startsWith('grp-')) return;
+    const name = id.slice(4);
+    el.classList.toggle('collapsed', !!(state.collapsedGroups || {})[name]);
+  });
+}
+
+function seedNishikawaWeekBookings() {
+  state.shifts = state.shifts || {};
+  state.shifts[shiftKey('nishikawa', '2026-05-21')] = '休み';
+
+  const NEW = 'NAORUプラン';        // チラシ新規限定 系
+  const M30 = 'ボディーケア30分';
+  const data = [
+    // 5/16(土)
+    ['nishikawa', '2026-05-16', '10:00', 60, '川島 淳嗣 (新規)',           NEW],
+    ['nishikawa', '2026-05-16', '11:00', 60, '吉野 由有 (新規)',           NEW],
+    ['nishikawa', '2026-05-16', '12:00', 60, '坂東 千鶴 (新規)',           NEW],
+    ['nishikawa', '2026-05-16', '13:00', 60, '休憩',                        '', '休憩'],
+    ['nishikawa', '2026-05-16', '14:00', 60, '上尾 真子 (新規)',           NEW],
+    ['nishikawa', '2026-05-16', '15:00', 60, '大野 ゆかり (新規)',         NEW],
+    ['nishikawa', '2026-05-16', '16:00', 60, '原 哲也 (新規)',             NEW],
+    ['nishikawa', '2026-05-16', '17:00', 60, '谷口 美里 (新規)',           NEW],
+    ['nishikawa', '2026-05-16', '18:00', 60, '柴田 翔 (新規)',             NEW],
+    // 5/17(日)
+    ['nishikawa', '2026-05-17', '10:00', 60, '江本 久哉 (新規)',           NEW],
+    ['nishikawa', '2026-05-17', '11:00', 60, '薫 綾美 (新規)',             NEW],
+    ['nishikawa', '2026-05-17', '12:00', 60, '三牧 晃平 (新規)',           NEW],
+    ['nishikawa', '2026-05-17', '13:00', 60, '金澤 佑季奈 (新規)',         NEW],
+    ['nishikawa', '2026-05-17', '14:00', 60, '坂本 大 (新規)',             NEW],
+    ['nishikawa', '2026-05-17', '15:00', 60, '休憩',                        '', '休憩'],
+    ['nishikawa', '2026-05-17', '16:00', 60, '丸山 翔大 (新規)',           NEW],
+    ['nishikawa', '2026-05-17', '17:00', 60, '山田 哲 (新規)',             NEW],
+    ['nishikawa', '2026-05-17', '18:00', 60, '小澤 祥一 (新規)',           NEW],
+    // 5/18(月)
+    ['nishikawa', '2026-05-18', '10:00', 60, '山本 響子 (新規)',           NEW],
+    ['nishikawa', '2026-05-18', '11:00', 60, 'イシツダ リトシヒロ (新規)', NEW],
+    ['nishikawa', '2026-05-18', '13:00', 60, '休憩',                        '', '休憩'],
+    ['nishikawa', '2026-05-18', '16:00', 60, '園 響杏子 (新規)',           NEW],
+    ['nishikawa', '2026-05-18', '17:00', 60, '米谷 聡史 (新規)',           NEW],
+    ['nishikawa', '2026-05-18', '18:00', 30, '兼城 えみり',                 M30],
+    // 5/19(火)
+    ['nishikawa', '2026-05-19', '11:00', 60, '吉岡 暢彩 (新規)',           NEW],
+    ['nishikawa', '2026-05-19', '12:00', 30, 'ウエダ スズヨ',               M30],
+    ['nishikawa', '2026-05-19', '13:00', 60, '阿江 天統 (新規)',           NEW],
+    ['nishikawa', '2026-05-19', '14:00', 60, '休憩',                        '', '休憩'],
+    ['nishikawa', '2026-05-19', '16:00', 60, 'クラシマ エイコ (新規)',     NEW],
+    // 5/20(水)
+    ['nishikawa', '2026-05-20', '13:00', 60, '徳田 竜一 (新規)',           NEW],
+    ['nishikawa', '2026-05-20', '14:00', 60, '休憩',                        '', '休憩'],
+    ['nishikawa', '2026-05-20', '17:00', 60, 'コイズミ エイコ (新規)',     NEW],
+    // 5/22(金)
+    ['nishikawa', '2026-05-22', '16:00', 30, 'クロダ ハスエ',               M30],
+  ];
+  data.forEach(([staffId, date, time, durationMin, customer, menu, type]) => {
+    state.bookings.push({
+      id: 'seed_n_' + Math.random().toString(36).slice(2, 10),
+      type: type || '施術',
+      staffId, clinic: 'tenrokuten',
+      date, time, durationMin,
+      customer: type === '休憩' ? '' : customer,
+      menu: type === '休憩' ? '' : (menu || ''),
+      notes: '',
+    });
+  });
+}
+
+function seedNakamozuWeekBookings() {
+  // 5/16〜5/22 中百舌鳥院 穴井・村田 のサロンボード相当予約
+  // 穴井: 5/18(月) 5/21(木) を休みに
+  // 村田: 5/20(水) 5/22(金) を休みに
+  state.shifts = state.shifts || {};
+  state.shifts[shiftKey('anai',   '2026-05-18')] = '休み';
+  state.shifts[shiftKey('anai',   '2026-05-21')] = '休み';
+  state.shifts[shiftKey('murata', '2026-05-20')] = '休み';
+  state.shifts[shiftKey('murata', '2026-05-22')] = '休み';
+
+  const M30 = 'ボディーケア30分';
+  const M60 = 'ボディーケア60分';
+  const NAOR = 'NAORUプラン';
+
+  const data = [
+    // ===== 穴井 将太 =====
+    // 5/16(土)
+    ['anai', '2026-05-16', '10:00', 60, 'ミヤシタ ヤマノ',    M60],
+    ['anai', '2026-05-16', '12:00', 30, 'オバナ アツシ',      M30],
+    ['anai', '2026-05-16', '12:30', 30, 'カジコ ミカ',         M30],
+    ['anai', '2026-05-16', '13:00', 30, 'ミゾウエ モカ',       M30],
+    ['anai', '2026-05-16', '14:30', 30, 'タナカ アキエ',       M30],
+    ['anai', '2026-05-16', '15:00', 30, 'クダ マサミ',         M30],
+    ['anai', '2026-05-16', '17:30', 30, 'イチカワ ヒロシ',     M30],
+    ['anai', '2026-05-16', '18:00', 60, 'ホシタニ マサカツ',   M60],
+    // 5/17(日)
+    ['anai', '2026-05-17', '10:00', 30, 'ホンダ ユキコ',       M30],
+    ['anai', '2026-05-17', '10:30', 60, 'アキヤマ ミユ',       M60],
+    ['anai', '2026-05-17', '11:30', 30, 'オクノ ミカ',         M30],
+    ['anai', '2026-05-17', '12:00', 60, 'マツモト ミナ',       M60],
+    ['anai', '2026-05-17', '13:00', 30, 'ヤマモト タカヒロ',   M30],
+    ['anai', '2026-05-17', '13:30', 30, 'タカモリ ダイスケ',   M30],
+    ['anai', '2026-05-17', '14:00', 30, 'マツオカ ミオ',       M30],
+    ['anai', '2026-05-17', '15:00', 60, '休憩',                 '', '休憩'],
+    ['anai', '2026-05-17', '16:00', 30, 'ヤマオキ コタロウ',   M30],
+    ['anai', '2026-05-17', '16:30', 30, 'タナカ マサノリ',     M30],
+    ['anai', '2026-05-17', '17:00', 60, '小田 紗綾(新規)',     NAOR],
+    ['anai', '2026-05-17', '18:00', 60, 'オニシ コウタ',       M60],
+    // 5/19(火)
+    ['anai', '2026-05-19', '10:00', 60, 'カワノ アイ',         M60],
+    ['anai', '2026-05-19', '11:00', 60, 'フジワラ サヨリ',     M60],
+    ['anai', '2026-05-19', '12:00', 60, 'モリグチ イク',       M60],
+    ['anai', '2026-05-19', '13:30', 30, 'マルオカ キン',       M30],
+    ['anai', '2026-05-19', '17:30', 30, 'セノオ アカリ',       M30],
+    ['anai', '2026-05-19', '18:00', 60, 'イワネ コウスケ(新規)', NAOR],
+    ['anai', '2026-05-19', '19:00', 30, 'スギヤマ ミズキ',     M30],
+    // 5/20(水)
+    ['anai', '2026-05-20', '10:00', 30, 'ハサマ カナト',       M30],
+    ['anai', '2026-05-20', '10:30', 30, 'ツボサ エツ',         M30],
+    ['anai', '2026-05-20', '11:00', 30, 'ニシノ ユキ',         M30],
+    ['anai', '2026-05-20', '11:30', 30, 'フクハラ タケ',       M30],
+    ['anai', '2026-05-20', '12:00', 30, 'トミヤマ メグミ',     M30],
+    ['anai', '2026-05-20', '12:30', 30, 'ナガミ ミ',           M30],
+    ['anai', '2026-05-20', '13:00', 60, 'ニシノ マニ',         M60],
+    ['anai', '2026-05-20', '14:00', 30, 'フタダ リョウ',       M30],
+    ['anai', '2026-05-20', '17:30', 30, '西野 達哉(新規)',     NAOR],
+    ['anai', '2026-05-20', '18:00', 60, 'ウデマ サヤカ',       M60],
+    // 5/22(金)
+    ['anai', '2026-05-22', '10:00', 30, 'ササキ キョウコ',     M30],
+    ['anai', '2026-05-22', '10:30', 30, 'アキヤマ カズヒコ',   M30],
+    ['anai', '2026-05-22', '11:00', 30, 'マツモト トモ',       M30],
+    ['anai', '2026-05-22', '11:30', 30, 'ウエナカ テルミ',     M30],
+    ['anai', '2026-05-22', '13:00', 60, 'ヤマモト コウト',     M60],
+    ['anai', '2026-05-22', '14:30', 30, 'あまの あきら',       M30],
+    ['anai', '2026-05-22', '16:00', 30, 'マツムラ ヨシアキ',   M30],
+    ['anai', '2026-05-22', '18:00', 30, 'シミズ ヒロミ',       M30],
+    ['anai', '2026-05-22', '18:30', 30, 'シマダ コカ',         M30],
+    ['anai', '2026-05-22', '19:00', 30, 'オカダ ミオ',         M30],
+
+    // ===== 村田 鵬暢 =====
+    // 5/16(土)
+    ['murata', '2026-05-16', '10:00', 60, 'もりもと あきこ',   M60],
+    ['murata', '2026-05-16', '11:00', 60, 'タノウエ アヤコ',   M60],
+    ['murata', '2026-05-16', '12:00', 60, 'タカギ アツヒロ',   M60],
+    ['murata', '2026-05-16', '13:00', 60, 'オクノ リョウヘイ', M60],
+    ['murata', '2026-05-16', '14:30', 60, 'ヒラタニ 夫妻',     M60],
+    ['murata', '2026-05-16', '15:30', 30, 'オオジジ カナ',     M30],
+    ['murata', '2026-05-16', '17:30', 60, 'ナガタ カズマサ',   M60],
+    // 5/17(日)
+    ['murata', '2026-05-17', '10:00', 60, '泉川 政毅(新規)',    NAOR],
+    ['murata', '2026-05-17', '11:00', 60, 'ゴトウ ユカコ',     M60],
+    ['murata', '2026-05-17', '14:30', 60, '内藤 ゆかり(新規)',  NAOR],
+    ['murata', '2026-05-17', '16:00', 60, 'ナカニシ アヤ',     M60],
+    ['murata', '2026-05-17', '17:00', 30, 'イケガミ カヨ',     M30],
+    ['murata', '2026-05-17', '18:00', 60, '小田 なおみ(新規)',  NAOR],
+    // 5/18(月)
+    ['murata', '2026-05-18', '12:00', 60, '平松 拓士(新規)',    NAOR],
+    ['murata', '2026-05-18', '17:00', 60, 'オカザワ ミホ',     M60],
+    ['murata', '2026-05-18', '18:00', 30, 'ナカツジ カイ',     M30],
+    ['murata', '2026-05-18', '18:30', 60, 'カイホウ タカヒサ', M60],
+    // 5/19(火)
+    ['murata', '2026-05-19', '11:00', 60, 'キタジマ ノブユキ', M60],
+    ['murata', '2026-05-19', '13:00', 60, 'サカモト コメ',     M60],
+    ['murata', '2026-05-19', '19:00', 30, 'おだ さん',         M30],
+    // 5/21(木) (休みの穴井とは別、村田は出勤)
+    ['murata', '2026-05-21', '10:00', 60, 'どい めぐみ',       M60],
+    ['murata', '2026-05-21', '11:00', 30, 'ナカヤマ さゆり',   M30],
+    ['murata', '2026-05-21', '11:30', 60, 'ナカムラ ライズミ', M60],
+    ['murata', '2026-05-21', '13:00', 30, 'ヨシオカ シンペイ', M30],
+    ['murata', '2026-05-21', '19:00', 30, 'おおら まゆか',     M30],
+  ];
+
+  data.forEach(([staffId, date, time, durationMin, customer, menu, type]) => {
+    state.bookings.push({
+      id: 'seed_' + Math.random().toString(36).slice(2, 10),
+      type: type || '施術',
+      staffId, clinic: 'nakamozu',
+      date, time, durationMin,
+      customer: type === '休憩' ? '' : customer,
+      menu: type === '休憩' ? '' : (menu || ''),
+      notes: '',
+    });
+  });
+}
+
+const DAILY_FIELDS = ['referralCount','chanHpb','chanHp','chanFlyer','chanMeta','chanMinimo','chanReferral','chanBoneFix','chanMeo','chanGmap','chanOther','returning','smile','reservations','cancellations','actualVisits','otherCash','memberSales'];
+const DAILY_CHANNELS = ['chanHpb','chanHp','chanFlyer','chanMeta','chanMinimo','chanReferral','chanBoneFix','chanMeo','chanGmap','chanOther'];
+
+function createEmptyDaily(date, clinic) {
+  const e = { date, clinic, newPatient: 0 };
+  DAILY_FIELDS.forEach(f => e[f] = 0);
+  return e;
+}
+function recomputeNewPatient(e) {
+  e.newPatient = DAILY_CHANNELS.reduce((s, k) => s + (e[k] || 0), 0);
+}
+
+function seedDailySalesNakamozu() {
+  const rows = [
+    { d: 1,  reservations: 7,  actualVisits: 7,  memberSales: 62700 },
+    { d: 2,  chanMeta: 1, reservations: 14, actualVisits: 15, otherCash: 2000,  memberSales: 49750 },
+    { d: 3,  chanHpb: 2, chanHp: 1, chanMeta: 2, reservations: 12, actualVisits: 14, otherCash: 31000, memberSales: 86750 },
+    { d: 4,  chanMeta: 2, reservations: 6,  actualVisits: 8,  otherCash: 4000,  memberSales: 49500 },
+    { d: 5,  chanHpb: 1, reservations: 12, actualVisits: 13, otherCash: 3500,  memberSales: 111750 },
+    { d: 6,  chanHpb: 1, reservations: 10, actualVisits: 10, otherCash: 3500,  memberSales: 62000 },
+    { d: 7,  chanMeta: 1, reservations: 8,  actualVisits: 10, otherCash: 2000,  memberSales: 62000 },
+    { d: 8,  chanMeta: 1, reservations: 9,  actualVisits: 10, otherCash: 2000,  memberSales: 50450 },
+    { d: 9,  chanMeta: 1, reservations: 12, actualVisits: 13, otherCash: 2000,  memberSales: 74250 },
+    { d: 10, chanMeta: 1, reservations: 18, actualVisits: 19, otherCash: 17400, memberSales: 74250 },
+    { d: 11, reservations: 8,  actualVisits: 8,  memberSales: 74750 },
+    { d: 12, chanGmap: 1, reservations: 9,  actualVisits: 10, otherCash: 6000,  memberSales: 37500 },
+    { d: 13, chanGmap: 2, reservations: 9,  actualVisits: 11, otherCash: 2000,  memberSales: 38200 },
+    { d: 14, chanGmap: 2, reservations: 7,  actualVisits: 8,  otherCash: 7000,  memberSales: 49750 },
+  ];
+  rows.forEach(r => {
+    const dateStr = `2026-05-${pad2(r.d)}`;
+    const e = createEmptyDaily(dateStr, 'nakamozu');
+    Object.entries(r).forEach(([k, v]) => { if (k !== 'd') e[k] = v; });
+    recomputeNewPatient(e);
+    state.dailyEntries.push(e);
+  });
 }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
@@ -417,10 +1589,16 @@ function syncRangeInputs() {
   const { from, to } = getPeriodRange();
   const fromEl = document.getElementById('fromMonth');
   const toEl = document.getElementById('toMonth');
+  const fromTrigger = document.getElementById('fromMonthTrigger');
+  const toTrigger = document.getElementById('toMonthTrigger');
   const isCustom = document.getElementById('periodSelect').value === 'custom';
-  if (!isCustom) { fromEl.value = from; toEl.value = to; }
-  fromEl.disabled = !isCustom;
-  toEl.disabled = !isCustom;
+  if (!isCustom) {
+    fromEl.value = from;
+    toEl.value = to;
+  }
+  if (fromTrigger) fromTrigger.textContent = fromEl.value ? formatYM(fromEl.value) : '月を選択';
+  if (toTrigger) toTrigger.textContent = toEl.value ? formatYM(toEl.value) : '月を選択';
+  // Don't disable — let the user click any time. Picking a month auto-switches to custom mode.
 }
 
 function filteredEntries() {
@@ -437,6 +1615,41 @@ function filteredEntries() {
 // ===== Format =====
 function fmt(n) { return n.toLocaleString('ja-JP'); }
 function yen(n) { return '¥' + fmt(Math.round(n)); }
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+
+// Chart-axis-friendly yen formatter (avoids floating point dust like 0.00005999...)
+function yenAxis(v) {
+  const r = Math.round(v);
+  if (r === 0) return '¥0';
+  const abs = Math.abs(r);
+  if (abs < 10000) return '¥' + fmt(r);
+  if (abs < 100000000) {
+    const man = r / 10000;
+    // 1 decimal only when needed
+    const s = (Math.round(man * 10) / 10).toString();
+    return '¥' + s + '万';
+  }
+  const oku = Math.round(r / 1000000) / 100; // 0.01億刻み
+  return '¥' + oku + '億';
+}
+
+// Renders an empty state inside a <canvas> parent when there's nothing to plot
+function emptyChart(canvasId, msg) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const parent = canvas.parentElement;
+  canvas.remove();
+  const div = document.createElement('div');
+  div.className = 'empty';
+  div.style.padding = '60px 20px';
+  div.innerHTML = `📭 ${msg || 'この期間のデータはありません'}<br /><span style="font-size:11px;">「月次売上入力」または「データ管理→サンプル投入」からデータを追加してください。</span>`;
+  parent.appendChild(div);
+}
+function hasPlotData(entries) {
+  return entries && entries.length > 0 && entries.some(e => (e.revenue || e.adspend || e.newCustomers) > 0);
+}
 function aggregate(entries) {
   const t = { revenue: 0, adspend: 0, newCustomers: 0, repeatVisits: 0, reservations: 0 };
   entries.forEach(e => {
@@ -460,15 +1673,20 @@ function viewSummary() {
   const roas = t.adspend > 0 ? (t.revenue / t.adspend) * 100 : 0;
   const avgPerCust = (t.newCustomers + t.repeatVisits) > 0 ? t.revenue / (t.newCustomers + t.repeatVisits) : 0;
 
+  const dash = '—';
+  const showRoas = t.adspend > 0;
+  const showCpa = t.newCustomers > 0;
+  const showAvg = (t.newCustomers + t.repeatVisits) > 0;
+
   return `
     <div class="kpi-grid">
       <div class="kpi-card"><div class="kpi-label">合計売上</div><div class="kpi-value">${yen(t.revenue)}</div><div class="kpi-sub">${entries.length}件のデータ</div></div>
       <div class="kpi-card"><div class="kpi-label">広告費</div><div class="kpi-value">${yen(t.adspend)}</div></div>
-      <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(t.newCustomers)} 人</div></div>
-      <div class="kpi-card"><div class="kpi-label">リピート来院</div><div class="kpi-value">${fmt(t.repeatVisits)} 人</div></div>
-      <div class="kpi-card"><div class="kpi-label">CPA</div><div class="kpi-value">${yen(cpa)}</div><div class="kpi-sub">顧客獲得単価</div></div>
-      <div class="kpi-card"><div class="kpi-label">ROAS</div><div class="kpi-value">${roas.toFixed(0)}%</div><div class="kpi-sub ${roas >= 300 ? 'up' : 'down'}">${roas >= 300 ? '良好' : '要改善 (目安300%以上)'}</div></div>
-      <div class="kpi-card"><div class="kpi-label">客単価</div><div class="kpi-value">${yen(avgPerCust)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(t.newCustomers)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">リピート来院</div><div class="kpi-value">${fmt(t.repeatVisits)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">CPA</div><div class="kpi-value">${showCpa ? yen(cpa) : dash}</div><div class="kpi-sub">${showCpa ? '顧客獲得単価' : 'データなし'}</div></div>
+      <div class="kpi-card"><div class="kpi-label">ROAS</div><div class="kpi-value">${showRoas ? Math.round(roas) + '%' : dash}</div><div class="kpi-sub ${showRoas ? (roas >= 300 ? 'up' : 'down') : ''}">${showRoas ? (roas >= 300 ? '良好' : '要改善 (目安300%以上)') : 'データなし'}</div></div>
+      <div class="kpi-card"><div class="kpi-label">客単価</div><div class="kpi-value">${showAvg ? yen(avgPerCust) : dash}</div></div>
       <div class="kpi-card"><div class="kpi-label">予約数</div><div class="kpi-value">${fmt(t.reservations)}</div></div>
     </div>
     <div class="grid-2">
@@ -479,6 +1697,11 @@ function viewSummary() {
 }
 function viewSummaryAfter() {
   const entries = filteredEntries();
+  if (!hasPlotData(entries)) {
+    emptyChart('chart_summary_revenue');
+    emptyChart('chart_summary_ad');
+    return;
+  }
   const months = [...new Set(entries.map(e => e.month))].sort();
   const clinic = document.getElementById('clinicSelect').value;
   const datasets = [];
@@ -500,7 +1723,11 @@ function viewSummaryAfter() {
   destroyChart('summary_revenue');
   charts.summary_revenue = new Chart(document.getElementById('chart_summary_revenue'), {
     type: 'bar', data: { labels: months, datasets },
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { ticks: { callback: v => '¥' + (v/10000) + '万' } } } },
+    options: { responsive: true, plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + yen(ctx.parsed.y) } },
+      },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } } } },
   });
   const adData = months.map(m => entries.filter(e => e.month === m).reduce((s,e) => s + e.adspend, 0));
   const newData = months.map(m => entries.filter(e => e.month === m).reduce((s,e) => s + e.newCustomers, 0));
@@ -511,8 +1738,13 @@ function viewSummaryAfter() {
       { type: 'bar', label: '広告費', data: adData, backgroundColor: '#f59e0b', yAxisID: 'y' },
       { type: 'line', label: '新規顧客', data: newData, borderColor: '#10b981', backgroundColor: '#10b981', yAxisID: 'y1', tension: 0.3 },
     ]},
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } },
-      scales: { y: { position: 'left', ticks: { callback: v => '¥' + (v/10000) + '万' } }, y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '人' } } } },
+    options: { responsive: true, plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label === '広告費' ? '広告費: ' + yen(ctx.parsed.y) : '新規顧客: ' + fmt(ctx.parsed.y) + '人' } },
+      },
+      scales: {
+        y:  { position: 'left',  beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } },
+        y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { precision: 0, stepSize: 1, callback: v => v + '人' } } } },
   });
 }
 
@@ -523,14 +1755,35 @@ function viewRevenueEntry() {
     <div class="card">
       <h2>📝 月次データを追加・更新</h2>
       <div class="form-grid">
-        <label>対象月<input type="month" id="f_month" value="${defaultMonth}" /></label>
+        <label>対象月
+          <div class="month-picker" id="f_monthWrapper">
+            <button type="button" class="month-picker-trigger" id="f_monthTrigger" onclick="toggleMonthPicker()">${formatYM(defaultMonth)}</button>
+            <input type="hidden" id="f_month" value="${defaultMonth}" />
+            <div class="mp-popup" id="f_monthPopup"></div>
+          </div>
+        </label>
         <label>店舗
           <select id="f_clinic">
             <option value="nakamozu">NAORU整体 中百舌鳥院</option>
             <option value="tenrokuten">NAORU整体 天満天六院</option>
           </select>
         </label>
-        <label>売上 (円)<input type="number" id="f_revenue" min="0" step="1000" placeholder="例: 1500000" /></label>
+      </div>
+
+      <h3 style="font-size:13px; margin:18px 0 8px; color:var(--muted);">💰 売上内訳 (支払方法別)</h3>
+      <div class="form-grid">
+        <label>現金売上 (円)<input type="number" id="f_revCash" min="0" step="1000" placeholder="例: 300000" oninput="updateRevenueTotal()" /></label>
+        <label>Square売上 (円)<input type="number" id="f_revSquare" min="0" step="1000" placeholder="例: 800000" oninput="updateRevenueTotal()" /></label>
+        <label>HPBポイント (円)<input type="number" id="f_revHpb" min="0" step="1000" placeholder="例: 50000" oninput="updateRevenueTotal()" /></label>
+        <label>その他決済 (円)<input type="number" id="f_revOther" min="0" step="1000" placeholder="例: 20000" oninput="updateRevenueTotal()" /></label>
+      </div>
+      <div style="background:#f0f9ff; padding:10px 14px; border-radius:8px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:12px; color:var(--muted);">合計売上</span>
+        <span id="f_revTotal" style="font-size:18px; font-weight:700; color:var(--primary);">¥0</span>
+      </div>
+
+      <h3 style="font-size:13px; margin:18px 0 8px; color:var(--muted);">📣 広告・集客</h3>
+      <div class="form-grid">
         <label>広告費 (円)<input type="number" id="f_adspend" min="0" step="1000" placeholder="例: 200000" /></label>
         <label>新規顧客数<input type="number" id="f_new" min="0" placeholder="例: 35" /></label>
         <label>リピート来院数<input type="number" id="f_repeat" min="0" placeholder="例: 120" /></label>
@@ -552,17 +1805,19 @@ function viewRevenueEntry() {
     <div class="card" style="margin-top:18px;">
       <h2>登録済みデータ (全件)</h2>
       <table>
-        <thead><tr><th>年月</th><th>店舗</th><th class="num">売上</th><th class="num">広告費</th><th class="num">新規</th><th class="num">リピート</th><th>チャネル</th><th></th></tr></thead>
+        <thead><tr><th>年月</th><th>店舗</th><th class="num">現金</th><th class="num">Square</th><th class="num">HPB</th><th class="num">その他</th><th class="num">合計</th><th class="num">広告費</th><th class="num">新規</th><th></th></tr></thead>
         <tbody>
-          ${state.entries.length === 0 ? '<tr><td colspan="8" class="empty">まだデータがありません。</td></tr>' :
+          ${state.entries.length === 0 ? '<tr><td colspan="10" class="empty">まだデータがありません。</td></tr>' :
             state.entries.map(e => `<tr>
-              <td>${e.month}</td>
+              <td>${formatYM(e.month)}</td>
               <td>${CLINICS[e.clinic]}</td>
-              <td class="num">${yen(e.revenue)}</td>
+              <td class="num">${e.revenueCash != null ? yen(e.revenueCash) : '—'}</td>
+              <td class="num">${e.revenueSquare != null ? yen(e.revenueSquare) : '—'}</td>
+              <td class="num">${e.revenueHpb != null ? yen(e.revenueHpb) : '—'}</td>
+              <td class="num">${e.revenueOther != null ? yen(e.revenueOther) : '—'}</td>
+              <td class="num"><strong>${yen(e.revenue)}</strong></td>
               <td class="num">${yen(e.adspend)}</td>
               <td class="num">${e.newCustomers}</td>
-              <td class="num">${e.repeatVisits}</td>
-              <td>${CHANNEL_LABELS[e.channel] || '-'}</td>
               <td class="row-actions">
                 <button class="ghost sm" onclick="editEntry('${e.month}','${e.clinic}')">編集</button>
                 <button class="danger sm" onclick="if(confirm('削除しますか？')) deleteEntry('${e.month}','${e.clinic}')">削除</button>
@@ -574,13 +1829,93 @@ function viewRevenueEntry() {
   `;
 }
 
+function formatYM(ym) {
+  if (!ym) return '月を選択';
+  const [y, m] = ym.split('-');
+  return `${y}年 ${Number(m)}月`;
+}
+
+function updateRevenueTotal() {
+  const cash   = Number(document.getElementById('f_revCash').value) || 0;
+  const square = Number(document.getElementById('f_revSquare').value) || 0;
+  const hpb    = Number(document.getElementById('f_revHpb').value) || 0;
+  const other  = Number(document.getElementById('f_revOther').value) || 0;
+  const total  = cash + square + hpb + other;
+  document.getElementById('f_revTotal').textContent = yen(total);
+}
+
+// ----- Generic month picker popup -----
+const pickerState = {};
+function toggleMonthPicker(prefix) {
+  const popup = document.getElementById(prefix + 'Popup');
+  if (!popup) return;
+  const current = document.getElementById(prefix).value;
+  if (!pickerState[prefix]) pickerState[prefix] = { year: new Date().getFullYear() };
+  if (current) pickerState[prefix].year = Number(current.slice(0, 4));
+  // close other open pickers
+  document.querySelectorAll('.mp-popup.show').forEach(p => { if (p !== popup) p.classList.remove('show'); });
+  popup.classList.toggle('show');
+  if (popup.classList.contains('show')) renderMonthPicker(prefix);
+}
+function shiftMonthPickerYear(prefix, d) {
+  pickerState[prefix].year += d;
+  renderMonthPicker(prefix);
+}
+function renderMonthPicker(prefix) {
+  const popup = document.getElementById(prefix + 'Popup');
+  const current = document.getElementById(prefix).value;
+  const today = new Date();
+  const todayYM = ymOf(today);
+  const year = pickerState[prefix].year;
+  let html = `
+    <div class="mp-header">
+      <button class="mp-nav" onclick="shiftMonthPickerYear('${prefix}', -1)">‹</button>
+      <div class="mp-year">${year}年</div>
+      <button class="mp-nav" onclick="shiftMonthPickerYear('${prefix}', 1)">›</button>
+    </div>
+    <div class="mp-months">
+  `;
+  for (let m = 1; m <= 12; m++) {
+    const ym = `${year}-${pad2(m)}`;
+    const cls = (current === ym ? 'selected ' : '') + (todayYM === ym ? 'current ' : '');
+    html += `<div class="mp-month ${cls}" onclick="pickMonth('${prefix}','${ym}')">${m}月</div>`;
+  }
+  html += `</div>
+    <div class="mp-actions">
+      <button class="ghost" onclick="pickMonth('${prefix}','${todayYM}')">今月</button>
+      <button class="ghost" onclick="document.getElementById('${prefix}Popup').classList.remove('show')">閉じる</button>
+    </div>`;
+  popup.innerHTML = html;
+}
+function pickMonth(prefix, ym) {
+  const input = document.getElementById(prefix);
+  input.value = ym;
+  document.getElementById(prefix + 'Trigger').textContent = formatYM(ym);
+  document.getElementById(prefix + 'Popup').classList.remove('show');
+  input.dispatchEvent(new Event('change'));
+}
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('.mp-popup.show').forEach(popup => {
+    const wrap = popup.closest('.month-picker');
+    if (wrap && !wrap.contains(e.target)) popup.classList.remove('show');
+  });
+});
+
 function saveEntry() {
   const month = document.getElementById('f_month').value;
-  if (!month) { alert('対象月を入力してください'); return; }
+  if (!month) { alert('対象月を選択してください'); return; }
+  const cash   = Number(document.getElementById('f_revCash').value) || 0;
+  const square = Number(document.getElementById('f_revSquare').value) || 0;
+  const hpb    = Number(document.getElementById('f_revHpb').value) || 0;
+  const other  = Number(document.getElementById('f_revOther').value) || 0;
   upsertEntry({
     month,
     clinic: document.getElementById('f_clinic').value,
-    revenue: Number(document.getElementById('f_revenue').value) || 0,
+    revenueCash: cash,
+    revenueSquare: square,
+    revenueHpb: hpb,
+    revenueOther: other,
+    revenue: cash + square + hpb + other,
     adspend: Number(document.getElementById('f_adspend').value) || 0,
     newCustomers: Number(document.getElementById('f_new').value) || 0,
     repeatVisits: Number(document.getElementById('f_repeat').value) || 0,
@@ -597,33 +1932,368 @@ function editEntry(month, clinic) {
     const e = state.entries.find(x => x.month === month && x.clinic === clinic);
     if (!e) return;
     document.getElementById('f_month').value = e.month;
+    document.getElementById('f_monthTrigger').textContent = formatYM(e.month);
     document.getElementById('f_clinic').value = e.clinic;
-    document.getElementById('f_revenue').value = e.revenue;
+    document.getElementById('f_revCash').value   = e.revenueCash   != null ? e.revenueCash   : '';
+    document.getElementById('f_revSquare').value = e.revenueSquare != null ? e.revenueSquare : '';
+    document.getElementById('f_revHpb').value    = e.revenueHpb    != null ? e.revenueHpb    : '';
+    document.getElementById('f_revOther').value  = e.revenueOther  != null ? e.revenueOther  : (e.revenueCash == null && e.revenueSquare == null ? e.revenue : '');
     document.getElementById('f_adspend').value = e.adspend;
     document.getElementById('f_new').value = e.newCustomers;
     document.getElementById('f_repeat').value = e.repeatVisits;
     document.getElementById('f_reservations').value = e.reservations;
     document.getElementById('f_channel').value = e.channel;
+    updateRevenueTotal();
   }, 50);
+}
+
+// ===== Daily sales view =====
+const DAILY_REPORT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQHICtJp0nIwhdHGKwLoPkidVl3MgI-HDxJdNHoaHv3g9SQ6KT4h7O5w0EJcTGwCIK4OFxQmybYpinO/pub?gid=2129032732&single=true&output=csv';
+let lastSheetFetchTime = 0;
+let sheetFetchInFlight = false;
+const DAILY_COLS = [
+  { key: 'newPatient',    label: '新患',    hl: true,  readonly: true },
+  { key: 'referralCount', label: '紹介数' },
+  { key: 'chanHpb',       label: 'HPB' },
+  { key: 'chanHp',        label: 'HP' },
+  { key: 'chanFlyer',     label: 'チラシ' },
+  { key: 'chanMeta',      label: 'メタ広告' },
+  { key: 'chanMinimo',    label: 'minimo' },
+  { key: 'chanReferral',  label: '紹介' },
+  { key: 'chanBoneFix',   label: '骨FIX' },
+  { key: 'chanMeo',       label: 'MEO' },
+  { key: 'chanGmap',      label: 'Gマップ' },
+  { key: 'chanOther',     label: 'その他' },
+  { key: 'returning',     label: '再診' },
+  { key: 'smile',         label: 'スマイル' },
+  { key: 'reservations',  label: '予約人数' },
+  { key: 'cancellations', label: '赤キャンセル' },
+  { key: 'actualVisits',  label: '実来院数', hl: true },
+  { key: 'otherCash',     label: 'その他自費', wide: true },
+  { key: 'memberSales',   label: '会員売上',  wide: true },
+];
+
+function shiftDailyMonth(delta) {
+  const [y, m] = state.dailyMonth.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  state.dailyMonth = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+  save();
+  renderView();
+}
+function switchDailyClinic(clinic) {
+  state.dailyClinic = clinic;
+  save();
+  renderView();
+}
+
+function getDailyEntry(date, clinic) {
+  return state.dailyEntries.find(e => e.date === date && e.clinic === clinic);
+}
+
+function viewDailySales() {
+  const clinic = state.dailyClinic;
+  const month = state.dailyMonth;
+  const [y, m] = month.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const dowChars = ['日','月','火','水','木','金','土'];
+
+  // header
+  let head = `<tr><th>営業日</th><th>曜日</th>` +
+    DAILY_COLS.map(c => `<th class="${c.hl ? 'hl' : ''}" style="${c.wide ? 'min-width:84px;' : ''}">${c.label}</th>`).join('') +
+    `</tr>`;
+
+  // body rows
+  let body = '';
+  for (let d = 1; d <= lastDay; d++) {
+    const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
+    const dow = new Date(y, m - 1, d).getDay();
+    const e = getDailyEntry(dateStr, clinic) || createEmptyDaily(dateStr, clinic);
+    const dowCls = dow === 0 ? 'dow-sun' : dow === 6 ? 'dow-sat' : '';
+    body += `<tr>
+      <td class="date-cell">${m}/${d}</td>
+      <td class="${dowCls}">${dowChars[dow]}</td>` +
+      DAILY_COLS.map(c => {
+        const val = e[c.key] || 0;
+        const display = val || '';
+        if (c.readonly) {
+          return `<td class="hl daily-cell"><input id="np_${dateStr}" type="number" value="${display}" readonly /></td>`;
+        }
+        return `<td class="${c.hl ? 'hl' : ''} daily-cell"><input type="number" min="0" value="${display}" onchange="updateDailyCell('${dateStr}','${clinic}','${c.key}',this.value)" /></td>`;
+      }).join('') + `</tr>`;
+  }
+
+  // footer totals
+  const totals = {};
+  DAILY_COLS.forEach(c => totals[c.key] = 0);
+  state.dailyEntries.filter(e => e.clinic === clinic && e.date.startsWith(month)).forEach(e => {
+    DAILY_COLS.forEach(c => totals[c.key] += (e[c.key] || 0));
+  });
+  let foot = `<tr><td colspan="2">合計</td>` +
+    DAILY_COLS.map(c => `<td class="${c.hl ? 'hl' : ''}" id="total_${c.key}">${c.wide ? fmt(totals[c.key]) : (totals[c.key] || 0)}</td>`).join('') +
+    `</tr>`;
+
+  return `
+    <div class="clinic-tabs">
+      ${Object.entries(CLINICS).map(([k, name]) => `
+        <div class="clinic-tab ${clinic === k ? 'active' : ''}" onclick="switchDailyClinic('${k}')">${name}</div>
+      `).join('')}
+    </div>
+    <div class="card" style="margin-bottom:18px;">
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <h2 style="margin:0;">📅 日次売上 (${CLINICS[clinic]})</h2>
+        <div style="flex:1;"></div>
+        <button class="ghost" onclick="shiftDailyMonth(-1)">← 前月</button>
+        <div style="font-weight:700; font-size:16px; min-width:130px; text-align:center;">${y}年 ${m}月</div>
+        <button class="ghost" onclick="shiftDailyMonth(1)">翌月 →</button>
+        <button class="ghost" onclick="state.dailyMonth='${ymOf(new Date())}'; save(); renderView();">今月</button>
+      </div>
+      <div style="margin-top:10px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <button onclick="fetchDailyReportSheet(true)" style="background:linear-gradient(135deg,#10b981,#059669);">🔄 セラピスト日報シートから同期</button>
+        <span id="sheetSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastSheetSyncMsg || '※ ページを開くたびに自動で最新を取り込みます'}</span>
+      </div>
+      <div style="margin-top:8px; font-size:12px; color:var(--muted);">
+        💡 各セルをクリックして数値を入力すると自動保存。「新患」は集客チャネルの合計が自動計算されます。
+      </div>
+    </div>
+    <div class="card">
+      <div class="daily-wrap">
+        <table class="daily-table">
+          <thead>${head}</thead>
+          <tbody>${body}</tbody>
+          <tfoot>${foot}</tfoot>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// Auto-trigger sheet fetch when entering the daily-sales view (debounced)
+function maybeAutoFetchDailyReport() {
+  if (sheetFetchInFlight) return;
+  if (Date.now() - lastSheetFetchTime < 5000) return; // throttle to 5s
+  fetchDailyReportSheet(false);
+}
+
+async function fetchDailyReportSheet(manual) {
+  if (sheetFetchInFlight) return;
+  sheetFetchInFlight = true;
+  lastSheetFetchTime = Date.now();
+  const setStatus = (msg) => {
+    state.lastSheetSyncMsg = msg;
+    const el = document.getElementById('sheetSyncStatus');
+    if (el) el.textContent = msg;
+  };
+  setStatus('⏳ 日報シートから同期中...');
+
+  // Try the direct URL first, then fall back through CORS proxies.
+  const candidates = [
+    { label: '直接', url: DAILY_REPORT_SHEET_URL },
+    { label: 'corsproxy.io 経由', url: 'https://corsproxy.io/?' + encodeURIComponent(DAILY_REPORT_SHEET_URL) },
+    { label: 'allorigins 経由', url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(DAILY_REPORT_SHEET_URL) },
+  ];
+
+  let lastError = '';
+  let text = null;
+  let usedLabel = '';
+
+  for (const c of candidates) {
+    try {
+      setStatus('⏳ ' + c.label + 'で取得中...');
+      const res = await fetch(c.url, { cache: 'no-store' });
+      if (!res.ok) { lastError = `${c.label}: HTTP ${res.status}`; continue; }
+      const t = await res.text();
+      if (!t || t.trim().startsWith('<') || /<!DOCTYPE/i.test(t.slice(0, 200))) {
+        lastError = `${c.label}: HTMLが返されました（公開未設定?）`;
+        continue;
+      }
+      text = t;
+      usedLabel = c.label;
+      break;
+    } catch (e) {
+      lastError = `${c.label}: ${e.message || e}`;
+    }
+  }
+
+  if (!text) {
+    setStatus('✕ 同期失敗: ' + lastError);
+    sheetFetchInFlight = false;
+    return;
+  }
+
+  try {
+    const rows = parseCsv(text);
+    if (rows.length < 2) throw new Error('行が見つかりません');
+    const headers = rows[0];
+    let imported = 0, skipped = 0;
+    rows.slice(1).forEach(row => {
+      const entry = mapDailyReportRow(headers, row);
+      if (!entry) { skipped++; return; }
+      const existing = state.dailyEntries.find(e => e.date === entry.date && e.clinic === entry.clinic);
+      if (existing) Object.assign(existing, entry);
+      else state.dailyEntries.push(entry);
+      imported++;
+    });
+    save();
+    const ts = new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    setStatus(`✓ ${imported}件を取込${skipped > 0 ? ` / ${skipped}件スキップ` : ''} (${usedLabel} / ${ts})`);
+    if (manual) renderView();
+    else {
+      const card = document.querySelector('.daily-wrap');
+      if (card) renderView();
+    }
+  } catch (e) {
+    console.error(e);
+    setStatus('✕ 解析失敗: ' + (e.message || e));
+  } finally {
+    sheetFetchInFlight = false;
+  }
+}
+
+function mapDailyReportRow(headers, row) {
+  const findIdx = (...names) => {
+    // exact match first
+    for (const n of names) {
+      const i = headers.findIndex(h => h && h.toString().trim() === n);
+      if (i >= 0) return i;
+    }
+    // partial (case-insensitive)
+    for (const n of names) {
+      const lo = n.toLowerCase();
+      const i = headers.findIndex(h => h && h.toString().toLowerCase().trim().includes(lo));
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+  const val = (...names) => {
+    const i = findIdx(...names);
+    return i >= 0 ? (row[i] || '').toString().trim() : '';
+  };
+  const num = (...names) => {
+    const s = val(...names).replace(/[¥,\s円]/g, '');
+    const n = Number(s);
+    return isNaN(n) ? 0 : n;
+  };
+
+  const dateRaw = val('日付', '営業日', '日報日', 'date');
+  if (!dateRaw) return null;
+  let date;
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateRaw)) {
+    date = dateRaw.slice(0, 10);
+  } else if (/^\d{4}\/\d{1,2}\/\d{1,2}/.test(dateRaw)) {
+    const [y, mo, d] = dateRaw.split(/[\/-]/).map(Number);
+    date = `${y}-${pad2(mo)}-${pad2(d)}`;
+  } else if (/^\d{1,2}\/\d{1,2}/.test(dateRaw)) {
+    const [mo, d] = dateRaw.split('/').map(Number);
+    const y = new Date().getFullYear();
+    date = `${y}-${pad2(mo)}-${pad2(d)}`;
+  } else if (/^\d{1,2}月\d{1,2}日/.test(dateRaw)) {
+    const m = dateRaw.match(/(\d{1,2})月(\d{1,2})日/);
+    if (m) {
+      const y = new Date().getFullYear();
+      date = `${y}-${pad2(Number(m[1]))}-${pad2(Number(m[2]))}`;
+    }
+  }
+  if (!date) return null;
+
+  // Clinic detection: prefer 店舗/院 column; fall back to currently-viewed clinic
+  const clinicRaw = val('店舗', '院', '所属', 'clinic');
+  let clinic = state.dailyClinic;
+  if (clinicRaw.includes('中百舌鳥') || clinicRaw.toLowerCase().includes('nakamozu')) clinic = 'nakamozu';
+  else if (clinicRaw.includes('天満') || clinicRaw.includes('天六') || clinicRaw.toLowerCase().includes('tenroku')) clinic = 'tenrokuten';
+
+  const entry = {
+    date, clinic,
+    referralCount:  num('紹介数'),
+    chanHpb:        num('HPB', 'ホットペッパー'),
+    chanHp:         num('HP', 'ホームページ'),
+    chanFlyer:      num('チラシ'),
+    chanMeta:       num('メタ広告', 'メタ', 'インスタ', 'Meta'),
+    chanMinimo:     num('minimo'),
+    chanReferral:   num('紹介'),
+    chanBoneFix:    num('骨FIX', 'BoneFIX'),
+    chanMeo:        num('MEO'),
+    chanGmap:       num('Gマップ', 'Googleマップ'),
+    chanOther:      num('その他チャネル', 'その他'),
+    returning:      num('再診'),
+    smile:          num('スマイル'),
+    reservations:   num('予約人数', '予約数'),
+    cancellations:  num('赤キャンセル', 'キャンセル'),
+    actualVisits:   num('実来院数', '実来院', '来院数'),
+    otherCash:      num('その他自費', '自費'),
+    memberSales:    num('会員売上', '売上'),
+    newPatient: 0,
+  };
+  recomputeNewPatient(entry);
+  return entry;
+}
+
+function updateDailyCell(dateStr, clinic, field, valueStr) {
+  let entry = getDailyEntry(dateStr, clinic);
+  if (!entry) {
+    entry = createEmptyDaily(dateStr, clinic);
+    state.dailyEntries.push(entry);
+  }
+  entry[field] = Number(valueStr) || 0;
+  recomputeNewPatient(entry);
+  save();
+  // Refresh 新患 display for this row
+  const np = document.getElementById('np_' + dateStr);
+  if (np) np.value = entry.newPatient || '';
+  // Refresh totals row
+  const totals = {};
+  DAILY_COLS.forEach(c => totals[c.key] = 0);
+  state.dailyEntries.filter(e => e.clinic === clinic && e.date.startsWith(state.dailyMonth)).forEach(e => {
+    DAILY_COLS.forEach(c => totals[c.key] += (e[c.key] || 0));
+  });
+  DAILY_COLS.forEach(c => {
+    const el = document.getElementById('total_' + c.key);
+    if (el) el.textContent = c.wide ? fmt(totals[c.key]) : (totals[c.key] || 0);
+  });
 }
 
 function viewRevenueList() {
   const entries = filteredEntries();
-  return `<div class="card"><h2>📋 売上一覧 (フィルタ適用済)</h2>
-    <table>
-      <thead><tr><th>年月</th><th>店舗</th><th class="num">売上</th><th class="num">広告費</th><th class="num">新規</th><th class="num">リピート</th><th class="num">CPA</th><th class="num">ROAS</th></tr></thead>
-      <tbody>${entries.length === 0 ? '<tr><td colspan="8" class="empty">該当データがありません。</td></tr>' :
-        entries.map(e => {
-          const cpa = e.newCustomers > 0 ? e.adspend / e.newCustomers : 0;
-          const roas = e.adspend > 0 ? (e.revenue / e.adspend) * 100 : 0;
-          return `<tr>
-            <td>${e.month}</td><td>${CLINICS[e.clinic]}</td>
-            <td class="num">${yen(e.revenue)}</td><td class="num">${yen(e.adspend)}</td>
-            <td class="num">${e.newCustomers}</td><td class="num">${e.repeatVisits}</td>
-            <td class="num">${yen(cpa)}</td><td class="num">${roas.toFixed(0)}%</td>
-          </tr>`;
-        }).join('')}</tbody>
-    </table></div>`;
+  // Aggregate payment-method totals across filtered period
+  const sum = entries.reduce((a, e) => ({
+    cash: a.cash + (e.revenueCash || 0),
+    square: a.square + (e.revenueSquare || 0),
+    hpb: a.hpb + (e.revenueHpb || 0),
+    other: a.other + (e.revenueOther || 0),
+    total: a.total + (e.revenue || 0),
+  }), { cash: 0, square: 0, hpb: 0, other: 0, total: 0 });
+
+  return `
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">💵 現金売上</div><div class="kpi-value">${yen(sum.cash)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">💳 Square売上</div><div class="kpi-value">${yen(sum.square)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">🎫 HPBポイント</div><div class="kpi-value">${yen(sum.hpb)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">🔖 その他決済</div><div class="kpi-value">${yen(sum.other)}</div></div>
+      <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:var(--primary);">${yen(sum.total)}</div></div>
+    </div>
+    <div class="card"><h2>📋 売上明細 (フィルタ適用済)</h2>
+      <table>
+        <thead><tr>
+          <th>年月</th><th>店舗</th>
+          <th class="num">💵 現金</th><th class="num">💳 Square</th><th class="num">🎫 HPB</th><th class="num">🔖 その他</th>
+          <th class="num">合計</th><th class="num">広告費</th><th class="num">新規</th><th class="num">リピート</th><th class="num">CPA</th>
+        </tr></thead>
+        <tbody>${entries.length === 0 ? '<tr><td colspan="11" class="empty">該当データがありません。</td></tr>' :
+          entries.map(e => {
+            const cpa = e.newCustomers > 0 ? e.adspend / e.newCustomers : 0;
+            return `<tr>
+              <td>${formatYM(e.month)}</td><td>${CLINICS[e.clinic]}</td>
+              <td class="num">${e.revenueCash   != null ? yen(e.revenueCash)   : '—'}</td>
+              <td class="num">${e.revenueSquare != null ? yen(e.revenueSquare) : '—'}</td>
+              <td class="num">${e.revenueHpb    != null ? yen(e.revenueHpb)    : '—'}</td>
+              <td class="num">${e.revenueOther  != null ? yen(e.revenueOther)  : '—'}</td>
+              <td class="num"><strong>${yen(e.revenue)}</strong></td>
+              <td class="num">${yen(e.adspend)}</td>
+              <td class="num">${e.newCustomers}</td><td class="num">${e.repeatVisits}</td>
+              <td class="num">${e.newCustomers > 0 ? yen(cpa) : '—'}</td>
+            </tr>`;
+          }).join('')}</tbody>
+      </table>
+    </div>`;
 }
 
 function viewRevenueTrend() {
@@ -632,6 +2302,11 @@ function viewRevenueTrend() {
 }
 function viewRevenueTrendAfter() {
   const entries = filteredEntries();
+  if (!hasPlotData(entries)) {
+    emptyChart('chart_trend');
+    emptyChart('chart_share');
+    return;
+  }
   const months = [...new Set(entries.map(e => e.month))].sort();
   const clinic = document.getElementById('clinicSelect').value;
   const datasets = clinic === 'all'
@@ -646,14 +2321,21 @@ function viewRevenueTrendAfter() {
   destroyChart('trend');
   charts.trend = new Chart(document.getElementById('chart_trend'), {
     type: 'line', data: { labels: months, datasets },
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { ticks: { callback: v => '¥' + (v/10000) + '万' } } } },
+    options: { responsive: true, plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + yen(ctx.parsed.y) } },
+      },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } } } },
   });
   const totals = Object.keys(CLINICS).map(c => entries.filter(e => e.clinic === c).reduce((s,e) => s + e.revenue, 0));
   destroyChart('share');
   charts.share = new Chart(document.getElementById('chart_share'), {
     type: 'doughnut',
     data: { labels: Object.values(CLINICS), datasets: [{ data: totals, backgroundColor: ['#2563eb', '#7c3aed'] }] },
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } } },
+    options: { responsive: true, plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => ctx.label + ': ' + yen(ctx.parsed) } },
+      } },
   });
 }
 
@@ -672,12 +2354,16 @@ function viewAdCost() {
 }
 function viewAdCostAfter() {
   const entries = filteredEntries();
+  if (!entries.length || !entries.some(e => e.adspend > 0)) { emptyChart('chart_adcost', 'この期間の広告費データはありません'); return; }
   const months = [...new Set(entries.map(e => e.month))].sort();
   destroyChart('adcost');
   charts.adcost = new Chart(document.getElementById('chart_adcost'), {
     type: 'bar',
     data: { labels: months, datasets: [{ label: '広告費', data: months.map(m => entries.filter(e => e.month === m).reduce((s,e) => s + e.adspend, 0)), backgroundColor: '#f59e0b' }] },
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { ticks: { callback: v => '¥' + (v/10000) + '万' } } } },
+    options: { responsive: true, plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => '広告費: ' + yen(ctx.parsed.y) } },
+      }, scales: { y: { beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } } } },
   });
 }
 
@@ -703,13 +2389,17 @@ function viewChannel() {
 function viewChannelAfter() {
   const entries = filteredEntries();
   const counts = {};
-  entries.forEach(e => { counts[e.channel] = (counts[e.channel] || 0) + e.newCustomers; });
+  entries.forEach(e => { if (e.newCustomers > 0) counts[e.channel] = (counts[e.channel] || 0) + e.newCustomers; });
+  if (Object.keys(counts).length === 0) { emptyChart('chart_channel', 'この期間の集客データはありません'); return; }
   destroyChart('channel');
   charts.channel = new Chart(document.getElementById('chart_channel'), {
     type: 'doughnut',
     data: { labels: Object.keys(counts).map(k => CHANNEL_LABELS[k] || k),
       datasets: [{ data: Object.values(counts), backgroundColor: ['#2563eb','#7c3aed','#f59e0b','#10b981','#ef4444','#6b7280'] }] },
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } } },
+    options: { responsive: true, plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => ctx.label + ': ' + fmt(ctx.parsed) + '人' } },
+      } },
   });
 }
 
@@ -729,18 +2419,19 @@ function viewCpaRoas() {
 }
 function viewCpaRoasAfter() {
   const entries = filteredEntries();
+  if (!entries.length || !entries.some(e => e.adspend > 0)) { emptyChart('chart_cpa', 'この期間の広告費データはありません'); return; }
   const months = [...new Set(entries.map(e => e.month))].sort();
   const cpaData = months.map(m => {
     const ms = entries.filter(e => e.month === m);
     const ad = ms.reduce((s,e) => s + e.adspend, 0);
     const nc = ms.reduce((s,e) => s + e.newCustomers, 0);
-    return nc > 0 ? ad / nc : 0;
+    return nc > 0 ? Math.round(ad / nc) : 0;
   });
   const roasData = months.map(m => {
     const ms = entries.filter(e => e.month === m);
     const ad = ms.reduce((s,e) => s + e.adspend, 0);
     const rv = ms.reduce((s,e) => s + e.revenue, 0);
-    return ad > 0 ? (rv / ad) * 100 : 0;
+    return ad > 0 ? Math.round((rv / ad) * 100) : 0;
   });
   destroyChart('cpa');
   charts.cpa = new Chart(document.getElementById('chart_cpa'), {
@@ -748,8 +2439,13 @@ function viewCpaRoasAfter() {
       { type: 'bar', label: 'CPA (円)', data: cpaData, backgroundColor: '#f59e0b', yAxisID: 'y' },
       { type: 'line', label: 'ROAS (%)', data: roasData, borderColor: '#10b981', backgroundColor: '#10b981', yAxisID: 'y1', tension: 0.3 },
     ]},
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } },
-      scales: { y: { position: 'left', ticks: { callback: v => '¥' + fmt(v) } }, y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } } } },
+    options: { responsive: true, plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label === 'CPA (円)' ? 'CPA: ' + yen(ctx.parsed.y) : 'ROAS: ' + ctx.parsed.y + '%' } },
+      },
+      scales: {
+        y:  { position: 'left',  beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } },
+        y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { precision: 0, callback: v => v + '%' } } } },
   });
 }
 
@@ -793,50 +2489,1261 @@ function viewReservationList() {
     'API連携（外部予約システム）',
   ], '既存の予約システムからのCSV連携を想定しています。');
 }
+// ===== Reservation Calendar =====
+function switchCalClinic(clinic) { state.calClinic = clinic; save(); renderView(); }
+function switchCalView(view) { state.calView = view; save(); renderView(); }
+function shiftCalMonth(delta) {
+  const [y, m] = state.calMonth.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  state.calMonth = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+  save(); renderView();
+}
+function shiftCalWeek(days) {
+  state.calWeekStart = ymdShift(state.calWeekStart, days);
+  save(); renderView();
+}
+function jumpToStaffDay(date) {
+  state.staffViewDate = date;
+  state.staffViewClinic = state.calClinic;
+  save();
+  switchView('staff');
+}
+function bookingsOn(date, staffId) {
+  return state.bookings.filter(b => b.date === date && b.staffId === staffId && b.type !== '休憩' && b.type !== 'MTG');
+}
+function getMonthDays(yyyymm) {
+  const [y, m] = yyyymm.split('-').map(Number);
+  const first = new Date(y, m - 1, 1);
+  const last = new Date(y, m, 0);
+  // Monday-first: Mon=0, Tue=1, ..., Sun=6
+  const startDay = (first.getDay() + 6) % 7;
+  const cells = [];
+  for (let i = 0; i < startDay; i++) {
+    const dd = new Date(y, m - 1, 1 - (startDay - i));
+    cells.push({ date: ymd(dd), inMonth: false });
+  }
+  for (let d = 1; d <= last.getDate(); d++) {
+    cells.push({ date: `${y}-${pad2(m)}-${pad2(d)}`, inMonth: true });
+  }
+  while (cells.length % 7 !== 0) {
+    const lastCell = cells[cells.length - 1].date;
+    const d = new Date(lastCell);
+    d.setDate(d.getDate() + 1);
+    cells.push({ date: ymd(d), inMonth: false });
+  }
+  return cells;
+}
+function ymd(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+function getWeekDays(startYmd) {
+  const d = new Date(startYmd);
+  // Monday-first: how many days back to Monday (Sun→6, Mon→0, Tue→1, ..., Sat→5)
+  const daysBack = (d.getDay() + 6) % 7;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - daysBack);
+  return Array.from({ length: 7 }, (_, i) => {
+    const dd = new Date(monday);
+    dd.setDate(monday.getDate() + i);
+    return ymd(dd);
+  });
+}
+function jpDate(ymdStr) {
+  const d = new Date(ymdStr);
+  return `${d.getMonth() + 1}/${d.getDate()}(${['日','月','火','水','木','金','土'][d.getDay()]})`;
+}
+
 function viewReservationCalendar() {
-  return placeholder('予約カレンダー', '🗓️', [
-    '月 / 週 / 日表示',
-    '担当者別・設備別カラム表示',
-    'ドラッグ&ドロップで予約変更',
-    '日別キャパシティ表示',
-  ], 'スタッフ・施術ベッドのキャパシティを可視化します。');
+  const clinic = state.calClinic;
+  const view = state.calView;
+  const staffList = STAFF[clinic] || [];
+  const today = ymd(new Date());
+
+  const header = `
+    <div class="clinic-tabs">
+      ${Object.entries(CLINICS).map(([key, name]) => `
+        <div class="clinic-tab ${clinic === key ? 'active' : ''}" onclick="switchCalClinic('${key}')">${name}</div>
+      `).join('')}
+    </div>
+    <div class="card" style="margin-bottom:18px;">
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <div class="view-toggle">
+          <button class="${view === 'month' ? 'active' : ''}" onclick="switchCalView('month')">月表示</button>
+          <button class="${view === 'week' ? 'active' : ''}" onclick="switchCalView('week')">週表示</button>
+        </div>
+        <div style="flex:1;"></div>
+        ${view === 'month' ? `
+          <button class="ghost" onclick="shiftCalMonth(-1)">← 前月</button>
+          <div style="font-weight:600; font-size:16px; min-width:120px; text-align:center;">${state.calMonth.replace('-', '年')}月</div>
+          <button class="ghost" onclick="shiftCalMonth(1)">翌月 →</button>
+          <button class="ghost" onclick="state.calMonth='${today.slice(0,7)}'; save(); renderView();">今月</button>
+        ` : `
+          <button class="ghost" onclick="shiftCalWeek(-7)">← 前週</button>
+          <div style="font-weight:600; font-size:14px; min-width:200px; text-align:center;">${jpDate(getWeekDays(state.calWeekStart)[0])} 〜 ${jpDate(getWeekDays(state.calWeekStart)[6])}</div>
+          <button class="ghost" onclick="shiftCalWeek(7)">翌週 →</button>
+          <button class="ghost" onclick="state.calWeekStart='${today}'; save(); renderView();">今週</button>
+        `}
+      </div>
+    </div>
+  `;
+
+  return header + (view === 'month' ? renderMonthCalendar(staffList, today) : renderWeekCalendar(staffList, today));
+}
+
+function renderMonthCalendar(staffList, today) {
+  const cells = getMonthDays(state.calMonth);
+  const dows = ['月','火','水','木','金','土','日'];
+  let html = `<div class="card"><div class="cal-grid">`;
+  dows.forEach((d, i) => {
+    const cls = i === 5 ? 'sat' : i === 6 ? 'sun' : '';
+    html += `<div class="dow ${cls}">${d}</div>`;
+  });
+  cells.forEach(cell => {
+    const d = new Date(cell.date);
+    const dow = d.getDay();
+    const dayNum = d.getDate();
+    if (!cell.inMonth) {
+      html += `<div class="cal-day other"><div class="date-num">${dayNum}</div></div>`;
+      return;
+    }
+    const dayBookings = staffList.map(s => {
+      const shift = getShift(s.id, cell.date);
+      return { staff: s, count: bookingsOn(cell.date, s.id).length, shift };
+    });
+    const total = dayBookings.reduce((a, b) => a + b.count, 0);
+    const allOff = dayBookings.length > 0 && dayBookings.every(b => b.shift === '休み');
+    const dnClass = dow === 0 ? 'sun' : dow === 6 ? 'sat' : '';
+    const cellBgClass = cell.date === today ? 'today' : (allOff ? 'all-off' : (dow === 0 ? 'sun-bg' : dow === 6 ? 'sat-bg' : ''));
+    html += `<div class="cal-day ${cellBgClass}" onclick="jumpToStaffDay('${cell.date}')">
+      <div class="date-num ${dnClass}">${dayNum}</div>
+      ${total > 0 ? `<div class="day-total">${total}件</div>` : (allOff ? `<div class="day-total" style="background:linear-gradient(135deg,#fb7185,#e11d48); box-shadow:0 2px 4px rgba(225,29,72,0.3);">全休</div>` : '')}
+      ${dayBookings.map((b, i) => {
+        const isOff  = b.shift === '休み';
+        const isHalf = b.shift === '半休';
+        const cls = isOff ? 'off' : isHalf ? 'half' : (b.count > 0 ? 'has c' + (i % 4) : '');
+        const right = isOff ? '🔴 休' : isHalf ? '🟡 半休' + (b.count > 0 ? ' / ' + b.count + '件' : '') : (b.count > 0 ? b.count + '件' : '—');
+        return `<div class="staff-chip ${cls}"><span>${b.staff.name.split(' ')[0]}</span><span>${right}</span></div>`;
+      }).join('')}
+    </div>`;
+  });
+  html += `</div></div>
+    <div style="margin-top:12px; font-size:12px; color:var(--muted); display:flex; gap:14px; flex-wrap:wrap; align-items:center;">
+      <strong style="color:var(--text);">凡例:</strong>
+      <span><span class="staff-chip has c0" style="display:inline-flex; padding:2px 6px;">予約あり <strong style="margin-left:4px;">N件</strong></span></span>
+      <span><span class="staff-chip off" style="display:inline-flex; padding:2px 6px;">休 <strong style="margin-left:4px;">🔴 休</strong></span></span>
+      <span><span class="staff-chip half" style="display:inline-flex; padding:2px 6px;">半休 <strong style="margin-left:4px;">🟡 半休</strong></span></span>
+      <span style="margin-left:auto;">💡 日付セルをクリックでその日の詳細画面へ</span>
+    </div>`;
+  return html;
+}
+
+function renderWeekCalendar(staffList, today) {
+  const days = getWeekDays(state.calWeekStart);
+  const cols = `120px repeat(7, 1fr)`;
+  let html = `<div class="card"><div class="week-grid" style="grid-template-columns: ${cols};">`;
+  html += `<div class="head">スタッフ</div>`;
+  days.forEach(d => {
+    const dd = new Date(d);
+    const dow = dd.getDay();
+    const isToday = d === today;
+    const dowCls = dow === 0 ? 'sun' : dow === 6 ? 'sat' : '';
+    html += `<div class="head ${isToday ? 'today' : dowCls}">${jpDate(d)}</div>`;
+  });
+  staffList.forEach(s => {
+    html += `<div class="staff-name">${s.name}<br /><span style="font-size:10px; color:var(--muted); font-weight:normal;">${s.role}</span></div>`;
+    days.forEach(d => {
+      const shift = getShift(s.id, d);
+      const isOff  = shift === '休み';
+      const isHalf = shift === '半休';
+      const bs = bookingsOn(d, s.id).sort((a, b) => a.time.localeCompare(b.time));
+      if (isOff && bs.length === 0) {
+        html += `<div class="week-cell off"><strong style="font-size:14px;">🔴 休</strong></div>`;
+      } else {
+        const badge = isOff
+          ? '<span class="count" style="background:linear-gradient(135deg,#fb7185,#e11d48);">🔴 休</span>'
+          : isHalf
+            ? '<span class="count" style="background:linear-gradient(135deg,#fbbf24,#d97706);">🟡 半休</span>'
+            : (bs.length > 0 ? `<span class="count">${bs.length}件</span>` : '<span style="color:var(--muted-2); font-size:11px;">空</span>');
+        html += `<div class="week-cell" onclick="jumpToStaffDay('${d}')">
+          ${badge}
+          <div class="b-list">${bs.slice(0, 3).map(b => `${b.time} ${(b.customer || '予約').slice(0, 5)}`).join('<br />')}${bs.length > 3 ? `<br /><span style="color:var(--muted);">他${bs.length - 3}件</span>` : ''}</div>
+        </div>`;
+      }
+    });
+  });
+  html += `</div></div>
+    <div style="margin-top:12px; font-size:12px; color:var(--muted); display:flex; gap:14px; flex-wrap:wrap; align-items:center;">
+      <strong style="color:var(--text);">凡例:</strong>
+      <span><span class="count" style="display:inline-flex; padding:2px 8px;">N件</span> 予約あり</span>
+      <span><span class="count" style="display:inline-flex; padding:2px 8px; background:linear-gradient(135deg,#fb7185,#e11d48);">🔴 休</span> 休み</span>
+      <span><span class="count" style="display:inline-flex; padding:2px 8px; background:linear-gradient(135deg,#fbbf24,#d97706);">🟡 半休</span> 半休</span>
+      <span style="margin-left:auto;">💡 セルをクリックでその日の詳細画面へ</span>
+    </div>`;
+  return html;
 }
 function viewCustomers() {
-  return placeholder('顧客一覧', '👥', [
-    '顧客カルテ（来院履歴 / 施術内容 / LTV）',
-    '初回来院チャネル・紹介元の記録',
-    '誕生日・記念日リマインダー',
-    '離脱予兆アラート（来院間隔が空いた顧客）',
-  ], '顧客生涯価値を最大化するためのCRM機能です。');
+  const customers = state.customers || [];
+  if (customers.length === 0) {
+    return placeholder('顧客一覧', '👥', [
+      '「設定 → 顧客データ移行」からCSVをアップロード',
+      'ホットペッパー / RESERVA / Airリザーブ のCSVに対応',
+      'UTF-8 / Shift-JIS 自動判定',
+    ], '顧客データを取り込むとここに一覧表示されます。');
+  }
+  const q = (state.customerSearch || '').toLowerCase().trim();
+  const filtered = q
+    ? customers.filter(c =>
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.kana || '').toLowerCase().includes(q) ||
+        (c.phone || '').includes(q) ||
+        (c.email || '').toLowerCase().includes(q))
+    : customers;
+  return `
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+        <h2 style="margin:0;">👥 顧客一覧 <span id="customerListCount" style="color:var(--muted); font-size:13px; font-weight:500;">(${filtered.length} / ${customers.length} 件)</span></h2>
+      </div>
+      <input type="text" class="search-input" placeholder="名前・かな・電話・メールで検索"
+             value="${escapeHtml(state.customerSearch || '')}"
+             oninput="searchCustomers(this.value)" />
+      <div style="overflow-x:auto;">
+        <table id="customerListTable">
+          <thead><tr><th>氏名</th><th>かな</th><th>電話</th><th>メール</th><th>初回来院</th><th>取込元</th></tr></thead>
+          <tbody id="customerListBody">${renderCustomerRows(filtered)}</tbody>
+        </table>
+      </div>
+      ${filtered.length > 200 ? `<div class="empty">先頭200件を表示中。検索で絞り込んでください。</div>` : ''}
+    </div>
+  `;
 }
-function viewLine() {
-  return placeholder('LINEチャット', '💬', [
-    'LINE公式アカウント連携',
-    'チャット履歴の一元管理',
-    '自動返信・予約リマインダー',
-    'セグメント配信',
-  ], 'LINE Messaging API との連携で実装可能です。');
+
+function renderCustomerRows(list) {
+  if (list.length === 0) return '<tr><td colspan="6" class="empty">該当する顧客はありません</td></tr>';
+  return list.slice(0, 200).map(c => `<tr>
+    <td><strong>${escapeHtml(c.name || '-')}</strong></td>
+    <td>${escapeHtml(c.kana || '-')}</td>
+    <td>${escapeHtml(c.phone || '-')}</td>
+    <td>${escapeHtml(c.email || '-')}</td>
+    <td>${escapeHtml(c.firstVisit || '-')}</td>
+    <td style="font-size:11px; color:var(--muted);">${escapeHtml(c.source || '-')}</td>
+  </tr>`).join('');
 }
+
+function searchCustomers(query) {
+  state.customerSearch = query;
+  const customers = state.customers || [];
+  const q = query.toLowerCase().trim();
+  const filtered = q
+    ? customers.filter(c =>
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.kana || '').toLowerCase().includes(q) ||
+        (c.phone || '').includes(q) ||
+        (c.email || '').toLowerCase().includes(q))
+    : customers;
+  const tbody = document.getElementById('customerListBody');
+  if (tbody) tbody.innerHTML = renderCustomerRows(filtered);
+  const cnt = document.getElementById('customerListCount');
+  if (cnt) cnt.textContent = `(${filtered.length} / ${customers.length} 件)`;
+}
+// ===== Staff scheduler helpers =====
+function shiftKey(staffId, date) { return `${staffId}__${date}`; }
+function getShift(staffId, date) {
+  return (state.shifts && state.shifts[shiftKey(staffId, date)]) || '出勤';
+}
+function setShift(staffId, date, status) {
+  if (status === '休み') {
+    const existing = state.bookings.filter(b => b.staffId === staffId && b.date === date && b.type === '施術');
+    if (existing.length > 0) {
+      const staffName = (findStaff(staffId) || {}).name || staffId;
+      if (!confirm(`⚠️ ${staffName} の ${date} には既に ${existing.length} 件の施術予約があります。\nそれでも「休み」に変更しますか？\n（既存の予約はそのまま残ります）`)) {
+        return;
+      }
+    }
+  }
+  state.shifts[shiftKey(staffId, date)] = status;
+  save();
+  renderView();
+}
+function getBookingsForStaffDate(staffId, date) {
+  return state.bookings.filter(b => b.staffId === staffId && b.date === date)
+    .sort((a, b) => a.time.localeCompare(b.time));
+}
+function slotIndex(time) { return TIME_SLOTS.indexOf(time); }
+function bookingAtSlot(staffId, date, time) {
+  const idx = slotIndex(time);
+  return state.bookings.find(b => {
+    if (b.staffId !== staffId || b.date !== date) return false;
+    const start = slotIndex(b.time);
+    const span = Math.max(1, Math.round((b.durationMin || 60) / 30));
+    return idx >= start && idx < start + span;
+  });
+}
+function isSlotStart(staffId, date, time, b) {
+  return b && b.time === time;
+}
+
+function switchStaffClinic(clinic) {
+  state.staffViewClinic = clinic;
+  save();
+  renderView();
+}
+function changeStaffDate(date) {
+  state.staffViewDate = date;
+  save();
+  renderView();
+}
+
+function switchStaffMode(mode) {
+  state.staffViewMode = mode;
+  save();
+  renderView();
+}
+function shiftStaffWeek(days) {
+  state.staffWeekStart = ymdShift(state.staffWeekStart, days);
+  save();
+  renderView();
+}
+
 function viewStaff() {
-  return placeholder('スタッフ管理', '🧑‍⚕️', [
-    'スタッフ情報（所属店舗 / 役職 / 連絡先）',
-    'スタッフ別売上・施術件数',
-    '担当顧客リスト',
-    'シフト管理連携',
-  ], 'スタッフ別のパフォーマンス可視化に対応します。');
+  if (state.staffViewMode === 'week') return viewStaffWeek();
+  const date = state.staffViewDate;
+  const clinic = state.staffViewClinic;
+  const staffList = STAFF[clinic] || [];
+
+  const todayBookings = state.bookings.filter(b => b.date === date && staffList.some(s => s.id === b.staffId));
+  const totalBookings = todayBookings.length;
+
+  // Status counts
+  const onCount = staffList.filter(s => getShift(s.id, date) === '出勤').length;
+  const offCount = staffList.filter(s => getShift(s.id, date) === '休み').length;
+
+  return `
+    <div class="clinic-tabs">
+      ${Object.entries(CLINICS).map(([key, name]) => `
+        <div class="clinic-tab ${clinic === key ? 'active' : ''}" onclick="switchStaffClinic('${key}')">${name}</div>
+      `).join('')}
+    </div>
+
+    <div class="card" style="margin-bottom:18px;">
+      <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+        <div class="view-toggle">
+          <button class="active" onclick="switchStaffMode('day')">日表示</button>
+          <button onclick="switchStaffMode('week')">週表示</button>
+        </div>
+        <div>
+          <label style="font-size:11px; color:var(--muted); display:block;">対象日</label>
+          <input type="date" value="${date}" onchange="changeStaffDate(this.value)" style="padding:8px 10px;" />
+        </div>
+        <button class="ghost" onclick="changeStaffDate('${new Date().toISOString().slice(0,10)}')">今日</button>
+        <button class="ghost" onclick="changeStaffDate('${ymdShift(date, -1)}')">← 前日</button>
+        <button class="ghost" onclick="changeStaffDate('${ymdShift(date, 1)}')">翌日 →</button>
+        <div style="flex:1;"></div>
+        <div style="font-size:12px; color:var(--muted);">
+          📊 出勤 ${onCount}名 / 休み ${offCount}名 / 本日の予約 ${totalBookings}件
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px;">
+      <h2>スタッフ一覧 (${CLINICS[clinic]})</h2>
+      <div class="staff-roster">
+        ${staffList.map(s => {
+          const shift = getShift(s.id, date);
+          const bookings = getBookingsForStaffDate(s.id, date);
+          return `
+            <div class="staff-card">
+              <div class="name">${s.name}</div>
+              <div class="role">${s.role}</div>
+              <div class="status-row">
+                <button class="status-btn ${shift === '出勤' ? 'active on' : ''}" onclick="setShift('${s.id}','${date}','出勤')">出勤</button>
+                <button class="status-btn ${shift === '半休' ? 'active half' : ''}" onclick="setShift('${s.id}','${date}','半休')">半休</button>
+                <button class="status-btn ${shift === '休み' ? 'active off' : ''}" onclick="setShift('${s.id}','${date}','休み')">休み</button>
+              </div>
+              <div class="stats">📅 本日の予約: <strong>${bookings.length} 件</strong></div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <h2 style="margin:0;">⏰ 時間別予約状況</h2>
+        <button onclick="openBookingModal('', '${date}', '')">+ 予約を追加</button>
+      </div>
+      ${renderScheduleGrid(staffList, date)}
+    </div>
+
+    <div class="card" style="margin-top:18px;">
+      <h2>📋 本日の予約一覧</h2>
+      ${todayBookings.length === 0 ? '<div class="empty">予約はまだありません。グリッドの空きセルをクリック、または「+ 予約を追加」から登録できます。</div>' : `
+        <table>
+          <thead><tr><th>時刻</th><th>種別</th><th>スタッフ</th><th>顧客</th><th>メニュー</th><th>所要</th><th>メモ</th><th></th></tr></thead>
+          <tbody>${todayBookings.sort((a,b) => a.time.localeCompare(b.time)).map(b => {
+            const s = staffList.find(x => x.id === b.staffId);
+            const type = b.type === '予約' ? '施術' : (b.type || '施術');
+            const pillStyle = type === '休憩' ? 'background:#fff7ed; color:#92400e;' :
+                              type === 'MTG'  ? 'background:#ede9fe; color:#5b21b6;' : '';
+            const isTreatment = type === '施術';
+            return `<tr>
+              <td>${b.time}</td>
+              <td><span class="pill" style="${pillStyle}">${type}</span></td>
+              <td>${s ? s.name : b.staffId}</td>
+              <td>${isTreatment ? (b.customer || '-') : '—'}</td>
+              <td>${isTreatment ? (b.menu || '-') : '—'}</td>
+              <td>${b.durationMin || 60}分</td>
+              <td>${b.notes || '-'}</td>
+              <td><button class="ghost sm" onclick="openBookingModal('${b.staffId}','${b.date}','${b.time}','${b.id}')">編集</button></td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
+      `}
+    </div>
+  `;
 }
-function viewMenu() {
-  return placeholder('メニュー管理', '🍽️', [
-    '施術メニュー（名称 / 時間 / 料金）',
-    'カテゴリ分類',
-    '店舗別の取扱メニュー',
-    'メニュー別売上ランキング',
-  ], '回数券・サブスクメニューにも対応予定です。');
+
+function viewStaffWeek() {
+  const days = getWeekDays(state.staffWeekStart);
+  const today = ymd(new Date());
+  const clinic = state.staffViewClinic;
+  const staffList = STAFF[clinic] || [];
+
+  // counts for header (this clinic, this week)
+  let onCount = 0, offCount = 0, treatmentCount = 0;
+  days.forEach(d => {
+    staffList.forEach(s => {
+      const sh = getShift(s.id, d);
+      if (sh === '出勤') onCount++;
+      else if (sh === '休み') offCount++;
+    });
+  });
+  treatmentCount = state.bookings.filter(b =>
+    days.includes(b.date) &&
+    staffList.some(s => s.id === b.staffId) &&
+    b.type !== '休憩' && b.type !== 'MTG'
+  ).length;
+
+  // build 7 day-blocks each with the full time-slot grid
+  let body = '';
+  days.forEach(d => {
+    const dd = new Date(d);
+    const dow = dd.getDay();
+    const isToday = d === today;
+    const titleCls = isToday ? 'today' : (dow === 0 ? 'sun' : dow === 6 ? 'sat' : '');
+    const dayBookings = state.bookings.filter(b => b.date === d && staffList.some(s => s.id === b.staffId));
+    const dayTreatments = dayBookings.filter(b => b.type !== '休憩' && b.type !== 'MTG').length;
+    body += `
+      <div class="day-block">
+        <div class="day-block-title ${titleCls}">
+          <span>${jpDate(d)}${isToday ? ' ・ 今日' : ''}</span>
+          <span style="font-size:12px; font-weight:500; opacity:0.9;">施術 ${dayTreatments}件 / 全${dayBookings.length}件</span>
+          <button class="ghost sm" style="margin-left:auto;" onclick="event.stopPropagation(); openBookingModal('','${d}','')">+ 予約を追加</button>
+        </div>
+        ${renderScheduleGrid(staffList, d, { showLegend: false })}
+      </div>
+    `;
+  });
+  // legend once
+  body += `
+    <div class="card" style="font-size:12px; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap; padding:14px 18px;">
+      <strong style="color:var(--text);">メニュー:</strong>
+      <span><span style="display:inline-block; width:14px; height:14px; background:#e0f2fe; border-left:3px solid #0284c7; vertical-align:middle;"></span> NAORUプラン</span>
+      <span><span style="display:inline-block; width:14px; height:14px; background:#d1fae5; border-left:3px solid #10b981; vertical-align:middle;"></span> ボディーケア30分</span>
+      <span><span style="display:inline-block; width:14px; height:14px; background:#fce7f3; border-left:3px solid #ec4899; vertical-align:middle;"></span> ボディーケア60分</span>
+      <span><span style="display:inline-block; width:14px; height:14px; background:#fef9c3; border-left:3px solid #ca8a04; vertical-align:middle;"></span> ボディーケア90分</span>
+      <span><span style="display:inline-block; width:14px; height:14px; background:#f3e8ff; border-left:3px solid #a855f7; vertical-align:middle;"></span> メンテナンス</span>
+      <span style="border-left:1px solid var(--border); padding-left:10px;"><span style="display:inline-block; width:14px; height:14px; background:repeating-linear-gradient(135deg, #fff7ed, #fff7ed 2px, #ffedd5 2px, #ffedd5 4px); border-left:3px solid var(--warning); vertical-align:middle;"></span> 🟠 休憩</span>
+      <span><span style="display:inline-block; width:14px; height:14px; background:repeating-linear-gradient(135deg, #ede9fe, #ede9fe 2px, #ddd6fe 2px, #ddd6fe 4px); border-left:3px solid #8b5cf6; vertical-align:middle;"></span> 🟣 MTG</span>
+      <span><span style="display:inline-block; width:14px; height:14px; background:repeating-linear-gradient(45deg, #fafbfc, #fafbfc 3px, #f3f4f6 3px, #f3f4f6 6px); vertical-align:middle;"></span> 休み</span>
+    </div>`;
+
+  return `
+    <div class="clinic-tabs">
+      ${Object.entries(CLINICS).map(([key, name]) => `
+        <div class="clinic-tab ${clinic === key ? 'active' : ''}" onclick="switchStaffClinic('${key}')">${name}</div>
+      `).join('')}
+    </div>
+    <div class="card" style="margin-bottom:18px;">
+      <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+        <div class="view-toggle">
+          <button onclick="switchStaffMode('day')">日表示</button>
+          <button class="active" onclick="switchStaffMode('week')">週表示</button>
+        </div>
+        <div style="flex:1;"></div>
+        <button class="ghost" onclick="shiftStaffWeek(-7)">← 前週</button>
+        <div style="font-weight:700; font-size:15px; min-width:220px; text-align:center;">${jpDate(days[0])} 〜 ${jpDate(days[6])}</div>
+        <button class="ghost" onclick="shiftStaffWeek(7)">翌週 →</button>
+        <button class="ghost" onclick="state.staffWeekStart='${today}'; save(); renderView();">今週</button>
+      </div>
+      <div style="margin-top:10px; font-size:13px; color:var(--muted);">
+        📊 ${CLINICS[clinic]}（${staffList.length}名）：出勤 ${onCount}日 / 休み ${offCount}日 / 施術予約 ${treatmentCount}件
+      </div>
+    </div>
+    ${body}
+  `;
+}
+
+function jumpToStaffDayInClinic(date, clinic) {
+  state.staffViewDate = date;
+  state.staffViewClinic = clinic;
+  state.staffViewMode = 'day';
+  save();
+  renderView();
+}
+
+function ymdShift(ymd, days) {
+  const d = new Date(ymd);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function renderScheduleGrid(staffList, date, opts) {
+  if (staffList.length === 0) return '<div class="empty">スタッフがいません</div>';
+  const slotWidth = 90;
+  const labelWidth = 140;
+  const cols = `${labelWidth}px repeat(${TIME_SLOTS.length}, ${slotWidth}px)`;
+  let html = `<div class="schedule-wrap"><div class="schedule-grid" style="grid-template-columns: ${cols};">`;
+  // header row
+  html += `<div class="head staff-label">スタッフ</div>`;
+  html += TIME_SLOTS.map(t => `<div class="head time-head">${t}</div>`).join('');
+  // staff rows
+  staffList.forEach(s => {
+    const shift = getShift(s.id, date);
+    const shiftColor = shift === '休み' ? 'var(--danger)' : shift === '半休' ? 'var(--warning)' : 'var(--success)';
+    html += `<div class="staff-label"><div class="name">${s.name}</div><div class="sub">${s.role} / <span style="color:${shiftColor};">${shift}</span></div></div>`;
+    const isOff = shift === '休み';
+    const covered = new Set();
+    TIME_SLOTS.forEach((time, slotIdx) => {
+      if (covered.has(slotIdx)) return;
+      // is there a booking that STARTS exactly here?
+      const b = state.bookings.find(x => x.staffId === s.id && x.date === date && x.time === time);
+      if (b) {
+        const span = Math.min(
+          Math.max(1, Math.round((b.durationMin || 60) / 30)),
+          TIME_SLOTS.length - slotIdx
+        );
+        for (let i = 0; i < span; i++) covered.add(slotIdx + i);
+        const endTime = TIME_SLOTS[Math.min(slotIdx + span, TIME_SLOTS.length - 1)] || '';
+        let typeCls, inner, titleText;
+        if (b.type === '休憩') {
+          typeCls = 'break';
+          inner = `<div class="booking-name">☕ 休憩</div><div class="booking-time">${b.time}〜${endTime} (${b.durationMin || 30}分)</div>`;
+          titleText = '休憩 ' + b.time + '-' + endTime + (b.notes ? ' / ' + b.notes : '');
+        } else if (b.type === 'MTG') {
+          typeCls = 'mtg';
+          inner = `<div class="booking-name">👥 MTG</div><div class="booking-time">${b.time}〜${endTime} (${b.durationMin || 60}分)</div>${b.notes ? `<div class="booking-menu">${escapeHtml(b.notes)}</div>` : ''}`;
+          titleText = 'MTG ' + b.time + '-' + endTime + (b.notes ? ' / ' + b.notes : '');
+        } else {
+          typeCls = 'booked ' + menuClass(b.menu);
+          inner = `<div class="booking-name">${escapeHtml(b.customer || '施術')}</div>${b.menu ? `<div class="booking-menu">${escapeHtml(b.menu)}</div>` : ''}<div class="booking-time">${b.time}〜${endTime}</div>`;
+          titleText = (b.customer || '施術') + (b.menu ? ' / ' + b.menu : '') + ' (' + b.time + '-' + endTime + ')';
+        }
+        const conflictCls = isOff ? ' conflict' : '';
+        const conflictTitle = isOff ? `\n⚠ このスタッフはこの日が「休み」設定です` : '';
+        html += `<div class="slot ${typeCls}${conflictCls}" style="grid-column: span ${span};" onclick="openBookingModal('${s.id}','${date}','${b.time}','${b.id}')" title="${titleText}${conflictTitle}">${inner}</div>`;
+      } else if (isOff) {
+        html += `<div class="slot off">—</div>`;
+      } else {
+        html += `<div class="slot" onclick="openBookingModal('${s.id}','${date}','${time}')"></div>`;
+      }
+    });
+  });
+  html += `</div></div>`;
+  if (opts && opts.showLegend === false) return html;
+  html += `<div style="margin-top:10px; font-size:11px; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap;">
+    <strong style="color:var(--text);">メニュー:</strong>
+    <span><span style="display:inline-block; width:12px; height:12px; background:#e0f2fe; border-left:3px solid #0284c7; vertical-align:middle;"></span> NAORUプラン</span>
+    <span><span style="display:inline-block; width:12px; height:12px; background:#d1fae5; border-left:3px solid #10b981; vertical-align:middle;"></span> ボディーケア30分</span>
+    <span><span style="display:inline-block; width:12px; height:12px; background:#fce7f3; border-left:3px solid #ec4899; vertical-align:middle;"></span> ボディーケア60分</span>
+    <span><span style="display:inline-block; width:12px; height:12px; background:#fef9c3; border-left:3px solid #ca8a04; vertical-align:middle;"></span> ボディーケア90分</span>
+    <span><span style="display:inline-block; width:12px; height:12px; background:#f3e8ff; border-left:3px solid #a855f7; vertical-align:middle;"></span> メンテナンス</span>
+    <span style="border-left:1px solid var(--border); padding-left:10px;"><span style="display:inline-block; width:12px; height:12px; background:repeating-linear-gradient(135deg, #fff7ed, #fff7ed 2px, #ffedd5 2px, #ffedd5 4px); border-left:3px solid var(--warning); vertical-align:middle;"></span> 🟠 休憩</span>
+    <span><span style="display:inline-block; width:12px; height:12px; background:repeating-linear-gradient(135deg, #ede9fe, #ede9fe 2px, #ddd6fe 2px, #ddd6fe 4px); border-left:3px solid #8b5cf6; vertical-align:middle;"></span> 🟣 MTG</span>
+    <span><span style="display:inline-block; width:12px; height:12px; background:repeating-linear-gradient(45deg, #fafbfc, #fafbfc 3px, #f3f4f6 3px, #f3f4f6 6px); vertical-align:middle;"></span> 休み</span>
+  </div>`;
+  return html;
+}
+
+// ===== Booking modal =====
+function setBookingType(type) {
+  document.querySelectorAll('input[name="bk_type"]').forEach(r => { r.checked = r.value === type; });
+  toggleBookingType();
+}
+function toggleBookingType() {
+  const type = document.querySelector('input[name="bk_type"]:checked').value;
+  const isTreatment = type === '施術';
+  document.getElementById('bk_customerField').style.display = isTreatment ? '' : 'none';
+  document.getElementById('bk_menuField').style.display = isTreatment ? '' : 'none';
+  document.getElementById('bookingModalTitle').textContent =
+    (document.getElementById('bk_id').value ? '編集' : '追加') + ': ' + type;
+  // sensible defaults when creating new
+  if (!document.getElementById('bk_id').value) {
+    if (type === '休憩') document.getElementById('bk_duration').value = '30';
+    else if (type === 'MTG') document.getElementById('bk_duration').value = '60';
+  }
+}
+function onMenuChange() {
+  const menu = document.getElementById('bk_menu').value;
+  const map = { 'ボディーケア30分': '30', 'ボディーケア60分': '60', 'ボディーケア90分': '90' };
+  if (map[menu]) document.getElementById('bk_duration').value = map[menu];
+}
+
+// ----- Customer autocomplete in booking modal -----
+function filterCustomerSuggestions() {
+  const q = document.getElementById('bk_customer').value.toLowerCase().trim();
+  const all = state.customers || [];
+  const filtered = q
+    ? all.filter(c =>
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.kana || '').toLowerCase().includes(q) ||
+        (c.phone || '').includes(q))
+    : all;
+  const dropdown = document.getElementById('bk_customerSuggestions');
+  if (!dropdown) return;
+  if (filtered.length === 0) {
+    dropdown.innerHTML = all.length === 0
+      ? `<div class="cs-empty">顧客データがありません<br /><span style="font-size:11px;">「設定 → 顧客データ移行」からCSVをアップロードしてください</span></div>`
+      : `<div class="cs-empty">該当する顧客はありません</div>`;
+  } else {
+    dropdown.innerHTML = filtered.slice(0, 30).map(c => `
+      <div class="cs-item" data-name="${escapeHtml(c.name || '')}">
+        <div class="name">${escapeHtml(c.name || '-')}</div>
+        <div class="sub">${escapeHtml(c.kana || '')}${c.phone ? ' / ☎ ' + escapeHtml(c.phone) : ''}${c.firstVisit ? ' / 初回 ' + escapeHtml(c.firstVisit) : ''}</div>
+      </div>
+    `).join('');
+    dropdown.querySelectorAll('.cs-item').forEach(el => {
+      el.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        document.getElementById('bk_customer').value = el.dataset.name;
+        dropdown.classList.remove('show');
+      });
+    });
+  }
+  dropdown.classList.add('show');
+}
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('bk_customerField');
+  const dropdown = document.getElementById('bk_customerSuggestions');
+  if (wrap && dropdown && !wrap.contains(e.target)) dropdown.classList.remove('show');
+});
+
+function openBookingModal(staffId, date, time, bookingId) {
+  const clinic = state.staffViewClinic;
+  const staffList = STAFF[clinic] || [];
+  const modal = document.getElementById('bookingModal');
+
+  // populate time select
+  const timeSel = document.getElementById('bk_time');
+  timeSel.innerHTML = TIME_SLOTS.map(t => `<option value="${t}">${t}</option>`).join('');
+
+  if (bookingId) {
+    const b = state.bookings.find(x => x.id === bookingId);
+    if (!b) return;
+    document.getElementById('bk_id').value = b.id;
+    document.getElementById('bk_staffId').value = b.staffId;
+    document.getElementById('bk_staffLabel').textContent = (staffList.find(s => s.id === b.staffId) || {}).name || b.staffId;
+    document.getElementById('bk_date').value = b.date;
+    document.getElementById('bk_time').value = b.time;
+    document.getElementById('bk_duration').value = b.durationMin || 60;
+    document.getElementById('bk_customer').value = b.customer || '';
+    document.getElementById('bk_menu').value = b.menu || '';
+    document.getElementById('bk_notes').value = b.notes || '';
+    document.getElementById('bk_deleteBtn').style.display = '';
+    // Backward compat: old data may have type='予約' — treat as '施術'
+    const t = b.type === '予約' ? '施術' : (b.type || '施術');
+    setBookingType(t);
+  } else {
+    document.getElementById('bk_id').value = '';
+    if (!staffId && staffList[0]) staffId = staffList[0].id;
+    document.getElementById('bk_staffId').value = staffId;
+    document.getElementById('bk_staffLabel').innerHTML = `
+      <select id="bk_staffSelect" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px;">
+        ${staffList.map(s => `<option value="${s.id}" ${s.id === staffId ? 'selected' : ''}>${s.name}</option>`).join('')}
+      </select>`;
+    document.getElementById('bk_date').value = date || state.staffViewDate;
+    document.getElementById('bk_time').value = time || TIME_SLOTS[0];
+    document.getElementById('bk_duration').value = '60';
+    document.getElementById('bk_customer').value = '';
+    document.getElementById('bk_menu').value = '';
+    document.getElementById('bk_notes').value = '';
+    document.getElementById('bk_deleteBtn').style.display = 'none';
+    setBookingType('施術');
+  }
+  modal.classList.add('show');
+}
+function closeBookingModal() { document.getElementById('bookingModal').classList.remove('show'); }
+
+function saveBooking() {
+  const id = document.getElementById('bk_id').value || ('bk_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
+  const staffSel = document.getElementById('bk_staffSelect');
+  const staffId = staffSel ? staffSel.value : document.getElementById('bk_staffId').value;
+  const type = document.querySelector('input[name="bk_type"]:checked').value;
+  const booking = {
+    id,
+    type,
+    staffId,
+    clinic: state.staffViewClinic,
+    date: document.getElementById('bk_date').value,
+    time: document.getElementById('bk_time').value,
+    durationMin: Number(document.getElementById('bk_duration').value) || 60,
+    customer: type === '施術' ? document.getElementById('bk_customer').value.trim() : '',
+    menu: type === '施術' ? document.getElementById('bk_menu').value.trim() : '',
+    notes: document.getElementById('bk_notes').value.trim(),
+  };
+  if (!booking.date || !booking.time) { alert('日付と時刻は必須です'); return; }
+
+  // Block additions on a 休み day; warn on 半休
+  const shift = getShift(booking.staffId, booking.date);
+  const staff = findStaff(booking.staffId);
+  const staffName = staff ? staff.name : booking.staffId;
+  if (shift === '休み') {
+    alert(`⚠️ ${staffName} は ${booking.date} が「休み」に設定されています。\n\n勤怠表でその日を「出勤」に変更するか、別の日・別のスタッフへ変更してください。`);
+    return;
+  }
+  if (shift === '半休') {
+    if (!confirm(`⚠️ ${staffName} は ${booking.date} が「半休」に設定されています。\nこのまま登録しますか？`)) return;
+  }
+
+  const idx = state.bookings.findIndex(b => b.id === id);
+  if (idx >= 0) state.bookings[idx] = booking;
+  else state.bookings.push(booking);
+  save();
+  closeBookingModal();
+  renderView();
+}
+function deleteBooking() {
+  const id = document.getElementById('bk_id').value;
+  if (!id) return;
+  if (!confirm('この予約を削除しますか？')) return;
+  state.bookings = state.bookings.filter(b => b.id !== id);
+  save();
+  closeBookingModal();
+  renderView();
+}
+function viewStaffAttendance() {
+  const month = state.attendanceMonth;
+  const [y, m] = month.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const days = Array.from({ length: lastDay }, (_, i) => i + 1);
+  const today = ymd(new Date());
+  const cols = `220px repeat(${lastDay}, 52px) 100px`;
+
+  const renderStaffRow = (s, clinicName) => {
+    let offCount = 0;
+    let cellsHtml = '';
+    days.forEach(d => {
+      const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
+      const shift = getShift(s.id, dateStr);
+      const cls = shift === '休み' ? 'off' : shift === '半休' ? 'half' : 'on';
+      const label = shift === '休み' ? '休' : shift === '半休' ? '半' : '◯';
+      if (shift === '休み') offCount++;
+      else if (shift === '半休') offCount += 0.5;
+      cellsHtml += `<div class="att-cell ${cls}" onclick="cycleShift('${s.id}','${dateStr}')" title="${shift} (クリックで変更)">${label}</div>`;
+    });
+    const offStr = Number.isInteger(offCount) ? offCount : offCount.toFixed(1);
+    return `
+      <div class="name" onclick="openBulkShiftModal('${s.id}')" title="クリックで一括設定">
+        <div>${s.name}</div>
+        <div style="font-size:10px; color:var(--muted); font-weight:500;">${clinicName.replace('NAORU整体 ', '')} / ${s.role}</div>
+      </div>
+      ${cellsHtml}
+      <div class="att-total">${offStr}日</div>
+    `;
+  };
+
+  let body = '';
+  Object.entries(STAFF).forEach(([clinicKey, list]) => {
+    body += `<div class="att-clinic-label">🏥 ${CLINICS[clinicKey]}</div>`;
+    body += `<div class="att-wrap"><div class="att-grid" style="grid-template-columns:${cols};">`;
+    body += `<div class="head" style="background:#fafbfc;">スタッフ</div>`;
+    days.forEach(d => {
+      const date = new Date(y, m - 1, d);
+      const dow = date.getDay();
+      const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
+      const isToday = dateStr === today;
+      const cls = (isToday ? 'today' : '') + ' ' + (dow === 0 ? 'sun' : dow === 6 ? 'sat' : '');
+      body += `<div class="head ${cls.trim()}">${d}<br /><span style="font-weight:normal; font-size:10px;">${['日','月','火','水','木','金','土'][dow]}</span></div>`;
+    });
+    body += `<div class="head" style="background:#fef3c7;">休日<br /><span style="font-weight:normal; font-size:10px;">合計</span></div>`;
+    list.forEach(s => { body += renderStaffRow(s, CLINICS[clinicKey]); });
+    body += `</div></div>`;
+  });
+
+  return `
+    <div class="card" style="margin-bottom:18px;">
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <h2 style="margin:0;">📋 スタッフ勤怠表（全スタッフ）</h2>
+        <div style="flex:1;"></div>
+        <button class="ghost" onclick="shiftAttendanceMonth(-1)">← 前月</button>
+        <div style="font-weight:700; font-size:16px; min-width:130px; text-align:center;">${y}年 ${m}月</div>
+        <button class="ghost" onclick="shiftAttendanceMonth(1)">翌月 →</button>
+        <button class="ghost" onclick="state.attendanceMonth='${ymOf(new Date())}'; save(); renderView();">今月</button>
+      </div>
+      <div style="margin-top:10px; font-size:12px; color:var(--muted); display:flex; gap:18px; flex-wrap:wrap;">
+        <span><span class="att-cell on" style="display:inline-flex; width:24px; height:18px; vertical-align:middle;">◯</span> 出勤</span>
+        <span><span class="att-cell half" style="display:inline-flex; width:24px; height:18px; vertical-align:middle;">半</span> 半休</span>
+        <span><span class="att-cell off" style="display:inline-flex; width:24px; height:18px; vertical-align:middle;">休</span> 休み</span>
+        <span style="margin-left:auto;">💡 セルをクリックで「出勤 → 休み → 半休」と切替</span>
+      </div>
+    </div>
+    <div class="card">
+      ${body}
+    </div>
+  `;
+}
+
+function shiftAttendanceMonth(delta) {
+  const [y, m] = state.attendanceMonth.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  state.attendanceMonth = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+  save();
+  renderView();
+}
+
+function cycleShift(staffId, date) {
+  const current = getShift(staffId, date);
+  const next = current === '出勤' ? '休み' : current === '休み' ? '半休' : '出勤';
+  setShift(staffId, date, next);
+}
+
+// ===== Bulk shift modal =====
+function findStaff(staffId) {
+  for (const list of Object.values(STAFF)) {
+    const s = list.find(x => x.id === staffId);
+    if (s) return s;
+  }
+  return null;
+}
+function openBulkShiftModal(staffId) {
+  const s = findStaff(staffId);
+  if (!s) return;
+  const [y, m] = state.attendanceMonth.split('-').map(Number);
+  document.getElementById('bulkShiftTitle').textContent = `${s.name} の勤怠を一括設定（${y}年 ${m}月）`;
+  document.getElementById('bulkShiftStaffId').value = staffId;
+  // reset checkboxes
+  [0,1,2,3,4,5,6].forEach(i => { const el = document.getElementById('bulk_dow_' + i); if (el) el.checked = false; });
+  document.getElementById('bulk_status').value = '休み';
+  document.getElementById('bulkShiftModal').classList.add('show');
+}
+function closeBulkShiftModal() {
+  document.getElementById('bulkShiftModal').classList.remove('show');
+}
+function applyBulkAllMonth(status) {
+  const staffId = document.getElementById('bulkShiftStaffId').value;
+  if (!staffId) return;
+  const [y, m] = state.attendanceMonth.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  for (let d = 1; d <= lastDay; d++) {
+    const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
+    state.shifts[shiftKey(staffId, dateStr)] = status;
+  }
+  save();
+  closeBulkShiftModal();
+  renderView();
+}
+function applyBulkWeekdays() {
+  const staffId = document.getElementById('bulkShiftStaffId').value;
+  if (!staffId) return;
+  const status = document.getElementById('bulk_status').value;
+  const selectedDows = [];
+  [0,1,2,3,4,5,6].forEach(i => {
+    if (document.getElementById('bulk_dow_' + i).checked) selectedDows.push(i);
+  });
+  if (selectedDows.length === 0) { alert('適用する曜日を選択してください'); return; }
+  const [y, m] = state.attendanceMonth.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  let count = 0;
+  for (let d = 1; d <= lastDay; d++) {
+    const date = new Date(y, m - 1, d);
+    if (selectedDows.includes(date.getDay())) {
+      const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
+      state.shifts[shiftKey(staffId, dateStr)] = status;
+      count++;
+    }
+  }
+  save();
+  closeBulkShiftModal();
+  renderView();
+}
+function resetBulkShift() {
+  const staffId = document.getElementById('bulkShiftStaffId').value;
+  if (!staffId) return;
+  if (!confirm('今月の勤怠設定をすべて解除しますか？\n（デフォルトの「出勤」に戻ります）')) return;
+  const [y, m] = state.attendanceMonth.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  for (let d = 1; d <= lastDay; d++) {
+    const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
+    delete state.shifts[shiftKey(staffId, dateStr)];
+  }
+  save();
+  closeBulkShiftModal();
+  renderView();
+}
+
+function viewImportCustomers() {
+  return `<div class="card"><h2>📥 顧客データ移行 (CSVインポート)</h2>
+    <p style="font-size:13px; color:var(--muted);">ホットペッパー / RESERVA / Airリザーブ / LINE公式 などから書き出した CSV を取り込めます。</p>
+
+    <label class="csv-drop" for="customerCsv">
+      <div style="font-size:24px;">📄</div>
+      <div>CSVファイルをここにドロップ、またはクリックして選択</div>
+      <div style="font-size:11px; margin-top:4px;">UTF-8 / Shift-JIS どちらも自動判定</div>
+    </label>
+    <input type="file" id="customerCsv" accept=".csv,text/csv" style="display:none" onchange="handleCustomerCsv(event)" />
+
+    <div id="csvResult"></div>
+
+    <div class="note" style="margin-top:20px;">
+      <strong>CSV書き出し方法（参考）:</strong><br />
+      • <strong>ホットペッパービューティー</strong>: 管理画面 → 顧客管理 → CSV出力<br />
+      • <strong>RESERVA</strong>: 管理画面 → 顧客一覧 → エクスポート<br />
+      • <strong>Airリザーブ</strong>: 設定 → データ管理 → 顧客データダウンロード<br />
+      • <strong>LINE公式</strong>: 友だち一覧 → CSVダウンロード（基本属性のみ）<br />
+      • <strong>Googleカレンダー</strong>: 設定 → インポート / エクスポート → ICS書き出し（予約として活用可）
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px;">
+    <h2>取り込み済み顧客 (${(state.customers || []).length} 件)</h2>
+    ${(state.customers || []).length === 0 ? '<div class="empty">まだ取り込んだ顧客データはありません。</div>' : `
+      <table>
+        <thead><tr><th>氏名</th><th>かな</th><th>電話</th><th>メール</th><th>初回来院</th><th>取り込み元</th></tr></thead>
+        <tbody>${state.customers.slice(0, 100).map(c => `<tr>
+          <td>${c.name || '-'}</td><td>${c.kana || '-'}</td><td>${c.phone || '-'}</td>
+          <td>${c.email || '-'}</td><td>${c.firstVisit || '-'}</td><td>${c.source || '-'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      ${state.customers.length > 100 ? `<div class="empty">先頭100件を表示中（全 ${state.customers.length} 件）</div>` : ''}
+    `}
+  </div>`;
+}
+
+function handleCustomerCsv(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    let text;
+    try {
+      // try UTF-8 first
+      text = new TextDecoder('utf-8', { fatal: true }).decode(e.target.result);
+    } catch {
+      // fallback to Shift-JIS
+      text = new TextDecoder('shift-jis').decode(e.target.result);
+    }
+    const rows = parseCsv(text);
+    if (rows.length < 2) { alert('データが見つかりませんでした'); return; }
+    const headers = rows[0];
+    const mapped = rows.slice(1).map(row => mapCustomerRow(headers, row, file.name));
+    if (!state.customers) state.customers = [];
+    state.customers = state.customers.concat(mapped);
+    save();
+    document.getElementById('csvResult').innerHTML = `<div class="note">✓ ${mapped.length} 件の顧客データを取り込みました</div>`;
+    setTimeout(() => renderView(), 800);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"' && text[i+1] === '"') { field += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else { field += c; }
+    } else {
+      if (c === '"') { inQuotes = true; }
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else { field += c; }
+    }
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => c && c.trim()));
+}
+
+function findCol(headers, ...names) {
+  for (const n of names) {
+    const idx = headers.findIndex(h => h && h.trim().toLowerCase().includes(n.toLowerCase()));
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+function valByNames(headers, row, ...names) {
+  const idx = findCol(headers, ...names);
+  return idx >= 0 ? (row[idx] || '').trim() : '';
+}
+
+function mapReservationRow(headers, row, sourceFile) {
+  const date = valByNames(headers, row, '予約日', '来店日', '日付', 'date');
+  const time = valByNames(headers, row, '予約時間', '時間', 'time');
+  return {
+    datetime: (date + ' ' + time).trim(),
+    customer: valByNames(headers, row, '顧客', '氏名', '名前', 'お名前', 'name'),
+    menu: valByNames(headers, row, 'メニュー', 'コース', 'menu', '施術'),
+    staff: valByNames(headers, row, '担当', 'スタッフ', 'staff'),
+    status: valByNames(headers, row, 'ステータス', '状態', 'status') || '予約済',
+    source: sourceFile,
+  };
+}
+
+function parseSquareAmount(s) {
+  if (s === undefined || s === null) return 0;
+  // Square exports like "¥3,300", "$33.00", "-¥110", "3300"
+  const cleaned = String(s).replace(/[¥$,\s]/g, '').trim();
+  const n = Number(cleaned);
+  return isNaN(n) ? 0 : n;
+}
+
+function detectClinicFromLocation(loc) {
+  if (!loc) return '';
+  const l = loc.toLowerCase();
+  if (l.includes('中百舌鳥') || l.includes('nakamozu')) return 'nakamozu';
+  if (l.includes('天満') || l.includes('天六') || l.includes('tenroku') || l.includes('tenma')) return 'tenrokuten';
+  return '';
+}
+
+function mapSaleRow(headers, row, sourceFile) {
+  // Square CSV: prefer Net Sales (after discounts, before fees), fall back to Gross / Total
+  const netSales   = valByNames(headers, row, 'Net Sales', '純売上');
+  const grossSales = valByNames(headers, row, 'Gross Sales', '総売上');
+  const total      = valByNames(headers, row, 'Total Collected', '合計徴収', '合計', '売上', '金額', 'amount', 'total', '会計');
+  const fee        = valByNames(headers, row, 'Fee', '手数料');
+  const tax        = valByNames(headers, row, 'Tax', '税金', '消費税');
+  const amountStr  = netSales || grossSales || total;
+  if (!amountStr) return null;
+
+  return {
+    date: valByNames(headers, row, 'Date', '日付', '取引日', '会計日', 'date'),
+    time: valByNames(headers, row, 'Time', '時刻'),
+    amount: parseSquareAmount(amountStr),
+    grossAmount: parseSquareAmount(grossSales || total || netSales),
+    fee: parseSquareAmount(fee),
+    tax: parseSquareAmount(tax),
+    menu: valByNames(headers, row, 'Item', 'メニュー', '商品', '品目', 'Description', '説明'),
+    staff: valByNames(headers, row, 'Staff Name', '担当', 'スタッフ', 'staff'),
+    customer: valByNames(headers, row, 'Customer Name', '顧客名', '顧客', '氏名', '名前', 'customer'),
+    location: valByNames(headers, row, 'Location', 'ロケーション', '店舗'),
+    clinic: detectClinicFromLocation(valByNames(headers, row, 'Location', 'ロケーション', '店舗')),
+    transactionId: valByNames(headers, row, 'Transaction ID', 'Payment ID', '取引ID'),
+    paymentMethod: valByNames(headers, row, 'Card Brand', 'Source', 'カード', '支払方法'),
+    source: sourceFile,
+  };
+}
+
+function mapCustomerRow(headers, row, sourceFile) {
+  return {
+    name: valByNames(headers, row, '氏名', '名前', 'name', 'お名前'),
+    kana: valByNames(headers, row, 'かな', 'カナ', 'フリガナ', 'kana'),
+    phone: valByNames(headers, row, '電話', 'tel', 'phone', '携帯'),
+    email: valByNames(headers, row, 'メール', 'mail', 'email', 'e-mail'),
+    firstVisit: valByNames(headers, row, '初回', '初診', '登録日', 'first'),
+    source: sourceFile,
+  };
+}
+
+function genericCsvImport(fileEvent, mapper, targetField, onDone) {
+  const file = fileEvent.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    let text;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(e.target.result); }
+    catch { text = new TextDecoder('shift-jis').decode(e.target.result); }
+    const rows = parseCsv(text);
+    if (rows.length < 2) { alert('データが見つかりませんでした'); return; }
+    const mapped = rows.slice(1).map(row => mapper(rows[0], row, file.name)).filter(r => r);
+    if (!state[targetField]) state[targetField] = [];
+    state[targetField] = state[targetField].concat(mapped);
+    save();
+    onDone(mapped.length);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function handleReservationCsv(ev) {
+  genericCsvImport(ev, mapReservationRow, 'reservations', (count) => {
+    document.getElementById('csvResult').innerHTML = `<div class="note">✓ ${count} 件の予約データを取り込みました</div>`;
+    setTimeout(() => renderView(), 800);
+  });
+}
+function handleSaleCsv(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    let text;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(e.target.result); }
+    catch { text = new TextDecoder('shift-jis').decode(e.target.result); }
+    const rows = parseCsv(text);
+    if (rows.length < 2) { alert('データが見つかりませんでした'); return; }
+    const mapped = rows.slice(1).map(row => mapSaleRow(rows[0], row, file.name)).filter(r => r);
+    if (!state.sales) state.sales = [];
+    // Dedup by Square transaction ID when available
+    const existingIds = new Set(state.sales.filter(s => s.transactionId).map(s => s.transactionId));
+    const toAdd = mapped.filter(s => !s.transactionId || !existingIds.has(s.transactionId));
+    const skipped = mapped.length - toAdd.length;
+    state.sales = state.sales.concat(toAdd);
+    save();
+    const totalFee = toAdd.reduce((s, x) => s + (x.fee || 0), 0);
+    const totalGross = toAdd.reduce((s, x) => s + (x.grossAmount || 0), 0);
+    document.getElementById('csvResult').innerHTML =
+      `<div class="note">✓ ${toAdd.length} 件取り込みました（重複スキップ: ${skipped} 件）<br />
+       総売上: ${yen(totalGross)} / Square手数料: ${yen(totalFee)}</div>`;
+    setTimeout(() => renderView(), 800);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function aggregateSalesToMonthly() {
+  if (!state.sales || state.sales.length === 0) { alert('取り込み済の売上明細がありません'); return; }
+  if (!confirm('売上明細を月次に集計し、月次売上に反映します。\n店舗はSquareの Location 列から自動判定します。\n判定できない明細は除外されます。よろしいですか？')) return;
+
+  // Group by month + clinic
+  const byKey = {}; // key = `${month}__${clinic}`
+  let skipped = 0;
+  state.sales.forEach(s => {
+    if (!s.date) { skipped++; return; }
+    const ym = s.date.slice(0, 7).replace(/\//g, '-');
+    if (!/^\d{4}-\d{2}$/.test(ym)) { skipped++; return; }
+    if (!s.clinic) { skipped++; return; }
+    const k = `${ym}__${s.clinic}`;
+    byKey[k] = (byKey[k] || 0) + s.amount;
+  });
+
+  Object.entries(byKey).forEach(([k, total]) => {
+    const [month, clinic] = k.split('__');
+    const existing = state.entries.find(e => e.month === month && e.clinic === clinic);
+    if (existing) { existing.revenue = total; }
+    else {
+      state.entries.push({
+        month, clinic, revenue: total, adspend: 0,
+        newCustomers: 0, repeatVisits: 0, reservations: 0, channel: 'other',
+      });
+    }
+  });
+  state.entries.sort((a,b) => a.month.localeCompare(b.month));
+  save();
+  alert(`${Object.keys(byKey).length} 件の(月×店舗)を月次売上に反映しました\n店舗未判定でスキップ: ${skipped} 件`);
+  renderView();
+}
+
+function viewImportReservations() {
+  const reservations = state.reservations || [];
+  return `<div class="card"><h2>📅 予約データ移行 (CSVインポート)</h2>
+    <p style="font-size:13px; color:var(--muted);">サロンボード / RESERVA / Airリザーブ などから書き出した予約CSVを取り込めます。</p>
+    <label class="csv-drop" for="reservationCsv">
+      <div style="font-size:24px;">📄</div>
+      <div>予約CSVをここにドロップ、またはクリックして選択</div>
+      <div style="font-size:11px; margin-top:4px;">UTF-8 / Shift-JIS 自動判定</div>
+    </label>
+    <input type="file" id="reservationCsv" accept=".csv" style="display:none" onchange="handleReservationCsv(event)" />
+    <div id="csvResult"></div>
+    <div class="note" style="margin-top:20px;">
+      <strong>CSV書き出し方法:</strong><br />
+      • <strong>サロンボード</strong>: 予約管理 → 期間指定 → CSV出力<br />
+      • <strong>RESERVA</strong>: 予約管理 → エクスポート<br />
+      • <strong>Airリザーブ</strong>: 予約一覧 → CSVダウンロード<br />
+      • <strong>Googleカレンダー</strong>: ICSはこの画面では未対応、まずCSVに変換が必要です
+    </div>
+  </div>
+  <div class="card" style="margin-top:18px;">
+    <h2>取り込み済み予約 (${reservations.length} 件)</h2>
+    ${reservations.length === 0 ? '<div class="empty">まだ予約データはありません。</div>' : `
+      <table>
+        <thead><tr><th>日時</th><th>顧客</th><th>メニュー</th><th>担当</th><th>ステータス</th><th>取込元</th></tr></thead>
+        <tbody>${reservations.slice(0, 100).map(r => `<tr>
+          <td>${r.datetime || '-'}</td><td>${r.customer || '-'}</td>
+          <td>${r.menu || '-'}</td><td>${r.staff || '-'}</td>
+          <td><span class="pill">${r.status || '-'}</span></td><td>${r.source || '-'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      ${reservations.length > 100 ? `<div class="empty">先頭100件を表示中（全 ${reservations.length} 件）</div>` : ''}
+    `}
+  </div>`;
+}
+
+function viewImportSales() {
+  const sales = state.sales || [];
+  const total = sales.reduce((s, x) => s + (x.amount || 0), 0);
+  const totalFee = sales.reduce((s, x) => s + (x.fee || 0), 0);
+  const unassigned = sales.filter(s => !s.clinic).length;
+  const byClinic = Object.keys(CLINICS).map(c => ({
+    key: c, name: CLINICS[c],
+    count: sales.filter(s => s.clinic === c).length,
+    total: sales.filter(s => s.clinic === c).reduce((s2, x) => s2 + (x.amount || 0), 0),
+  }));
+
+  return `<div class="card"><h2>💵 売上データ移行 (Square CSV対応)</h2>
+    <p style="font-size:13px; color:var(--muted);">Square ダッシュボードからエクスポートした取引CSVを取り込みます。Location列から店舗を自動判定し、Transaction IDで重複防止します。</p>
+    <label class="csv-drop" for="saleCsv">
+      <div style="font-size:24px;">📄</div>
+      <div>Square 取引CSV をここにドロップ、またはクリックして選択</div>
+      <div style="font-size:11px; margin-top:4px;">UTF-8 / Shift-JIS 自動判定 / Net Sales を売上として採用</div>
+    </label>
+    <input type="file" id="saleCsv" accept=".csv" style="display:none" onchange="handleSaleCsv(event)" />
+    <div id="csvResult"></div>
+
+    <div style="margin-top:16px;">
+      <button onclick="aggregateSalesToMonthly()">📊 月次売上に集計反映 (店舗別)</button>
+      <span style="font-size:12px; color:var(--muted); margin-left:8px;">Locationから店舗を自動判定し、月別・店舗別に集計します</span>
+    </div>
+
+    <div class="note" style="margin-top:20px;">
+      <strong>📌 Square からのCSV書き出し手順:</strong><br />
+      1. Square ダッシュボードにログイン → <strong>取引</strong> メニュー<br />
+      2. 期間を指定（例：先月1日〜末日）<br />
+      3. 右上の <strong>「エクスポート」</strong> → <strong>「取引CSV」</strong> または <strong>「商品別売上CSV」</strong><br />
+      4. ダウンロードした CSV をそのままドロップ<br /><br />
+      <strong>💡 Square の Location 設定:</strong><br />
+      店舗を自動判定するには、Square 側のロケーション名に <code>中百舌鳥</code> または <code>天満</code>/<code>天六</code> を含めてください。<br />
+      （現在のSquare設定 → ロケーション名で確認/変更できます）<br /><br />
+      <strong>📈 売上として採用する金額:</strong><br />
+      Net Sales（純売上＝総売上−割引）を優先採用。なければ Gross Sales / Total Collected を使用。<br />
+      手数料（Fee列）は別カラムで保持し、表示専用にしています。
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px;">
+    <h2>取り込みサマリー</h2>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">明細件数</div><div class="kpi-value">${fmt(sales.length)} 件</div></div>
+      <div class="kpi-card"><div class="kpi-label">合計売上</div><div class="kpi-value">${yen(total)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Square手数料</div><div class="kpi-value">${yen(totalFee)}</div><div class="kpi-sub">参考: 店舗着金額 = 売上 - 手数料</div></div>
+      <div class="kpi-card"><div class="kpi-label">店舗未判定</div><div class="kpi-value ${unassigned > 0 ? 'down' : ''}">${fmt(unassigned)} 件</div><div class="kpi-sub">Locationが「中百舌鳥」「天満/天六」を含む必要</div></div>
+    </div>
+    <table style="margin-top:14px;">
+      <thead><tr><th>店舗</th><th class="num">明細件数</th><th class="num">売上合計</th></tr></thead>
+      <tbody>${byClinic.map(b => `<tr><td>${b.name}</td><td class="num">${fmt(b.count)} 件</td><td class="num">${yen(b.total)}</td></tr>`).join('')}
+        ${unassigned > 0 ? `<tr><td style="color:var(--danger)">未判定</td><td class="num">${fmt(unassigned)} 件</td><td class="num">${yen(sales.filter(s => !s.clinic).reduce((s2, x) => s2 + (x.amount || 0), 0))}</td></tr>` : ''}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="margin-top:18px;">
+    <h2>取り込み済み売上明細</h2>
+    ${sales.length === 0 ? '<div class="empty">まだ売上データはありません。</div>' : `
+      <table>
+        <thead><tr><th>日付</th><th>店舗</th><th class="num">売上</th><th class="num">手数料</th><th>商品/メニュー</th><th>担当</th><th>顧客</th><th>支払</th></tr></thead>
+        <tbody>${sales.slice(0, 100).map(s => `<tr>
+          <td>${s.date || '-'}${s.time ? ' ' + s.time : ''}</td>
+          <td>${s.clinic ? CLINICS[s.clinic] : `<span style="color:var(--danger)">${s.location || '未判定'}</span>`}</td>
+          <td class="num">${yen(s.amount || 0)}</td>
+          <td class="num">${s.fee ? yen(s.fee) : '-'}</td>
+          <td>${s.menu || '-'}</td><td>${s.staff || '-'}</td>
+          <td>${s.customer || '-'}</td><td>${s.paymentMethod || '-'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      ${sales.length > 100 ? `<div class="empty">先頭100件を表示中（全 ${sales.length} 件）</div>` : ''}
+    `}
+  </div>`;
 }
 
 const VIEW_RENDER = {
   'summary':              { html: viewSummary, after: viewSummaryAfter },
   'revenue-entry':        { html: viewRevenueEntry },
+  'daily-sales':          { html: viewDailySales, after: maybeAutoFetchDailyReport },
   'revenue-list':         { html: viewRevenueList },
   'revenue-trend':        { html: viewRevenueTrend, after: viewRevenueTrendAfter },
   'ad-cost':              { html: viewAdCost, after: viewAdCostAfter },
@@ -845,11 +3752,13 @@ const VIEW_RENDER = {
   'reservation-list':     { html: viewReservationList },
   'reservation-calendar': { html: viewReservationCalendar },
   'customers':            { html: viewCustomers },
-  'line':                 { html: viewLine },
   'clinics':              { html: viewClinics },
   'staff':                { html: viewStaff },
-  'menu':                 { html: viewMenu },
+  'staff-attendance':     { html: viewStaffAttendance },
   'data':                 { html: viewData },
+  'import-customers':     { html: viewImportCustomers },
+  'import-reservations':  { html: viewImportReservations },
+  'import-sales':         { html: viewImportSales },
 };
 
 function renderView() {
@@ -895,10 +3804,21 @@ function loadSample() {
   if (state.entries.length > 0 && !confirm('既存データを上書きします。よろしいですか？')) return;
   const months = ['2025-10','2025-11','2025-12','2026-01','2026-02','2026-03','2026-04','2026-05'];
   const sample = [];
+  const buildRow = (m, clinic, base) => {
+    const total = base + Math.floor(Math.random() * 100000);
+    const square = Math.floor(total * 0.55);
+    const cash   = Math.floor(total * 0.25);
+    const hpb    = Math.floor(total * 0.12);
+    const other  = total - square - cash - hpb;
+    return {
+      month: m, clinic,
+      revenueCash: cash, revenueSquare: square, revenueHpb: hpb, revenueOther: other,
+      revenue: cash + square + hpb + other,
+    };
+  };
   months.forEach((m, i) => {
     sample.push({
-      month: m, clinic: 'nakamozu',
-      revenue: 1200000 + i * 50000 + Math.floor(Math.random()*100000),
+      ...buildRow(m, 'nakamozu', 1200000 + i * 50000),
       adspend: 180000 + Math.floor(Math.random()*40000),
       newCustomers: 28 + Math.floor(Math.random()*10),
       repeatVisits: 95 + i * 5,
@@ -906,8 +3826,7 @@ function loadSample() {
       channel: ['google','meta','hotpepper'][i % 3],
     });
     sample.push({
-      month: m, clinic: 'tenrokuten',
-      revenue: 980000 + i * 40000 + Math.floor(Math.random()*80000),
+      ...buildRow(m, 'tenrokuten', 980000 + i * 40000),
       adspend: 150000 + Math.floor(Math.random()*30000),
       newCustomers: 22 + Math.floor(Math.random()*8),
       repeatVisits: 75 + i * 4,
@@ -919,20 +3838,33 @@ function loadSample() {
 }
 
 // ===== Init =====
-document.querySelectorAll('.nav-item').forEach(el => {
-  el.addEventListener('click', () => switchView(el.dataset.view));
-});
-document.getElementById('clinicSelect').addEventListener('change', renderView);
-document.getElementById('periodSelect').addEventListener('change', renderView);
-document.getElementById('fromMonth').addEventListener('change', () => {
-  document.getElementById('periodSelect').value = 'custom'; renderView();
-});
-document.getElementById('toMonth').addEventListener('change', () => {
-  document.getElementById('periodSelect').value = 'custom'; renderView();
-});
+function initApp() {
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.addEventListener('click', () => switchView(el.dataset.view));
+  });
+  document.getElementById('clinicSelect').addEventListener('change', renderView);
+  document.getElementById('periodSelect').addEventListener('change', renderView);
+  document.getElementById('fromMonth').addEventListener('change', () => {
+    document.getElementById('periodSelect').value = 'custom'; renderView();
+  });
+  document.getElementById('toMonth').addEventListener('change', () => {
+    document.getElementById('periodSelect').value = 'custom'; renderView();
+  });
+  load();
+  applyNavCollapse();
+  switchView('summary');
+}
 
-load();
-switchView('summary');
+const wasAuthed = checkAuth();
+if (wasAuthed) initApp();
+
+// hook login form to init app after successful login
+const originalShowApp = showApp;
+showApp = function() {
+  originalShowApp();
+  if (!window.__appInited) { initApp(); window.__appInited = true; }
+};
+if (wasAuthed) window.__appInited = true;
 </script>
 </body>
 </html>
