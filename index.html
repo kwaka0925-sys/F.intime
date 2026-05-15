@@ -2093,7 +2093,7 @@ async function fetchDailyReportSheet(manual) {
     { label: 'allorigins 経由', url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(DAILY_REPORT_SHEET_URL) },
   ];
 
-  let lastError = '';
+  const errors = [];
   let text = null;
   let usedLabel = '';
 
@@ -2101,22 +2101,29 @@ async function fetchDailyReportSheet(manual) {
     try {
       setStatus('⏳ ' + c.label + 'で取得中...');
       const res = await fetch(c.url, { cache: 'no-store' });
-      if (!res.ok) { lastError = `${c.label}: HTTP ${res.status}`; continue; }
+      if (!res.ok) {
+        let detail = '';
+        try { detail = (await res.text()).slice(0, 200); } catch {}
+        errors.push(`${c.label}: HTTP ${res.status}${detail ? ' / ' + detail : ''}`);
+        continue;
+      }
       const t = await res.text();
       if (!t || t.trim().startsWith('<') || /<!DOCTYPE/i.test(t.slice(0, 200))) {
-        lastError = `${c.label}: HTMLが返されました（公開未設定?）`;
+        errors.push(`${c.label}: HTMLが返されました`);
         continue;
       }
       text = t;
       usedLabel = c.label;
       break;
     } catch (e) {
-      lastError = `${c.label}: ${e.message || e}`;
+      errors.push(`${c.label}: ${e.message || e}`);
     }
   }
 
   if (!text) {
-    setStatus('✕ 同期失敗: ' + lastError);
+    console.error('Sheet sync errors:', errors);
+    const short = errors.map(e => '・' + e).join(' / ');
+    setStatus('✕ 同期失敗 - ' + short);
     sheetFetchInFlight = false;
     return;
   }
