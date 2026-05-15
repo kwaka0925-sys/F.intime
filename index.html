@@ -1280,6 +1280,12 @@ function load() {
     const legacy = state.settingsCollapsed;
     state.collapsedGroups = { ads: true, settings: legacy === false ? false : true };
   }
+  // One-time clear: 天満天六院 の日次売上は別シートでこれから取り込むので、誤って混入していた既存データを除去
+  if (!state.tenrokutenDailyCleared) {
+    state.dailyEntries = (state.dailyEntries || []).filter(e => e.clinic !== 'tenrokuten');
+    state.tenrokutenDailyCleared = true;
+    save();
+  }
 }
 
 function toggleNavGroup(name) {
@@ -1949,7 +1955,15 @@ function editEntry(month, clinic) {
 }
 
 // ===== Daily sales view =====
-const DAILY_REPORT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2129032732&single=true&output=csv';
+// Per-clinic published-CSV URLs. Currently only 中百舌鳥院 is configured;
+// 天満天六院 用の URL が設定されると同期できるようになります。
+const DAILY_REPORT_SHEET_URLS = {
+  nakamozu:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2129032732&single=true&output=csv',
+  tenrokuten: '', // 天満天六院 のスプレッドシートURLを設定したらここに貼ります
+};
+function getDailyReportSheetUrl(clinic) {
+  return DAILY_REPORT_SHEET_URLS[clinic] || '';
+}
 let lastSheetFetchTime = 0;
 let sheetFetchInFlight = false;
 const DAILY_COLS = [
@@ -2114,8 +2128,8 @@ function viewDailySales() {
         <button class="ghost" onclick="state.dailyMonth='${ymOf(new Date())}'; save(); renderView();">今月</button>
       </div>
       <div style="margin-top:10px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-        <button onclick="fetchDailyReportSheet(true)" style="background:linear-gradient(135deg,#10b981,#059669);">🔄 セラピスト日報シートから同期</button>
-        <span id="sheetSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastSheetSyncMsg || '※ ページを開くたびに自動で最新を取り込みます'}</span>
+        <button onclick="fetchDailyReportSheet(true)" style="background:linear-gradient(135deg,#10b981,#059669);" ${!getDailyReportSheetUrl(clinic) ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>🔄 ${CLINICS[clinic]} の日報シートから同期</button>
+        <span id="sheetSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastSheetSyncMsg || (getDailyReportSheetUrl(clinic) ? '※ ページを開くたびに自動で最新を取り込みます' : `※ ${CLINICS[clinic]} のスプレッドシートURLが未設定です`)}</span>
       </div>
       <div style="margin-top:8px; font-size:12px; color:var(--muted);">
         💡 ${synced ? `シートの ${colCount} 列をそのまま反映しています。各セルは手入力でも編集可能です。` : '各セルをクリックして数値を入力すると自動保存します。'}
@@ -2137,6 +2151,7 @@ function viewDailySales() {
 function maybeAutoFetchDailyReport() {
   if (sheetFetchInFlight) return;
   if (Date.now() - lastSheetFetchTime < 5000) return; // throttle to 5s
+  if (!getDailyReportSheetUrl(state.dailyClinic)) return; // skip if URL not configured
   fetchDailyReportSheet(false);
 }
 
@@ -2149,14 +2164,21 @@ async function fetchDailyReportSheet(manual) {
     const el = document.getElementById('sheetSyncStatus');
     if (el) el.textContent = msg;
   };
-  setStatus('⏳ 日報シートから同期中...');
+  const targetClinic = state.dailyClinic;
+  const sheetUrl = getDailyReportSheetUrl(targetClinic);
+  if (!sheetUrl) {
+    setStatus(`※ ${CLINICS[targetClinic]} のスプレッドシートURLは未設定です。URLを教えてもらえれば設定します。`);
+    sheetFetchInFlight = false;
+    return;
+  }
+  setStatus(`⏳ ${CLINICS[targetClinic]} の日報シートから同期中...`);
 
   // Same-origin Vercel function first; fall back through public CORS proxies.
   const candidates = [
-    { label: 'サーバー関数経由', url: '/api/sheet' },
-    { label: '直接', url: DAILY_REPORT_SHEET_URL },
-    { label: 'corsproxy.io 経由', url: 'https://corsproxy.io/?' + encodeURIComponent(DAILY_REPORT_SHEET_URL) },
-    { label: 'allorigins 経由', url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(DAILY_REPORT_SHEET_URL) },
+    { label: 'サーバー関数経由', url: '/api/sheet?clinic=' + encodeURIComponent(targetClinic) },
+    { label: '直接',           url: sheetUrl },
+    { label: 'corsproxy.io 経由', url: 'https://corsproxy.io/?' + encodeURIComponent(sheetUrl) },
+    { label: 'allorigins 経由',   url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(sheetUrl) },
   ];
 
   const errors = [];
@@ -2265,11 +2287,8 @@ function mapDailyReportRow(headers, row) {
   }
   if (!date) return null;
 
-  // Clinic detection
-  const clinicRaw = val('店舗', '院', '所属', 'clinic');
-  let clinic = state.dailyClinic;
-  if (clinicRaw.includes('中百舌鳥') || clinicRaw.toLowerCase().includes('nakamozu')) clinic = 'nakamozu';
-  else if (clinicRaw.includes('天満') || clinicRaw.includes('天六') || clinicRaw.toLowerCase().includes('tenroku')) clinic = 'tenrokuten';
+  // Each sheet now belongs to one clinic, so all imported rows go to the currently-synced clinic.
+  const clinic = state.dailyClinic;
 
   // Store every sheet column verbatim so the table can mirror the sheet 1:1
   const cells = {};

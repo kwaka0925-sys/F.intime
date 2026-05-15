@@ -1,9 +1,33 @@
 // Vercel serverless function: server-side proxy for Google Sheets published CSV.
+// Accepts ?clinic=nakamozu|tenrokuten to pick the right sheet per clinic.
 // Uses CommonJS export so it works regardless of how Vercel resolves the module type.
 
-const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2129032732&single=true&output=csv';
+const SHEET_URLS = {
+  nakamozu:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2129032732&single=true&output=csv',
+  tenrokuten: '', // TODO: 天満天六院 用のスプレッドシートURLを設定
+};
 
 module.exports = async function handler(req, res) {
+  // Determine which clinic to fetch
+  let clinic = 'nakamozu';
+  if (req.query && typeof req.query.clinic === 'string' && req.query.clinic) {
+    clinic = req.query.clinic;
+  } else if (req.url) {
+    try {
+      const u = new URL(req.url, 'http://localhost');
+      const c = u.searchParams.get('clinic');
+      if (c) clinic = c;
+    } catch (_) {}
+  }
+
+  const SHEET_URL = SHEET_URLS[clinic];
+  if (!SHEET_URL) {
+    res.statusCode = 404;
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.end(`No sheet configured for clinic: ${clinic}`);
+    return;
+  }
+
   try {
     const response = await fetch(SHEET_URL, {
       redirect: 'follow',
