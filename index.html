@@ -1778,35 +1778,47 @@ function viewSummaryAfter() {
 function viewRevenueEntry() {
   const today = new Date();
   const defaultMonth = ymOf(today);
+  const defaultClinic = 'nakamozu';
+  const dailyAgg = aggregateDailyForRevenueList('all', defaultMonth, defaultMonth);
+  const agg = dailyAgg[defaultMonth + '__' + defaultClinic];
+  const initCash   = agg ? agg.cash   : '';
+  const initSquare = agg ? agg.square : '';
+  const initHpb    = agg ? agg.hpb    : '';
+  const initOther  = agg ? agg.other  : '';
+  const initTotal  = agg ? agg.total  : 0;
   return `
     <div class="card">
       <h2>📝 月次データを追加・更新</h2>
       <div class="form-grid">
         <label>対象月
           <div class="month-picker" id="f_monthWrapper">
-            <button type="button" class="month-picker-trigger" id="f_monthTrigger" onclick="toggleMonthPicker()">${formatYM(defaultMonth)}</button>
-            <input type="hidden" id="f_month" value="${defaultMonth}" />
+            <button type="button" class="month-picker-trigger" id="f_monthTrigger" onclick="toggleMonthPicker('f_month')">${formatYM(defaultMonth)}</button>
+            <input type="hidden" id="f_month" value="${defaultMonth}" onchange="refreshEntryFromDaily()" />
             <div class="mp-popup" id="f_monthPopup"></div>
           </div>
         </label>
         <label>店舗
-          <select id="f_clinic">
+          <select id="f_clinic" onchange="refreshEntryFromDaily()">
             <option value="nakamozu">NAORU整体 中百舌鳥院</option>
             <option value="tenrokuten">NAORU整体 天満天六院</option>
           </select>
         </label>
       </div>
 
-      <h3 style="font-size:13px; margin:18px 0 8px; color:var(--muted);">💰 売上内訳 (支払方法別)</h3>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin:18px 0 8px;">
+        <h3 style="font-size:13px; margin:0; color:var(--muted);">💰 売上内訳 (支払方法別)</h3>
+        <button type="button" class="ghost sm" onclick="refreshEntryFromDaily()">🔄 日次売上から反映</button>
+      </div>
+      <div id="entryFromDailyNote" style="font-size:11px; color:${agg ? 'var(--success)' : 'var(--muted)'}; margin-bottom:6px;">${agg ? `✓ 日次売上シートから自動反映済み（${defaultMonth.replace('-','年')}月 ${CLINICS[defaultClinic]}）` : '※ 日次売上に該当データがない月は手入力してください'}</div>
       <div class="form-grid">
-        <label>現金売上 (円)<input type="number" id="f_revCash" min="0" step="1000" placeholder="例: 300000" oninput="updateRevenueTotal()" /></label>
-        <label>Square売上 (円)<input type="number" id="f_revSquare" min="0" step="1000" placeholder="例: 800000" oninput="updateRevenueTotal()" /></label>
-        <label>HPBポイント (円)<input type="number" id="f_revHpb" min="0" step="1000" placeholder="例: 50000" oninput="updateRevenueTotal()" /></label>
-        <label>その他決済 (円)<input type="number" id="f_revOther" min="0" step="1000" placeholder="例: 20000" oninput="updateRevenueTotal()" /></label>
+        <label>現金売上 (円)<input type="number" id="f_revCash" min="0" step="1000" value="${initCash}" placeholder="例: 300000" oninput="updateRevenueTotal()" /></label>
+        <label>Square売上 (円)<input type="number" id="f_revSquare" min="0" step="1000" value="${initSquare}" placeholder="例: 800000" oninput="updateRevenueTotal()" /></label>
+        <label>HPBポイント (円)<input type="number" id="f_revHpb" min="0" step="1000" value="${initHpb}" placeholder="例: 50000" oninput="updateRevenueTotal()" /></label>
+        <label>その他決済 (円)<input type="number" id="f_revOther" min="0" step="1000" value="${initOther}" placeholder="例: 20000" oninput="updateRevenueTotal()" /></label>
       </div>
       <div style="background:#f0f9ff; padding:10px 14px; border-radius:8px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
         <span style="font-size:12px; color:var(--muted);">合計売上</span>
-        <span id="f_revTotal" style="font-size:18px; font-weight:700; color:var(--primary);">¥0</span>
+        <span id="f_revTotal" style="font-size:18px; font-weight:700; color:var(--primary);">${yen(initTotal)}</span>
       </div>
 
       <h3 style="font-size:13px; margin:18px 0 8px; color:var(--muted);">📣 広告・集客</h3>
@@ -1860,6 +1872,35 @@ function formatYM(ym) {
   if (!ym) return '月を選択';
   const [y, m] = ym.split('-');
   return `${y}年 ${Number(m)}月`;
+}
+
+function refreshEntryFromDaily() {
+  const month = document.getElementById('f_month').value;
+  const clinic = document.getElementById('f_clinic').value;
+  if (!month || !clinic) return;
+  const dailyAgg = aggregateDailyForRevenueList('all', month, month);
+  const agg = dailyAgg[month + '__' + clinic];
+  const note = document.getElementById('entryFromDailyNote');
+  if (agg) {
+    document.getElementById('f_revCash').value   = agg.cash   || '';
+    document.getElementById('f_revSquare').value = agg.square || '';
+    document.getElementById('f_revHpb').value    = agg.hpb    || '';
+    document.getElementById('f_revOther').value  = agg.other  || '';
+    if (note) {
+      note.style.color = 'var(--success)';
+      note.textContent = `✓ 日次売上シートから自動反映済み（${formatYM(month)} ${CLINICS[clinic]}）`;
+    }
+  } else {
+    document.getElementById('f_revCash').value   = '';
+    document.getElementById('f_revSquare').value = '';
+    document.getElementById('f_revHpb').value    = '';
+    document.getElementById('f_revOther').value  = '';
+    if (note) {
+      note.style.color = 'var(--muted)';
+      note.textContent = `※ ${formatYM(month)} ${CLINICS[clinic]} の日次売上データが未登録です。手入力してください。`;
+    }
+  }
+  updateRevenueTotal();
 }
 
 function updateRevenueTotal() {
