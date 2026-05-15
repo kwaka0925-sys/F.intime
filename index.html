@@ -416,12 +416,18 @@
     color: var(--primary-dark);
     font-weight: 500;
   }
-  .slot.booked:hover { background: #bfdbfe; }
+  .slot.booked:hover { filter: brightness(0.94); }
   .slot.booked.continued {
     background: #dbeafe;
     border-left: none;
     color: transparent;
   }
+  /* Pale color variants per menu plan */
+  .slot.booked.menu-naoru        { background: #e0f2fe; border-left-color: #0284c7; color: #0c4a6e; }
+  .slot.booked.menu-care30       { background: #d1fae5; border-left-color: #10b981; color: #064e3b; }
+  .slot.booked.menu-care60       { background: #fce7f3; border-left-color: #ec4899; color: #831843; }
+  .slot.booked.menu-care90       { background: #fef9c3; border-left-color: #ca8a04; color: #713f12; }
+  .slot.booked.menu-maintenance  { background: #f3e8ff; border-left-color: #a855f7; color: #581c87; }
   .slot.break {
     background: repeating-linear-gradient(135deg, #fff7ed, #fff7ed 4px, #ffedd5 4px, #ffedd5 8px);
     border-left: 3px solid var(--warning);
@@ -1124,9 +1130,17 @@ const TIME_SLOTS = (() => {
     arr.push(`${pad2(h)}:00`);
     arr.push(`${pad2(h)}:30`);
   }
-  arr.push('21:00');
   return arr;
 })();
+function menuClass(menu) {
+  if (!menu) return '';
+  if (menu === 'NAORUプラン') return 'menu-naoru';
+  if (menu === 'ボディーケア30分') return 'menu-care30';
+  if (menu === 'ボディーケア60分') return 'menu-care60';
+  if (menu === 'ボディーケア90分') return 'menu-care90';
+  if (menu === 'メンテナンス') return 'menu-maintenance';
+  return '';
+}
 function pad2(n) { return String(n).padStart(2, '0'); }
 const CHANNEL_LABELS = {
   google: 'Google広告',
@@ -2640,12 +2654,16 @@ function viewStaffWeek() {
   });
   // legend once
   body += `
-    <div class="card" style="font-size:12px; color:var(--muted); display:flex; gap:18px; flex-wrap:wrap; padding:14px 18px;">
-      <span><span style="display:inline-block; width:14px; height:14px; background:#dbeafe; border-left:3px solid var(--primary); vertical-align:middle;"></span> 🔵 施術</span>
-      <span><span style="display:inline-block; width:14px; height:14px; background:repeating-linear-gradient(135deg, #fff7ed, #fff7ed 2px, #ffedd5 2px, #ffedd5 4px); border-left:3px solid var(--warning); vertical-align:middle;"></span> 🟠 休憩</span>
+    <div class="card" style="font-size:12px; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap; padding:14px 18px;">
+      <strong style="color:var(--text);">メニュー:</strong>
+      <span><span style="display:inline-block; width:14px; height:14px; background:#e0f2fe; border-left:3px solid #0284c7; vertical-align:middle;"></span> NAORUプラン</span>
+      <span><span style="display:inline-block; width:14px; height:14px; background:#d1fae5; border-left:3px solid #10b981; vertical-align:middle;"></span> ボディーケア30分</span>
+      <span><span style="display:inline-block; width:14px; height:14px; background:#fce7f3; border-left:3px solid #ec4899; vertical-align:middle;"></span> ボディーケア60分</span>
+      <span><span style="display:inline-block; width:14px; height:14px; background:#fef9c3; border-left:3px solid #ca8a04; vertical-align:middle;"></span> ボディーケア90分</span>
+      <span><span style="display:inline-block; width:14px; height:14px; background:#f3e8ff; border-left:3px solid #a855f7; vertical-align:middle;"></span> メンテナンス</span>
+      <span style="border-left:1px solid var(--border); padding-left:10px;"><span style="display:inline-block; width:14px; height:14px; background:repeating-linear-gradient(135deg, #fff7ed, #fff7ed 2px, #ffedd5 2px, #ffedd5 4px); border-left:3px solid var(--warning); vertical-align:middle;"></span> 🟠 休憩</span>
       <span><span style="display:inline-block; width:14px; height:14px; background:repeating-linear-gradient(135deg, #ede9fe, #ede9fe 2px, #ddd6fe 2px, #ddd6fe 4px); border-left:3px solid #8b5cf6; vertical-align:middle;"></span> 🟣 MTG</span>
       <span><span style="display:inline-block; width:14px; height:14px; background:repeating-linear-gradient(45deg, #fafbfc, #fafbfc 3px, #f3f4f6 3px, #f3f4f6 6px); vertical-align:middle;"></span> 休み</span>
-      <span style="margin-left:auto;">空きセルをクリックで予約追加、既存セルをクリックで編集</span>
     </div>`;
 
   return `
@@ -2690,8 +2708,8 @@ function ymdShift(ymd, days) {
 
 function renderScheduleGrid(staffList, date, opts) {
   if (staffList.length === 0) return '<div class="empty">スタッフがいません</div>';
-  const slotWidth = 56;
-  const labelWidth = 130;
+  const slotWidth = 78;
+  const labelWidth = 140;
   const cols = `${labelWidth}px repeat(${TIME_SLOTS.length}, ${slotWidth}px)`;
   let html = `<div class="schedule-wrap"><div class="schedule-grid" style="grid-template-columns: ${cols};">`;
   // header row
@@ -2725,7 +2743,7 @@ function renderScheduleGrid(staffList, date, opts) {
           inner = `<div class="booking-name">👥 MTG</div><div class="booking-time">${b.time}〜${endTime} (${b.durationMin || 60}分)</div>${b.notes ? `<div class="booking-menu">${escapeHtml(b.notes)}</div>` : ''}`;
           titleText = 'MTG ' + b.time + '-' + endTime + (b.notes ? ' / ' + b.notes : '');
         } else {
-          typeCls = 'booked';
+          typeCls = 'booked ' + menuClass(b.menu);
           inner = `<div class="booking-name">${escapeHtml(b.customer || '施術')}</div>${b.menu ? `<div class="booking-menu">${escapeHtml(b.menu)}</div>` : ''}<div class="booking-time">${b.time}〜${endTime}</div>`;
           titleText = (b.customer || '施術') + (b.menu ? ' / ' + b.menu : '') + ' (' + b.time + '-' + endTime + ')';
         }
@@ -2741,12 +2759,16 @@ function renderScheduleGrid(staffList, date, opts) {
   });
   html += `</div></div>`;
   if (opts && opts.showLegend === false) return html;
-  html += `<div style="margin-top:10px; font-size:11px; color:var(--muted); display:flex; gap:16px; flex-wrap:wrap;">
-    <span><span style="display:inline-block; width:12px; height:12px; background:#dbeafe; border-left:3px solid var(--primary); vertical-align:middle;"></span> 🔵 施術</span>
-    <span><span style="display:inline-block; width:12px; height:12px; background:repeating-linear-gradient(135deg, #fff7ed, #fff7ed 2px, #ffedd5 2px, #ffedd5 4px); border-left:3px solid var(--warning); vertical-align:middle;"></span> 🟠 休憩</span>
+  html += `<div style="margin-top:10px; font-size:11px; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap;">
+    <strong style="color:var(--text);">メニュー:</strong>
+    <span><span style="display:inline-block; width:12px; height:12px; background:#e0f2fe; border-left:3px solid #0284c7; vertical-align:middle;"></span> NAORUプラン</span>
+    <span><span style="display:inline-block; width:12px; height:12px; background:#d1fae5; border-left:3px solid #10b981; vertical-align:middle;"></span> ボディーケア30分</span>
+    <span><span style="display:inline-block; width:12px; height:12px; background:#fce7f3; border-left:3px solid #ec4899; vertical-align:middle;"></span> ボディーケア60分</span>
+    <span><span style="display:inline-block; width:12px; height:12px; background:#fef9c3; border-left:3px solid #ca8a04; vertical-align:middle;"></span> ボディーケア90分</span>
+    <span><span style="display:inline-block; width:12px; height:12px; background:#f3e8ff; border-left:3px solid #a855f7; vertical-align:middle;"></span> メンテナンス</span>
+    <span style="border-left:1px solid var(--border); padding-left:10px;"><span style="display:inline-block; width:12px; height:12px; background:repeating-linear-gradient(135deg, #fff7ed, #fff7ed 2px, #ffedd5 2px, #ffedd5 4px); border-left:3px solid var(--warning); vertical-align:middle;"></span> 🟠 休憩</span>
     <span><span style="display:inline-block; width:12px; height:12px; background:repeating-linear-gradient(135deg, #ede9fe, #ede9fe 2px, #ddd6fe 2px, #ddd6fe 4px); border-left:3px solid #8b5cf6; vertical-align:middle;"></span> 🟣 MTG</span>
     <span><span style="display:inline-block; width:12px; height:12px; background:repeating-linear-gradient(45deg, #fafbfc, #fafbfc 3px, #f3f4f6 3px, #f3f4f6 6px); vertical-align:middle;"></span> 休み</span>
-    <span style="margin-left:auto;">→ 空きセルをクリックで追加、既存をクリックで編集</span>
   </div>`;
   return html;
 }
