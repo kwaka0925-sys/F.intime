@@ -582,6 +582,31 @@
   .view-toggle button.active { background: white; color: var(--primary); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
   .view-toggle button:hover { color: var(--text); }
 
+  /* ----- Week view day-blocks (staff scheduler) ----- */
+  .day-block {
+    background: var(--card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin-bottom: 18px;
+    overflow: hidden;
+  }
+  .day-block-title {
+    padding: 12px 18px;
+    font-size: 16px;
+    font-weight: 700;
+    background: linear-gradient(180deg, #f0f7ff 0%, #e0ecff 100%);
+    color: var(--text-dark);
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .day-block-title.sun { background: linear-gradient(180deg, #ffe4e6, #fecaca); color: #be123c; }
+  .day-block-title.sat { background: linear-gradient(180deg, #dbeafe, #bfdbfe); color: #1d4ed8; }
+  .day-block-title.today { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
+  .day-block .schedule-wrap { padding: 14px 18px 6px; }
+  .day-block > div[style*="margin-top:10px"] { padding: 0 18px 14px; }
+
   /* ----- Month picker popup ----- */
   .month-picker { position: relative; display: block; width: 100%; }
   .month-picker-trigger {
@@ -2452,61 +2477,60 @@ function viewStaff() {
 function viewStaffWeek() {
   const days = getWeekDays(state.staffWeekStart);
   const today = ymd(new Date());
+  const clinic = state.staffViewClinic;
+  const staffList = STAFF[clinic] || [];
 
-  // total counts for header
-  let totalOn = 0, totalOff = 0, totalTreatments = 0;
-  Object.values(STAFF).flat().forEach(s => {
-    days.forEach(d => {
+  // counts for header (this clinic, this week)
+  let onCount = 0, offCount = 0, treatmentCount = 0;
+  days.forEach(d => {
+    staffList.forEach(s => {
       const sh = getShift(s.id, d);
-      if (sh === '出勤') totalOn++;
-      else if (sh === '休み') totalOff++;
+      if (sh === '出勤') onCount++;
+      else if (sh === '休み') offCount++;
     });
   });
-  totalTreatments = state.bookings.filter(b =>
-    days.includes(b.date) && b.type !== '休憩' && b.type !== 'MTG'
+  treatmentCount = state.bookings.filter(b =>
+    days.includes(b.date) &&
+    staffList.some(s => s.id === b.staffId) &&
+    b.type !== '休憩' && b.type !== 'MTG'
   ).length;
 
+  // build 7 day-blocks each with the full time-slot grid
   let body = '';
-  Object.entries(STAFF).forEach(([clinicKey, list]) => {
-    body += `<div class="att-clinic-label">🏥 ${CLINICS[clinicKey]}</div>`;
-    body += `<div class="week-grid" style="grid-template-columns: 150px repeat(7, 1fr);">`;
-    body += `<div class="head">スタッフ</div>`;
-    days.forEach(d => {
-      const dd = new Date(d);
-      const dow = dd.getDay();
-      const isToday = d === today;
-      const dowCls = dow === 0 ? 'sun' : dow === 6 ? 'sat' : '';
-      body += `<div class="head ${isToday ? 'today' : dowCls}">${jpDate(d)}</div>`;
-    });
-    list.forEach(s => {
-      body += `<div class="staff-name">${s.name}<br /><span style="font-size:11px; color:var(--muted); font-weight:500;">${s.role}</span></div>`;
-      days.forEach(d => {
-        const shift = getShift(s.id, d);
-        const isOff = shift === '休み';
-        const bs = state.bookings.filter(b => b.staffId === s.id && b.date === d)
-          .sort((a, b) => a.time.localeCompare(b.time));
-        const treatments = bs.filter(b => b.type !== '休憩' && b.type !== 'MTG');
-        if (isOff && bs.length === 0) {
-          body += `<div class="week-cell off">休み</div>`;
-        } else {
-          const lines = bs.slice(0, 5).map(b => {
-            const t = b.type === '予約' ? '施術' : (b.type || '施術');
-            if (t === '休憩') return `${b.time} ☕休憩`;
-            if (t === 'MTG') return `${b.time} 👥MTG`;
-            return `${b.time} ${escapeHtml((b.customer || '施術')).slice(0, 8)}`;
-          }).join('<br />');
-          const more = bs.length > 5 ? `<br /><span style="color:var(--muted);">他${bs.length - 5}件</span>` : '';
-          body += `<div class="week-cell ${isOff ? 'conflict' : ''}" onclick="jumpToStaffDayInClinic('${d}','${clinicKey}')">
-            ${treatments.length > 0 ? `<span class="count">${treatments.length}件</span>` : (bs.length > 0 ? '' : '<span style="color:var(--muted-2); font-size:11px;">空</span>')}
-            <div class="b-list">${lines}${more}</div>
-          </div>`;
-        }
-      });
-    });
-    body += `</div>`;
+  days.forEach(d => {
+    const dd = new Date(d);
+    const dow = dd.getDay();
+    const isToday = d === today;
+    const titleCls = isToday ? 'today' : (dow === 0 ? 'sun' : dow === 6 ? 'sat' : '');
+    const dayBookings = state.bookings.filter(b => b.date === d && staffList.some(s => s.id === b.staffId));
+    const dayTreatments = dayBookings.filter(b => b.type !== '休憩' && b.type !== 'MTG').length;
+    body += `
+      <div class="day-block">
+        <div class="day-block-title ${titleCls}">
+          <span>${jpDate(d)}${isToday ? ' ・ 今日' : ''}</span>
+          <span style="font-size:12px; font-weight:500; opacity:0.9;">施術 ${dayTreatments}件 / 全${dayBookings.length}件</span>
+          <button class="ghost sm" style="margin-left:auto;" onclick="event.stopPropagation(); openBookingModal('','${d}','')">+ 予約を追加</button>
+        </div>
+        ${renderScheduleGrid(staffList, d, { showLegend: false })}
+      </div>
+    `;
   });
+  // legend once
+  body += `
+    <div class="card" style="font-size:12px; color:var(--muted); display:flex; gap:18px; flex-wrap:wrap; padding:14px 18px;">
+      <span><span style="display:inline-block; width:14px; height:14px; background:#dbeafe; border-left:3px solid var(--primary); vertical-align:middle;"></span> 🔵 施術</span>
+      <span><span style="display:inline-block; width:14px; height:14px; background:repeating-linear-gradient(135deg, #fff7ed, #fff7ed 2px, #ffedd5 2px, #ffedd5 4px); border-left:3px solid var(--warning); vertical-align:middle;"></span> 🟠 休憩</span>
+      <span><span style="display:inline-block; width:14px; height:14px; background:repeating-linear-gradient(135deg, #ede9fe, #ede9fe 2px, #ddd6fe 2px, #ddd6fe 4px); border-left:3px solid #8b5cf6; vertical-align:middle;"></span> 🟣 MTG</span>
+      <span><span style="display:inline-block; width:14px; height:14px; background:repeating-linear-gradient(45deg, #fafbfc, #fafbfc 3px, #f3f4f6 3px, #f3f4f6 6px); vertical-align:middle;"></span> 休み</span>
+      <span style="margin-left:auto;">空きセルをクリックで予約追加、既存セルをクリックで編集</span>
+    </div>`;
 
   return `
+    <div class="clinic-tabs">
+      ${Object.entries(CLINICS).map(([key, name]) => `
+        <div class="clinic-tab ${clinic === key ? 'active' : ''}" onclick="switchStaffClinic('${key}')">${name}</div>
+      `).join('')}
+    </div>
     <div class="card" style="margin-bottom:18px;">
       <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
         <div class="view-toggle">
@@ -2519,14 +2543,11 @@ function viewStaffWeek() {
         <button class="ghost" onclick="shiftStaffWeek(7)">翌週 →</button>
         <button class="ghost" onclick="state.staffWeekStart='${today}'; save(); renderView();">今週</button>
       </div>
-      <div style="margin-top:10px; font-size:12px; color:var(--muted);">
-        📊 全店舗 出勤 ${totalOn} / 休み ${totalOff} 日数 / 施術予約 ${totalTreatments}件
-        <span style="margin-left:16px;">💡 セルをクリックでその日の詳細画面へ移動</span>
+      <div style="margin-top:10px; font-size:13px; color:var(--muted);">
+        📊 ${CLINICS[clinic]}（${staffList.length}名）：出勤 ${onCount}日 / 休み ${offCount}日 / 施術予約 ${treatmentCount}件
       </div>
     </div>
-    <div class="card">
-      ${body}
-    </div>
+    ${body}
   `;
 }
 
@@ -2544,7 +2565,7 @@ function ymdShift(ymd, days) {
   return d.toISOString().slice(0, 10);
 }
 
-function renderScheduleGrid(staffList, date) {
+function renderScheduleGrid(staffList, date, opts) {
   if (staffList.length === 0) return '<div class="empty">スタッフがいません</div>';
   const slotWidth = 56;
   const labelWidth = 130;
@@ -2596,6 +2617,7 @@ function renderScheduleGrid(staffList, date) {
     });
   });
   html += `</div></div>`;
+  if (opts && opts.showLegend === false) return html;
   html += `<div style="margin-top:10px; font-size:11px; color:var(--muted); display:flex; gap:16px; flex-wrap:wrap;">
     <span><span style="display:inline-block; width:12px; height:12px; background:#dbeafe; border-left:3px solid var(--primary); vertical-align:middle;"></span> 🔵 施術</span>
     <span><span style="display:inline-block; width:12px; height:12px; background:repeating-linear-gradient(135deg, #fff7ed, #fff7ed 2px, #ffedd5 2px, #ffedd5 4px); border-left:3px solid var(--warning); vertical-align:middle;"></span> 🟠 休憩</span>
