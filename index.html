@@ -527,6 +527,10 @@
   .staff-chip.has.c1 { background: #f0fdf4; color: #15803d; }
   .staff-chip.has.c2 { background: #fef3c7; color: #b45309; }
   .staff-chip.has.c3 { background: #fce7f3; color: #be185d; }
+  .staff-chip.off  { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #b91c1c; font-weight: 700; }
+  .staff-chip.half { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; font-weight: 700; }
+  .staff-chip .badge-off { display:inline-flex; align-items:center; gap:3px; }
+  .cal-day.all-off { background: repeating-linear-gradient(45deg, #fff5f5 0 8px, #fef2f2 8px 16px) !important; }
   .cal-day .day-total {
     position: absolute;
     top: 6px; right: 8px;
@@ -2433,21 +2437,33 @@ function renderMonthCalendar(staffList, today) {
       html += `<div class="cal-day other"><div class="date-num">${dayNum}</div></div>`;
       return;
     }
-    const dayBookings = staffList.map(s => ({ staff: s, count: bookingsOn(cell.date, s.id).length }));
+    const dayBookings = staffList.map(s => {
+      const shift = getShift(s.id, cell.date);
+      return { staff: s, count: bookingsOn(cell.date, s.id).length, shift };
+    });
     const total = dayBookings.reduce((a, b) => a + b.count, 0);
+    const allOff = dayBookings.length > 0 && dayBookings.every(b => b.shift === '休み');
     const dnClass = dow === 0 ? 'sun' : dow === 6 ? 'sat' : '';
-    const cellBgClass = cell.date === today ? 'today' : (dow === 0 ? 'sun-bg' : dow === 6 ? 'sat-bg' : '');
+    const cellBgClass = cell.date === today ? 'today' : (allOff ? 'all-off' : (dow === 0 ? 'sun-bg' : dow === 6 ? 'sat-bg' : ''));
     html += `<div class="cal-day ${cellBgClass}" onclick="jumpToStaffDay('${cell.date}')">
       <div class="date-num ${dnClass}">${dayNum}</div>
-      ${total > 0 ? `<div class="day-total">${total}件</div>` : ''}
-      ${dayBookings.map((b, i) => `<div class="staff-chip ${b.count > 0 ? 'has c' + (i % 4) : ''}">
-        <span>${b.staff.name.split(' ')[0]}</span><span>${b.count > 0 ? b.count + '件' : '—'}</span>
-      </div>`).join('')}
+      ${total > 0 ? `<div class="day-total">${total}件</div>` : (allOff ? `<div class="day-total" style="background:linear-gradient(135deg,#fb7185,#e11d48); box-shadow:0 2px 4px rgba(225,29,72,0.3);">全休</div>` : '')}
+      ${dayBookings.map((b, i) => {
+        const isOff  = b.shift === '休み';
+        const isHalf = b.shift === '半休';
+        const cls = isOff ? 'off' : isHalf ? 'half' : (b.count > 0 ? 'has c' + (i % 4) : '');
+        const right = isOff ? '🔴 休' : isHalf ? '🟡 半休' + (b.count > 0 ? ' / ' + b.count + '件' : '') : (b.count > 0 ? b.count + '件' : '—');
+        return `<div class="staff-chip ${cls}"><span>${b.staff.name.split(' ')[0]}</span><span>${right}</span></div>`;
+      }).join('')}
     </div>`;
   });
   html += `</div></div>
-    <div style="margin-top:10px; font-size:11px; color:var(--muted);">
-      💡 日付セルをクリックすると、その日のスタッフ別予約画面に移動します
+    <div style="margin-top:12px; font-size:12px; color:var(--muted); display:flex; gap:14px; flex-wrap:wrap; align-items:center;">
+      <strong style="color:var(--text);">凡例:</strong>
+      <span><span class="staff-chip has c0" style="display:inline-flex; padding:2px 6px;">予約あり <strong style="margin-left:4px;">N件</strong></span></span>
+      <span><span class="staff-chip off" style="display:inline-flex; padding:2px 6px;">休 <strong style="margin-left:4px;">🔴 休</strong></span></span>
+      <span><span class="staff-chip half" style="display:inline-flex; padding:2px 6px;">半休 <strong style="margin-left:4px;">🟡 半休</strong></span></span>
+      <span style="margin-left:auto;">💡 日付セルをクリックでその日の詳細画面へ</span>
     </div>`;
   return html;
 }
@@ -2468,21 +2484,31 @@ function renderWeekCalendar(staffList, today) {
     html += `<div class="staff-name">${s.name}<br /><span style="font-size:10px; color:var(--muted); font-weight:normal;">${s.role}</span></div>`;
     days.forEach(d => {
       const shift = getShift(s.id, d);
-      const isOff = shift === '休み';
+      const isOff  = shift === '休み';
+      const isHalf = shift === '半休';
       const bs = bookingsOn(d, s.id).sort((a, b) => a.time.localeCompare(b.time));
       if (isOff && bs.length === 0) {
-        html += `<div class="week-cell off">休</div>`;
+        html += `<div class="week-cell off"><strong style="font-size:14px;">🔴 休</strong></div>`;
       } else {
+        const badge = isOff
+          ? '<span class="count" style="background:linear-gradient(135deg,#fb7185,#e11d48);">🔴 休</span>'
+          : isHalf
+            ? '<span class="count" style="background:linear-gradient(135deg,#fbbf24,#d97706);">🟡 半休</span>'
+            : (bs.length > 0 ? `<span class="count">${bs.length}件</span>` : '<span style="color:var(--muted-2); font-size:11px;">空</span>');
         html += `<div class="week-cell" onclick="jumpToStaffDay('${d}')">
-          ${bs.length > 0 ? `<span class="count">${bs.length}件</span>` : '<span style="color:var(--muted-2); font-size:11px;">空</span>'}
+          ${badge}
           <div class="b-list">${bs.slice(0, 3).map(b => `${b.time} ${(b.customer || '予約').slice(0, 5)}`).join('<br />')}${bs.length > 3 ? `<br /><span style="color:var(--muted);">他${bs.length - 3}件</span>` : ''}</div>
         </div>`;
       }
     });
   });
   html += `</div></div>
-    <div style="margin-top:10px; font-size:11px; color:var(--muted);">
-      💡 セルをクリックすると、その日のスタッフ別予約画面に移動します
+    <div style="margin-top:12px; font-size:12px; color:var(--muted); display:flex; gap:14px; flex-wrap:wrap; align-items:center;">
+      <strong style="color:var(--text);">凡例:</strong>
+      <span><span class="count" style="display:inline-flex; padding:2px 8px;">N件</span> 予約あり</span>
+      <span><span class="count" style="display:inline-flex; padding:2px 8px; background:linear-gradient(135deg,#fb7185,#e11d48);">🔴 休</span> 休み</span>
+      <span><span class="count" style="display:inline-flex; padding:2px 8px; background:linear-gradient(135deg,#fbbf24,#d97706);">🟡 半休</span> 半休</span>
+      <span style="margin-left:auto;">💡 セルをクリックでその日の詳細画面へ</span>
     </div>`;
   return html;
 }
