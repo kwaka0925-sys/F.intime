@@ -63,11 +63,14 @@
 
   .nav-group { padding: 14px 0 6px; }
   .nav-group-title {
-    padding: 4px 20px;
-    font-size: 12px;
-    color: var(--muted-2);
-    font-weight: 700;
-    letter-spacing: 0.04em;
+    padding: 6px 20px;
+    margin-bottom: 4px;
+    font-size: 13px;
+    color: var(--primary-dark);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    border-left: 3px solid var(--primary);
+    background: linear-gradient(90deg, #ede9fe 0%, transparent 60%);
   }
   .nav-item {
     display: flex;
@@ -1040,20 +1043,20 @@
 
     <div class="nav-group">
       <div class="nav-group-title">予約管理</div>
+      <div class="nav-item" data-view="staff"><span class="icon">🧑‍⚕️</span>スタッフ別予約</div>
+      <div class="nav-item" data-view="reservation-calendar"><span class="icon">🗓️</span>カレンダー</div>
+      <div class="nav-item" data-view="staff-attendance"><span class="icon">📋</span>勤怠表</div>
       <div class="nav-item" data-view="reservation-list"><span class="icon">📅</span>予約一覧<span class="badge-sm">準備中</span></div>
-      <div class="nav-item" data-view="reservation-calendar"><span class="icon">🗓️</span>カレンダー<span class="badge-sm">準備中</span></div>
     </div>
 
     <div class="nav-group">
       <div class="nav-group-title">顧客管理</div>
-      <div class="nav-item" data-view="customers"><span class="icon">👥</span>顧客一覧<span class="badge-sm">準備中</span></div>
+      <div class="nav-item" data-view="customers"><span class="icon">👥</span>顧客一覧</div>
     </div>
 
     <div class="nav-group">
       <div class="nav-group-title">マスタ管理</div>
       <div class="nav-item" data-view="clinics"><span class="icon">🏥</span>店舗</div>
-      <div class="nav-item" data-view="staff"><span class="icon">🧑‍⚕️</span>スタッフ<span class="badge-sm">準備中</span></div>
-      <div class="nav-item" data-view="staff-attendance"><span class="icon">📋</span>勤怠表</div>
     </div>
 
     <div class="nav-group">
@@ -1152,8 +1155,8 @@ const VIEWS = {
   'reservation-calendar': { title: 'カレンダー',       crumb: '予約管理 / カレンダー',                  filters: false },
   'customers':            { title: '顧客一覧',         crumb: '顧客管理 / 顧客一覧',                    filters: false },
   'clinics':              { title: '店舗マスタ',       crumb: 'マスタ管理 / 店舗',                      filters: false },
-  'staff':                { title: 'スタッフ',         crumb: 'マスタ管理 / スタッフ',                  filters: false },
-  'staff-attendance':     { title: 'スタッフ勤怠表',   crumb: 'マスタ管理 / 勤怠表',                    filters: false },
+  'staff':                { title: 'スタッフ別予約',   crumb: '予約管理 / スタッフ別予約',              filters: false },
+  'staff-attendance':     { title: 'スタッフ勤怠表',   crumb: '予約管理 / 勤怠表',                      filters: false },
   'data':                 { title: 'データ管理',       crumb: '設定 / データ管理',                      filters: false },
   'import-customers':     { title: '顧客データ移行',   crumb: '設定 / 顧客データ移行',                  filters: false },
   'import-reservations':  { title: '予約データ移行',   crumb: '設定 / 予約データ移行',                  filters: false },
