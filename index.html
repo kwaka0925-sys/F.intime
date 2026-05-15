@@ -1676,6 +1676,26 @@ function destroyChart(key) { if (charts[key]) { charts[key].destroy(); delete ch
 function viewSummary() {
   const entries = filteredEntries();
   const t = aggregate(entries);
+
+  // Roll up daily-sheet totals into the revenue so 合計売上 reflects both clinics' actual sales.
+  const clinicFilter = document.getElementById('clinicSelect').value;
+  const { from, to } = getPeriodRange();
+  const dailyAgg = aggregateDailyForRevenueList(clinicFilter, from, to);
+  Object.entries(dailyAgg).forEach(([key, agg]) => {
+    const [month, clinic] = key.split('__');
+    const mon = entries.find(e => e.month === month && e.clinic === clinic);
+    if (mon) {
+      // Replace the monthly entry's revenue with the sheet's actual total to avoid double-counting.
+      t.revenue = t.revenue - (mon.revenue || 0) + agg.total;
+    } else {
+      t.revenue += agg.total;
+    }
+  });
+  const totalDailyClinics = new Set(Object.keys(dailyAgg).map(k => k.split('__')[1])).size;
+  const groupNote = clinicFilter === 'all'
+    ? '中百舌鳥院 + 天満天六院 の合計'
+    : `${CLINICS[clinicFilter]} のみ`;
+
   const cpa = t.newCustomers > 0 ? t.adspend / t.newCustomers : 0;
   const roas = t.adspend > 0 ? (t.revenue / t.adspend) * 100 : 0;
   const avgPerCust = (t.newCustomers + t.repeatVisits) > 0 ? t.revenue / (t.newCustomers + t.repeatVisits) : 0;
@@ -1687,7 +1707,7 @@ function viewSummary() {
 
   return `
     <div class="kpi-grid">
-      <div class="kpi-card"><div class="kpi-label">合計売上</div><div class="kpi-value">${yen(t.revenue)}</div><div class="kpi-sub">${entries.length}件のデータ</div></div>
+      <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:var(--primary);">${yen(t.revenue)}</div><div class="kpi-sub">${groupNote}</div></div>
       <div class="kpi-card"><div class="kpi-label">広告費</div><div class="kpi-value">${yen(t.adspend)}</div></div>
       <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(t.newCustomers)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
       <div class="kpi-card"><div class="kpi-label">リピート来院</div><div class="kpi-value">${fmt(t.repeatVisits)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
@@ -2009,6 +2029,8 @@ function getDailyEntry(date, clinic) {
 const DAILY_SKIP_HEADERS = new Set([
   // Already-displayed-elsewhere columns
   '日付','営業日','日報日','曜日','曜','店舗','院','所属','clinic','date',
+  // Duplicate weekday column from the sheet ("23" header)
+  '23',
   // Hidden by user request
   '再診','スマイル','予約率','物販','会員','ミニモ','ホネフィックス',
 ]);
