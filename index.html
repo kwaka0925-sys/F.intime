@@ -3155,12 +3155,13 @@ function viewRevenueTrend() {
         <tr style="background:#f8fafc;">
           <th rowspan="2" style="position:sticky; left:0; background:#f8fafc; z-index:1;">年月</th>
           ${clinicFilter === 'all' ? '<th rowspan="2">店舗</th>' : ''}
-          ${ACQUISITION_CHANNELS.map(c => `<th colspan="2" style="text-align:center; ${c.manual ? '' : 'background:#eff6ff;'}">${c.icon} ${c.label}${c.manual ? '' : ' <span style="font-size:9px;">📡</span>'}</th>`).join('')}
+          ${ACQUISITION_CHANNELS.map(c => `<th colspan="3" style="text-align:center; ${c.manual ? '' : 'background:#eff6ff;'}">${c.icon} ${c.label}${c.manual ? '' : ' <span style="font-size:9px;">📡</span>'}</th>`).join('')}
           <th rowspan="2" class="num">月計 予算</th>
           <th rowspan="2" class="num">月計 集客</th>
+          <th rowspan="2" class="num">月計 CPA</th>
         </tr>
         <tr style="background:#f8fafc;">
-          ${ACQUISITION_CHANNELS.map(c => `<th class="num" style="${c.manual ? '' : 'background:#eff6ff;'}">予算</th><th class="num" style="${c.manual ? '' : 'background:#eff6ff;'}">集客</th>`).join('')}
+          ${ACQUISITION_CHANNELS.map(c => `<th class="num" style="${c.manual ? '' : 'background:#eff6ff;'}">予算</th><th class="num" style="${c.manual ? '' : 'background:#eff6ff;'}">集客</th><th class="num" style="${c.manual ? '' : 'background:#eff6ff;'}">CPA</th>`).join('')}
         </tr>
       </thead>
       <tbody>
@@ -3170,6 +3171,8 @@ function viewRevenueTrend() {
             const v = getChannelValue(r.month, r.clinic, c.key, metaAgg);
             rowBudget += v.budget;
             rowCustomers += v.customers;
+            const cpa = v.customers > 0 ? Math.round(v.budget / v.customers) : 0;
+            const cpaCell = `<td class="num" style="${c.manual ? '' : 'background:#eff6ff;'} color:${cpa > 0 ? 'var(--text-dark)' : 'var(--muted)'};">${cpa > 0 ? yen(cpa) : '—'}</td>`;
             if (c.manual) {
               return `
                 <td class="num"><input type="number" min="0" step="100" value="${v.budget || ''}" placeholder="0"
@@ -3177,26 +3180,36 @@ function viewRevenueTrend() {
                     onchange="updateChannelEntry('${r.month}','${r.clinic}','${c.key}','budget',this.value)" /></td>
                 <td class="num"><input type="number" min="0" step="1" value="${v.customers || ''}" placeholder="0"
                     style="width:60px; text-align:right; padding:4px 6px; border:1px solid #e5e7eb; border-radius:4px;"
-                    onchange="updateChannelEntry('${r.month}','${r.clinic}','${c.key}','customers',this.value)" /></td>`;
+                    onchange="updateChannelEntry('${r.month}','${r.clinic}','${c.key}','customers',this.value)" />
+                </td>
+                ${cpaCell}`;
             }
             return `<td class="num" style="background:#eff6ff; color:var(--text-dark);">${v.budget > 0 ? yen(v.budget) : '—'}</td>
-                    <td class="num" style="background:#eff6ff; color:var(--text-dark);">${v.customers > 0 ? fmt(v.customers) : '—'}</td>`;
+                    <td class="num" style="background:#eff6ff; color:var(--text-dark);">${v.customers > 0 ? fmt(v.customers) : '—'}</td>
+                    ${cpaCell}`;
           }).join('');
+          const rowCpa = rowCustomers > 0 ? Math.round(rowBudget / rowCustomers) : 0;
           return `<tr>
             <td style="position:sticky; left:0; background:#fff; font-weight:600;">${r.month}</td>
             ${clinicFilter === 'all' ? `<td>${CLINICS[r.clinic]}</td>` : ''}
             ${cells}
             <td class="num" style="font-weight:600;">${yen(rowBudget)}</td>
             <td class="num" style="font-weight:600;">${fmt(rowCustomers)}</td>
+            <td class="num" style="font-weight:600; color:${rowCpa > 0 ? 'var(--text-dark)' : 'var(--muted)'};">${rowCpa > 0 ? yen(rowCpa) : '—'}</td>
           </tr>`;
         }).join('')}
       </tbody>
     </table>
     </div>`;
 
+  const clinicBtn = (val, label) => {
+    const active = clinicFilter === val;
+    return `<button type="button" onclick="setRevenueTrendClinic('${val}')" style="padding:6px 14px; border-radius:6px; border:1px solid ${active ? 'var(--primary)' : '#e5e7eb'}; background:${active ? 'var(--primary)' : '#fff'}; color:${active ? '#fff' : 'var(--text-dark)'}; font-size:13px; font-weight:${active ? '600' : '500'}; cursor:pointer;">${label}</button>`;
+  };
+
   return `
     <div class="card">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:12px; flex-wrap:wrap;">
         <div>
           <h2 style="margin:0;">📊 媒体別 集客実績 (${clinicLabel})</h2>
           <div style="font-size:12px; color:var(--muted); margin-top:4px;">期間: ${periodLabel}</div>
@@ -3206,6 +3219,11 @@ function viewRevenueTrend() {
           <div style="font-size:13px;"><strong>予算 ${yen(grandBudget)}</strong> / <strong>集客 ${fmt(grandCustomers)}名</strong></div>
           <div style="font-size:12px; color:var(--muted);">平均CPA: ${grandCustomers > 0 ? yen(grandCpa) : '—'}</div>
         </div>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+        ${clinicBtn('all', '🏥 全店舗')}
+        ${clinicBtn('nakamozu', 'NAORU整体 中百舌鳥院')}
+        ${clinicBtn('tenrokuten', 'NAORU整体 天満天六院')}
       </div>
       <div class="kpi-grid">${summaryCards}</div>
       <div style="font-size:11px; color:var(--muted); margin-top:10px;">
@@ -3224,6 +3242,15 @@ function viewRevenueTrendAfter() { /* no charts for now */ }
 function updateChannelEntry(month, clinic, channel, field, value) {
   setChannelManualEntry(month, clinic, channel, { [field]: value });
   renderView();
+}
+
+// 媒体別集客実績 ビューの店舗フィルタボタン
+function setRevenueTrendClinic(value) {
+  const sel = document.getElementById('clinicSelect');
+  if (sel) {
+    sel.value = value;
+    sel.dispatchEvent(new Event('change'));
+  }
 }
 
 function viewAdCost() {
