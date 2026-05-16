@@ -3560,6 +3560,50 @@ let selectedClinicEdit = null;
 function selectClinicForEdit(key) { selectedClinicEdit = key; renderView(); }
 function deselectClinicForEdit() { selectedClinicEdit = null; renderView(); }
 
+// マスタ管理のパスワードゲート（メモリのみ、リロードで再ロック）
+let masterUnlocked = false;
+function setMasterPassword(pw) {
+  if (!pw) { alert('パスワードを入力してください'); return; }
+  state.masterPassword = pw;
+  save();
+  masterUnlocked = true;
+  alert('マスタ管理のパスワードを設定しました。');
+  renderView();
+}
+function unlockMaster() {
+  const input = document.getElementById('master-pw-input');
+  if (!input) return;
+  if (input.value === state.masterPassword) {
+    masterUnlocked = true;
+    renderView();
+  } else {
+    alert('パスワードが正しくありません');
+    input.value = '';
+    input.focus();
+  }
+}
+function lockMaster() { masterUnlocked = false; selectedClinicEdit = null; renderView(); }
+function changeMasterPassword() {
+  const cur = prompt('現在のパスワードを入力してください');
+  if (cur === null) return;
+  if (cur !== state.masterPassword) { alert('現在のパスワードが正しくありません'); return; }
+  const next = prompt('新しいパスワードを入力してください');
+  if (next === null || !next) return;
+  state.masterPassword = next;
+  save();
+  alert('パスワードを変更しました。');
+}
+function clearMasterPassword() {
+  const cur = prompt('現在のパスワードを入力してください');
+  if (cur === null) return;
+  if (cur !== state.masterPassword) { alert('パスワードが正しくありません'); return; }
+  if (!confirm('マスタ管理のパスワード保護を解除しますか？')) return;
+  state.masterPassword = '';
+  save();
+  masterUnlocked = false;
+  renderView();
+}
+
 function getClinicDetails(key) {
   state.clinicDetails = state.clinicDetails || {};
   state.clinicDetails[key] = state.clinicDetails[key] || { phone: '', address: '', password: '', notes: '' };
@@ -3572,8 +3616,37 @@ function updateClinicDetail(key, field, value) {
 }
 
 function viewClinics() {
+  // パスワード設定済 & 未解除 → ゲート画面
+  if (state.masterPassword && !masterUnlocked) {
+    return `<div class="card" style="max-width:480px; margin:40px auto; text-align:center;">
+      <div style="font-size:48px; margin-bottom:12px;">🔒</div>
+      <h2 style="margin:0 0 8px 0;">マスタ管理</h2>
+      <div style="font-size:13px; color:var(--muted); margin-bottom:20px;">店舗情報を表示するには、パスワードを入力してください。</div>
+      <input type="password" id="master-pw-input" placeholder="パスワード"
+        onkeydown="if(event.key==='Enter') unlockMaster()"
+        style="width:100%; padding:11px 14px; border:1px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:12px;" autofocus />
+      <button onclick="unlockMaster()" style="width:100%; padding:11px; background:var(--primary); color:white; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">🔓 ロック解除</button>
+    </div>`;
+  }
+  // 詳細編集モード
   if (selectedClinicEdit) return viewClinicDetail(selectedClinicEdit);
-  return `<div class="card"><h2>🏥 店舗一覧</h2>
+  // 一覧表示（解除済 or パスワード未設定）
+  const setupBanner = !state.masterPassword
+    ? `<div class="card" style="background:#fffbeb; border-color:#fcd34d; margin-bottom:14px;">
+        <h3 style="margin:0 0 6px 0; font-size:14px;">🔒 マスタ管理のパスワード保護</h3>
+        <div style="font-size:12px; color:var(--muted); margin-bottom:10px;">パスワードを設定すると、次回以降このページを開く際に入力が必要になります。</div>
+        <div style="display:flex; gap:6px; max-width:400px;">
+          <input type="password" id="master-pw-new" placeholder="新しいパスワード"
+            style="flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px;" />
+          <button onclick="setMasterPassword(document.getElementById('master-pw-new').value)" style="padding:8px 16px;">設定</button>
+        </div>
+      </div>`
+    : `<div style="display:flex; justify-content:flex-end; gap:6px; margin-bottom:10px;">
+        <button class="ghost" onclick="changeMasterPassword()" style="padding:6px 12px; font-size:12px;">🔑 パスワード変更</button>
+        <button class="ghost" onclick="clearMasterPassword()" style="padding:6px 12px; font-size:12px;">解除</button>
+        <button class="ghost" onclick="lockMaster()" style="padding:6px 12px; font-size:12px;">🔒 ロック</button>
+      </div>`;
+  return `${setupBanner}<div class="card"><h2>🏥 店舗一覧</h2>
     <table>
       <thead><tr><th>店舗名</th><th>コード</th><th class="num">登録データ数</th><th></th></tr></thead>
       <tbody>${Object.entries(CLINICS).map(([key, name]) => `
@@ -4944,7 +5017,11 @@ function renderView() {
 }
 
 function switchView(viewName) {
-  if (currentView !== viewName) selectedClinicEdit = null;
+  if (currentView !== viewName) {
+    selectedClinicEdit = null;
+    // マスタ管理から離れる時は自動でロック（再アクセス時に再認証を要求）
+    if (currentView === 'clinics' && viewName !== 'clinics') masterUnlocked = false;
+  }
   currentView = viewName;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === viewName));
   renderView();
