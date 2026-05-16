@@ -1,35 +1,51 @@
-// Vercel serverless function: server-side proxy for Google Sheets published CSV.
-// Accepts ?clinic=nakamozu|tenrokuten to pick the right sheet per clinic.
-// Uses CommonJS export so it works regardless of how Vercel resolves the module type.
+// Vercel serverless function: server-side proxy for Google Sheets via gviz CSV API.
+// Accepts ?clinic=nakamozu|tenrokuten to pick the sheet, and optional ?sheet=日報 YYYYMM
+// to pick a specific tab. Defaults to current month's tab.
+//
+// Requires the sheet to be shared as "Anyone with the link can view".
 
-const SHEET_URLS = {
-  nakamozu:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2129032732&single=true&output=csv',
-  tenrokuten: '', // TODO: 天満天六院 用のスプレッドシートURLを設定
+const SHEET_IDS = {
+  nakamozu:   '1Y_2shrIM14a3KhaPpwNkAhwJCHsjq6l4Cn7Yt9N3kb4',
+  tenrokuten: '',
 };
 
+function buildGvizUrl(sheetId, sheetName) {
+  return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+}
+
+function currentMonthTabName() {
+  const now = new Date();
+  const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+  return `日報 ${ym}`;
+}
+
 module.exports = async function handler(req, res) {
-  // Determine which clinic to fetch
   let clinic = 'nakamozu';
-  if (req.query && typeof req.query.clinic === 'string' && req.query.clinic) {
-    clinic = req.query.clinic;
+  let sheetName = '';
+  if (req.query) {
+    if (typeof req.query.clinic === 'string' && req.query.clinic) clinic = req.query.clinic;
+    if (typeof req.query.sheet === 'string' && req.query.sheet) sheetName = req.query.sheet;
   } else if (req.url) {
     try {
       const u = new URL(req.url, 'http://localhost');
-      const c = u.searchParams.get('clinic');
-      if (c) clinic = c;
+      const c = u.searchParams.get('clinic'); if (c) clinic = c;
+      const s = u.searchParams.get('sheet'); if (s) sheetName = s;
     } catch (_) {}
   }
 
-  const SHEET_URL = SHEET_URLS[clinic];
-  if (!SHEET_URL) {
+  const sheetId = SHEET_IDS[clinic];
+  if (!sheetId) {
     res.statusCode = 404;
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.end(`No sheet configured for clinic: ${clinic}`);
     return;
   }
 
+  if (!sheetName) sheetName = currentMonthTabName();
+  const targetUrl = buildGvizUrl(sheetId, sheetName);
+
   try {
-    const response = await fetch(SHEET_URL, {
+    const response = await fetch(targetUrl, {
       redirect: 'follow',
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; NAORUDashboard/1.0)',
@@ -42,14 +58,14 @@ module.exports = async function handler(req, res) {
     if (!response.ok) {
       res.statusCode = response.status;
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.end(`Upstream HTTP ${response.status}\n${text.slice(0, 500)}`);
+      res.end(`Upstream HTTP ${response.status} (sheet="${sheetName}")\n${text.slice(0, 500)}`);
       return;
     }
 
     if (text.trim().startsWith('<')) {
       res.statusCode = 502;
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.end(`Google returned HTML (sheet not published?)\n${text.slice(0, 500)}`);
+      res.end(`Google returned HTML — sheet might not exist or share permission is missing.\nTab: ${sheetName}\n${text.slice(0, 500)}`);
       return;
     }
 

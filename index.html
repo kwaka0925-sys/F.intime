@@ -126,7 +126,7 @@
   .topbar .filters { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .topbar label { font-size: 13px; color: var(--muted); margin-right: 4px; }
 
-  .content { padding: 24px 28px; }
+  .content { padding: 24px 28px; min-width: 0; overflow-x: hidden; }
 
   /* ----- Common form/input ----- */
   select, input[type="number"], input[type="month"], input[type="text"], input[type="date"], input[type="email"], input[type="password"] {
@@ -174,19 +174,20 @@
   /* ----- Cards / KPI ----- */
   .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
     margin-bottom: 20px;
   }
   .kpi-card {
     background: linear-gradient(135deg, #ffffff 0%, #fdfaff 100%);
-    padding: 16px 18px;
+    padding: 12px 14px;
     border-radius: 14px;
     border: 1px solid var(--border);
     box-shadow: 0 1px 3px rgba(99,102,241,0.04);
+    min-width: 0;
   }
-  .kpi-label { font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
-  .kpi-value { font-size: 26px; font-weight: 800; color: var(--text-dark); }
+  .kpi-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+  .kpi-value { font-size: 22px; font-weight: 800; color: var(--text-dark); word-break: break-word; }
   .kpi-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .kpi-sub.up { color: var(--success); }
   .kpi-sub.down { color: var(--danger); }
@@ -488,7 +489,7 @@
   .cal-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
+    gap: 6px;
     background: transparent;
     border: none;
     border-radius: 12px;
@@ -496,9 +497,9 @@
   }
   .cal-grid > .dow {
     background: linear-gradient(180deg, #f0f7ff 0%, #e0ecff 100%);
-    padding: 10px;
+    padding: 14px;
     text-align: center;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 700;
     color: #4b5563;
     border-radius: 8px;
@@ -507,8 +508,8 @@
   .cal-grid > .dow.sat { background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%); color: #1d4ed8; }
   .cal-day {
     background: white;
-    min-height: 110px;
-    padding: 8px 10px;
+    min-height: 150px;
+    padding: 10px 12px;
     cursor: pointer;
     position: relative;
     border-radius: 10px;
@@ -522,17 +523,17 @@
   .cal-day.sat-bg { background: #f0f9ff; }
   .cal-day.today { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-color: #fcd34d; }
   .cal-day.today .date-num { color: #b45309; font-weight: 800; }
-  .cal-day .date-num { font-size: 14px; font-weight: 700; margin-bottom: 6px; color: #1f2937; }
+  .cal-day .date-num { font-size: 16px; font-weight: 700; margin-bottom: 8px; color: #1f2937; }
   .cal-day .date-num.sun { color: #dc2626; }
   .cal-day .date-num.sat { color: #2563eb; }
   .staff-chip {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 3px 8px;
-    margin-top: 3px;
+    padding: 5px 10px;
+    margin-top: 4px;
     border-radius: 6px;
-    font-size: 11px;
+    font-size: 12px;
     background: #f8fafc;
     color: #94a3b8;
   }
@@ -547,9 +548,9 @@
   .cal-day.all-off { background: repeating-linear-gradient(45deg, #fff5f5 0 8px, #fef2f2 8px 16px) !important; }
   .cal-day .day-total {
     position: absolute;
-    top: 6px; right: 8px;
-    font-size: 11px;
-    padding: 2px 8px;
+    top: 8px; right: 10px;
+    font-size: 12px;
+    padding: 3px 10px;
     border-radius: 999px;
     background: linear-gradient(135deg, #818cf8, #6366f1);
     color: white;
@@ -1172,11 +1173,11 @@
       <div class="nav-item" data-view="revenue-entry"><span class="icon">📝</span>月次売上入力</div>
       <div class="nav-item" data-view="daily-sales"><span class="icon">📅</span>日次売上</div>
       <div class="nav-item" data-view="revenue-list"><span class="icon">📋</span>売上一覧</div>
-      <div class="nav-item" data-view="revenue-trend"><span class="icon">📊</span>媒体別集客実績</div>
     </div>
 
     <div class="nav-group collapsible" id="grp-ads">
       <div class="nav-group-title" onclick="toggleNavGroup('ads')">広告・集客<span class="chevron">▾</span></div>
+      <div class="nav-item" data-view="revenue-trend"><span class="icon">📊</span>媒体別集客実績</div>
       <div class="nav-item" data-view="meta-ads"><span class="icon">📣</span>Meta広告</div>
       <div class="nav-item" data-view="ad-cost"><span class="icon">💰</span>広告費管理</div>
       <div class="nav-item" data-view="channel"><span class="icon">📊</span>集客チャネル</div>
@@ -1239,7 +1240,7 @@
         <div class="day-picker" id="toMonthWrapper" style="width:160px;">
           <button type="button" class="day-picker-trigger" id="toMonthTrigger" onclick="toggleDayPicker('toMonth')">日付を選択</button>
           <input type="hidden" id="toMonth" />
-          <div class="dp-popup" id="toMonthPopup"></div>
+          <div class="dp-popup" id="toMonthPopup" style="right:0; left:auto;"></div>
         </div>
       </div>
     </div>
@@ -1856,9 +1857,8 @@ function viewSummary() {
     : '';
 
   // Pull 広告費 / 予約数 from Meta広告データ when available (overrides manual entries)
-  // 広告費 / 予約数 / CPA は **当月のみ** の Meta データを表示する（期間フィルタを無視）
-  const currentYM = ymOf(new Date());
-  const metaSummary = aggregateMetaForPeriod(clinicFilter, currentYM, currentYM);
+  // 期間フィルタ from/to に従って Meta データを集計
+  const metaSummary = aggregateMetaForPeriod(clinicFilter, from, to);
   const hasMeta = metaSummary.hasData;
   const adspend = hasMeta ? metaSummary.adspend : t.adspend;
   const reservations = hasMeta ? metaSummary.registrations : t.reservations;
@@ -1871,8 +1871,7 @@ function viewSummary() {
   const showRoas = adspend > 0;
   const showCpa = reservations > 0 && adspend > 0;
   const showAvg = (t.newCustomers + t.repeatVisits) > 0;
-  const monthLabel = `${currentYM.slice(0, 4)}年${Number(currentYM.slice(5))}月`;
-  const metaTag = hasMeta ? `<span style="font-size:10px; color:var(--primary); background:#eff6ff; padding:1px 5px; border-radius:3px; margin-left:4px;">Meta連携 ${monthLabel}</span>` : '';
+  const metaTag = hasMeta ? '<span style="font-size:10px; color:var(--primary); background:#eff6ff; padding:1px 5px; border-radius:3px; margin-left:4px;">Meta連携</span>' : '';
 
   return `
     <div class="kpi-grid">
@@ -2253,14 +2252,22 @@ function editEntry(month, clinic) {
 }
 
 // ===== Daily sales view =====
-// Per-clinic published-CSV URLs. Currently only 中百舌鳥院 is configured;
-// 天満天六院 用の URL が設定されると同期できるようになります。
-const DAILY_REPORT_SHEET_URLS = {
-  nakamozu:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2129032732&single=true&output=csv',
-  tenrokuten: '', // 天満天六院 のスプレッドシートURLを設定したらここに貼ります
+// Per-clinic Google Sheets ID。タブ名 `日報 YYYYMM` を gviz API で月単位取得します。
+// シートは「リンクを知っている全員: 閲覧者」に共有しておく必要があります。
+const DAILY_REPORT_SHEET_IDS = {
+  nakamozu:   '1Y_2shrIM14a3KhaPpwNkAhwJCHsjq6l4Cn7Yt9N3kb4',
+  tenrokuten: '', // 天満天六院 のスプレッドシートIDを設定したらここに貼ります
 };
-function getDailyReportSheetUrl(clinic) {
-  return DAILY_REPORT_SHEET_URLS[clinic] || '';
+function getDailyReportSheetId(clinic) {
+  return DAILY_REPORT_SHEET_IDS[clinic] || '';
+}
+function getDailyReportSheetUrl(clinic, ym) {
+  // 後方互換: 月指定なしの場合は当月タブ。
+  const id = getDailyReportSheetId(clinic);
+  if (!id) return '';
+  const yymm = (ym || ymOf(new Date())).replace('-', '');
+  const sheetName = `日報 ${yymm}`;
+  return `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
 }
 let lastSheetFetchTime = 0;
 let sheetFetchInFlight = false;
@@ -2428,8 +2435,9 @@ function viewDailySales() {
         <button class="ghost" onclick="state.dailyMonth='${ymOf(new Date())}'; save(); renderView();">今月</button>
       </div>
       <div style="margin-top:10px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-        <button onclick="fetchDailyReportSheet(true)" style="background:linear-gradient(135deg,#10b981,#059669);" ${!getDailyReportSheetUrl(clinic) ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>🔄 ${CLINICS[clinic]} の日報シートから同期</button>
-        <span id="sheetSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastSheetSyncMsg || (getDailyReportSheetUrl(clinic) ? '※ ページを開くたびに自動で最新を取り込みます' : `※ ${CLINICS[clinic]} のスプレッドシートURLが未設定です`)}</span>
+        <button onclick="fetchDailyReportSheet(true)" style="background:linear-gradient(135deg,#10b981,#059669);" ${!getDailyReportSheetId(clinic) ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>🔄 当月を同期</button>
+        <button onclick="fetchDailyReportPastMonths(6)" style="background:linear-gradient(135deg,#6366f1,#4f46e5);" ${!getDailyReportSheetId(clinic) ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>📥 過去6ヶ月分を一括取込</button>
+        <span id="sheetSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastSheetSyncMsg || (getDailyReportSheetId(clinic) ? '※ 日報シートのタブ「日報 YYYYMM」を月単位で同期します' : `※ ${CLINICS[clinic]} のスプレッドシートIDが未設定です`)}</span>
       </div>
       <div style="margin-top:8px; font-size:12px; color:var(--muted);">
         💡 ${synced ? `シートの ${colCount} 列をそのまま反映しています。各セルは手入力でも編集可能です。` : '各セルをクリックして数値を入力すると自動保存します。'}
@@ -2455,7 +2463,7 @@ function maybeAutoFetchDailyReport() {
   fetchDailyReportSheet(false);
 }
 
-async function fetchDailyReportSheet(manual) {
+async function fetchDailyReportSheet(manual, targetYM) {
   if (sheetFetchInFlight) return;
   sheetFetchInFlight = true;
   lastSheetFetchTime = Date.now();
@@ -2465,17 +2473,19 @@ async function fetchDailyReportSheet(manual) {
     if (el) el.textContent = msg;
   };
   const targetClinic = state.dailyClinic;
-  const sheetUrl = getDailyReportSheetUrl(targetClinic);
+  const ym = targetYM || state.dailyMonth || ymOf(new Date());
+  const sheetUrl = getDailyReportSheetUrl(targetClinic, ym);
   if (!sheetUrl) {
     setStatus(`※ ${CLINICS[targetClinic]} のスプレッドシートURLは未設定です。URLを教えてもらえれば設定します。`);
     sheetFetchInFlight = false;
-    return;
+    return { ok: false, imported: 0 };
   }
-  setStatus(`⏳ ${CLINICS[targetClinic]} の日報シートから同期中...`);
+  const yymm = ym.replace('-', '');
+  setStatus(`⏳ ${CLINICS[targetClinic]} 日報 ${yymm} を取得中...`);
 
-  // Same-origin Vercel function first; fall back through public CORS proxies.
+  const sheetParam = encodeURIComponent(`日報 ${yymm}`);
   const candidates = [
-    { label: 'サーバー関数経由', url: '/api/sheet?clinic=' + encodeURIComponent(targetClinic) },
+    { label: 'サーバー関数経由', url: `/api/sheet?clinic=${encodeURIComponent(targetClinic)}&sheet=${sheetParam}` },
     { label: '直接',           url: sheetUrl },
     { label: 'corsproxy.io 経由', url: 'https://corsproxy.io/?' + encodeURIComponent(sheetUrl) },
     { label: 'allorigins 経由',   url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(sheetUrl) },
@@ -2487,7 +2497,6 @@ async function fetchDailyReportSheet(manual) {
 
   for (const c of candidates) {
     try {
-      setStatus('⏳ ' + c.label + 'で取得中...');
       const res = await fetch(c.url, { cache: 'no-store' });
       if (!res.ok) {
         let detail = '';
@@ -2497,7 +2506,7 @@ async function fetchDailyReportSheet(manual) {
       }
       const t = await res.text();
       if (!t || t.trim().startsWith('<') || /<!DOCTYPE/i.test(t.slice(0, 200))) {
-        errors.push(`${c.label}: HTMLが返されました`);
+        errors.push(`${c.label}: HTMLが返されました（タブ存在 or 共有設定の可能性）`);
         continue;
       }
       text = t;
@@ -2511,20 +2520,19 @@ async function fetchDailyReportSheet(manual) {
   if (!text) {
     console.error('Sheet sync errors:', errors);
     const short = errors.map(e => '・' + e).join(' / ');
-    setStatus('✕ 同期失敗 - ' + short);
+    setStatus(`✕ ${yymm} 同期失敗 - ${short}`);
     sheetFetchInFlight = false;
-    return;
+    return { ok: false, imported: 0, errors };
   }
 
   try {
     const rows = parseCsv(text);
     if (rows.length < 2) throw new Error('行が見つかりません');
     const headers = rows[0].map(h => (h || '').toString().trim());
-    // Remember the sheet column order so the table mirrors the sheet exactly.
     state.dailyHeaders = headers.filter(h => h);
     let imported = 0, skipped = 0;
     rows.slice(1).forEach(row => {
-      const entry = mapDailyReportRow(headers, row);
+      const entry = mapDailyReportRow(headers, row, ym);
       if (!entry) { skipped++; return; }
       const idx = state.dailyEntries.findIndex(e => e.date === entry.date && e.clinic === entry.clinic);
       if (idx >= 0) state.dailyEntries[idx] = entry;
@@ -2533,21 +2541,64 @@ async function fetchDailyReportSheet(manual) {
     });
     save();
     const ts = new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-    setStatus(`✓ ${imported}件を取込${skipped > 0 ? ` / ${skipped}件スキップ` : ''} (${usedLabel} / ${ts})`);
+    setStatus(`✓ ${yymm}: ${imported}件取込${skipped > 0 ? ` / ${skipped}件スキップ` : ''} (${usedLabel} / ${ts})`);
     if (manual) renderView();
     else {
       const card = document.querySelector('.daily-wrap');
       if (card) renderView();
     }
+    return { ok: true, imported, skipped };
   } catch (e) {
     console.error(e);
-    setStatus('✕ 解析失敗: ' + (e.message || e));
+    setStatus(`✕ ${yymm} 解析失敗: ` + (e.message || e));
+    return { ok: false, imported: 0 };
   } finally {
     sheetFetchInFlight = false;
   }
 }
 
-function mapDailyReportRow(headers, row) {
+// 過去 N ヶ月（当月を含む）を順番に取り込み
+async function fetchDailyReportPastMonths(numMonths) {
+  const setStatus = (msg) => {
+    state.lastSheetSyncMsg = msg;
+    const el = document.getElementById('sheetSyncStatus');
+    if (el) el.textContent = msg;
+  };
+  const clinic = state.dailyClinic;
+  if (!getDailyReportSheetId(clinic)) {
+    setStatus(`※ ${CLINICS[clinic]} のスプレッドシートIDは未設定です。`);
+    return;
+  }
+  const today = new Date();
+  const months = [];
+  for (let i = 0; i < numMonths; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    months.push(`${d.getFullYear()}-${pad2(d.getMonth() + 1)}`);
+  }
+  let totalImported = 0;
+  let okCount = 0;
+  const failures = [];
+  for (let i = 0; i < months.length; i++) {
+    const ym = months[i];
+    setStatus(`⏳ ${i + 1}/${months.length} 月 (${ym}) を取込中...`);
+    // sheetFetchInFlight が立つので、外して逐次実行
+    sheetFetchInFlight = false;
+    const r = await fetchDailyReportSheet(false, ym);
+    if (r && r.ok) {
+      totalImported += r.imported || 0;
+      okCount++;
+    } else {
+      failures.push(ym);
+    }
+  }
+  const ts = new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+  let msg = `✓ ${okCount}/${months.length} ヶ月の取込完了 (${totalImported}件 / ${ts})`;
+  if (failures.length) msg += ` ／ 失敗: ${failures.join(', ')}`;
+  setStatus(msg);
+  renderView();
+}
+
+function mapDailyReportRow(headers, row, targetYM) {
   const findIdx = (...names) => {
     for (const n of names) {
       const i = headers.findIndex(h => h && h.toString().trim() === n);
@@ -2565,6 +2616,11 @@ function mapDailyReportRow(headers, row) {
     return i >= 0 ? (row[i] || '').toString().trim() : '';
   };
 
+  // 日付フォールバック用: 対象月 → 当月の順
+  const fallback = (targetYM && /^\d{4}-\d{2}$/.test(targetYM))
+    ? { y: Number(targetYM.slice(0, 4)), m: Number(targetYM.slice(5)) }
+    : { y: new Date().getFullYear(), m: new Date().getMonth() + 1 };
+
   // Date detection
   const dateRaw = val('日付', '営業日', '日報日', 'date');
   if (!dateRaw) return null;
@@ -2576,14 +2632,15 @@ function mapDailyReportRow(headers, row) {
     date = `${y}-${pad2(mo)}-${pad2(d)}`;
   } else if (/^\d{1,2}\/\d{1,2}/.test(dateRaw)) {
     const [mo, d] = dateRaw.split('/').map(Number);
-    const y = new Date().getFullYear();
-    date = `${y}-${pad2(mo)}-${pad2(d)}`;
+    date = `${fallback.y}-${pad2(mo)}-${pad2(d)}`;
   } else if (/^\d{1,2}月\d{1,2}日/.test(dateRaw)) {
     const mm = dateRaw.match(/(\d{1,2})月(\d{1,2})日/);
     if (mm) {
-      const y = new Date().getFullYear();
-      date = `${y}-${pad2(Number(mm[1]))}-${pad2(Number(mm[2]))}`;
+      date = `${fallback.y}-${pad2(Number(mm[1]))}-${pad2(Number(mm[2]))}`;
     }
+  } else if (/^\d{1,2}$/.test(dateRaw)) {
+    // 単純な日番号（"15" のような）は対象月の日として解釈
+    date = `${fallback.y}-${pad2(fallback.m)}-${pad2(Number(dateRaw))}`;
   }
   if (!date) return null;
 
@@ -3560,6 +3617,50 @@ let selectedClinicEdit = null;
 function selectClinicForEdit(key) { selectedClinicEdit = key; renderView(); }
 function deselectClinicForEdit() { selectedClinicEdit = null; renderView(); }
 
+// マスタ管理のパスワードゲート（メモリのみ、リロードで再ロック）
+let masterUnlocked = false;
+function setMasterPassword(pw) {
+  if (!pw) { alert('パスワードを入力してください'); return; }
+  state.masterPassword = pw;
+  save();
+  masterUnlocked = true;
+  alert('マスタ管理のパスワードを設定しました。');
+  renderView();
+}
+function unlockMaster() {
+  const input = document.getElementById('master-pw-input');
+  if (!input) return;
+  if (input.value === state.masterPassword) {
+    masterUnlocked = true;
+    renderView();
+  } else {
+    alert('パスワードが正しくありません');
+    input.value = '';
+    input.focus();
+  }
+}
+function lockMaster() { masterUnlocked = false; selectedClinicEdit = null; renderView(); }
+function changeMasterPassword() {
+  const cur = prompt('現在のパスワードを入力してください');
+  if (cur === null) return;
+  if (cur !== state.masterPassword) { alert('現在のパスワードが正しくありません'); return; }
+  const next = prompt('新しいパスワードを入力してください');
+  if (next === null || !next) return;
+  state.masterPassword = next;
+  save();
+  alert('パスワードを変更しました。');
+}
+function clearMasterPassword() {
+  const cur = prompt('現在のパスワードを入力してください');
+  if (cur === null) return;
+  if (cur !== state.masterPassword) { alert('パスワードが正しくありません'); return; }
+  if (!confirm('マスタ管理のパスワード保護を解除しますか？')) return;
+  state.masterPassword = '';
+  save();
+  masterUnlocked = false;
+  renderView();
+}
+
 function getClinicDetails(key) {
   state.clinicDetails = state.clinicDetails || {};
   state.clinicDetails[key] = state.clinicDetails[key] || { phone: '', address: '', password: '', notes: '' };
@@ -3572,8 +3673,37 @@ function updateClinicDetail(key, field, value) {
 }
 
 function viewClinics() {
+  // パスワード設定済 & 未解除 → ゲート画面
+  if (state.masterPassword && !masterUnlocked) {
+    return `<div class="card" style="max-width:480px; margin:40px auto; text-align:center;">
+      <div style="font-size:48px; margin-bottom:12px;">🔒</div>
+      <h2 style="margin:0 0 8px 0;">マスタ管理</h2>
+      <div style="font-size:13px; color:var(--muted); margin-bottom:20px;">店舗情報を表示するには、パスワードを入力してください。</div>
+      <input type="password" id="master-pw-input" placeholder="パスワード"
+        onkeydown="if(event.key==='Enter') unlockMaster()"
+        style="width:100%; padding:11px 14px; border:1px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:12px;" autofocus />
+      <button onclick="unlockMaster()" style="width:100%; padding:11px; background:var(--primary); color:white; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">🔓 ロック解除</button>
+    </div>`;
+  }
+  // 詳細編集モード
   if (selectedClinicEdit) return viewClinicDetail(selectedClinicEdit);
-  return `<div class="card"><h2>🏥 店舗一覧</h2>
+  // 一覧表示（解除済 or パスワード未設定）
+  const setupBanner = !state.masterPassword
+    ? `<div class="card" style="background:#fffbeb; border-color:#fcd34d; margin-bottom:14px;">
+        <h3 style="margin:0 0 6px 0; font-size:14px;">🔒 マスタ管理のパスワード保護</h3>
+        <div style="font-size:12px; color:var(--muted); margin-bottom:10px;">パスワードを設定すると、次回以降このページを開く際に入力が必要になります。</div>
+        <div style="display:flex; gap:6px; max-width:400px;">
+          <input type="password" id="master-pw-new" placeholder="新しいパスワード"
+            style="flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px;" />
+          <button onclick="setMasterPassword(document.getElementById('master-pw-new').value)" style="padding:8px 16px;">設定</button>
+        </div>
+      </div>`
+    : `<div style="display:flex; justify-content:flex-end; gap:6px; margin-bottom:10px;">
+        <button class="ghost" onclick="changeMasterPassword()" style="padding:6px 12px; font-size:12px;">🔑 パスワード変更</button>
+        <button class="ghost" onclick="clearMasterPassword()" style="padding:6px 12px; font-size:12px;">解除</button>
+        <button class="ghost" onclick="lockMaster()" style="padding:6px 12px; font-size:12px;">🔒 ロック</button>
+      </div>`;
+  return `${setupBanner}<div class="card"><h2>🏥 店舗一覧</h2>
     <table>
       <thead><tr><th>店舗名</th><th>コード</th><th class="num">登録データ数</th><th></th></tr></thead>
       <tbody>${Object.entries(CLINICS).map(([key, name]) => `
@@ -4944,7 +5074,11 @@ function renderView() {
 }
 
 function switchView(viewName) {
-  if (currentView !== viewName) selectedClinicEdit = null;
+  if (currentView !== viewName) {
+    selectedClinicEdit = null;
+    // マスタ管理から離れる時は自動でロック（再アクセス時に再認証を要求）
+    if (currentView === 'clinics' && viewName !== 'clinics') masterUnlocked = false;
+  }
   currentView = viewName;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === viewName));
   renderView();
