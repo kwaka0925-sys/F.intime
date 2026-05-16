@@ -738,6 +738,85 @@
   .mp-actions { margin-top: 12px; display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
   .mp-actions button { flex: 1; padding: 8px; font-size: 12px; border-radius: 8px; }
 
+  /* ----- Day picker popup ----- */
+  .day-picker { position: relative; display: block; width: 100%; }
+  .day-picker-trigger {
+    width: 100%;
+    padding: 9px 12px;
+    text-align: left;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+    font-family: inherit;
+  }
+  .day-picker-trigger:hover:not(:disabled) { border-color: var(--primary); }
+  .day-picker-trigger::after { content: '📅'; float: right; opacity: 0.7; }
+  .dp-popup {
+    display: none;
+    position: absolute;
+    top: 100%; left: 0;
+    margin-top: 6px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 14px 40px rgba(15, 23, 42, 0.18);
+    padding: 14px;
+    z-index: 200;
+    width: 280px;
+  }
+  .dp-popup.show { display: block; }
+  .dp-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 10px;
+  }
+  .dp-title { font-weight: 700; font-size: 15px; color: var(--text); }
+  .dp-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    margin-bottom: 4px;
+  }
+  .dp-weekday {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    padding: 4px 0;
+  }
+  .dp-weekday.sun { color: #dc2626; }
+  .dp-weekday.sat { color: #2563eb; }
+  .dp-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+  }
+  .dp-day {
+    text-align: center;
+    font-size: 12px;
+    padding: 7px 0;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #fafbfc;
+    color: var(--text);
+    border: 1px solid transparent;
+    transition: background 0.1s;
+  }
+  .dp-day:hover { background: #eef2ff; border-color: var(--primary); }
+  .dp-day.empty { background: transparent; cursor: default; }
+  .dp-day.empty:hover { background: transparent; border-color: transparent; }
+  .dp-day.selected { background: var(--primary); color: white; font-weight: 700; border-color: var(--primary); }
+  .dp-day.current { border-color: var(--primary); color: var(--primary); font-weight: 700; }
+  .dp-day.sun { color: #dc2626; }
+  .dp-day.sat { color: #2563eb; }
+  .dp-day.selected.sun, .dp-day.selected.sat { color: white; }
+  .dp-actions { margin-top: 10px; display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+  .dp-actions button { flex: 1; padding: 8px; font-size: 12px; border-radius: 8px; }
+
   /* ----- Attendance grid ----- */
   .att-wrap { overflow-x: auto; }
   .att-grid {
@@ -1107,8 +1186,11 @@
       <div class="nav-group-title" onclick="toggleNavGroup('reservations')">予約管理<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="staff"><span class="icon">🧑‍⚕️</span>スタッフ別予約</div>
       <div class="nav-item" data-view="reservation-calendar"><span class="icon">🗓️</span>カレンダー</div>
+    </div>
+
+    <div class="nav-group collapsible" id="grp-attendance">
+      <div class="nav-group-title" onclick="toggleNavGroup('attendance')">勤怠管理<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="staff-attendance"><span class="icon">📋</span>勤怠表</div>
-      <div class="nav-item" data-view="reservation-list"><span class="icon">📅</span>予約一覧<span class="badge-sm">準備中</span></div>
     </div>
 
     <div class="nav-group collapsible" id="grp-customers">
@@ -1148,16 +1230,16 @@
         </select>
         <label>期間</label>
         <select id="periodSelect"></select>
-        <div class="month-picker" id="fromMonthWrapper" style="width:140px;">
-          <button type="button" class="month-picker-trigger" id="fromMonthTrigger" onclick="toggleMonthPicker('fromMonth')">月を選択</button>
+        <div class="day-picker" id="fromMonthWrapper" style="width:160px;">
+          <button type="button" class="day-picker-trigger" id="fromMonthTrigger" onclick="toggleDayPicker('fromMonth')">日付を選択</button>
           <input type="hidden" id="fromMonth" />
-          <div class="mp-popup" id="fromMonthPopup"></div>
+          <div class="dp-popup" id="fromMonthPopup"></div>
         </div>
         <span style="color: var(--muted); font-size: 12px;">〜</span>
-        <div class="month-picker" id="toMonthWrapper" style="width:140px;">
-          <button type="button" class="month-picker-trigger" id="toMonthTrigger" onclick="toggleMonthPicker('toMonth')">月を選択</button>
+        <div class="day-picker" id="toMonthWrapper" style="width:160px;">
+          <button type="button" class="day-picker-trigger" id="toMonthTrigger" onclick="toggleDayPicker('toMonth')">日付を選択</button>
           <input type="hidden" id="toMonth" />
-          <div class="mp-popup" id="toMonthPopup"></div>
+          <div class="dp-popup" id="toMonthPopup"></div>
         </div>
       </div>
     </div>
@@ -1226,16 +1308,15 @@ const VIEWS = {
   'revenue-entry':        { title: '月次売上入力',     crumb: '売上管理 / 月次売上入力',                filters: false },
   'daily-sales':          { title: '日次売上',         crumb: '売上管理 / 日次売上',                    filters: false },
   'revenue-list':         { title: '売上一覧',         crumb: '売上管理 / 売上一覧',                    filters: true },
-  'revenue-trend':        { title: '媒体別集客実績',   crumb: '広告・集客 / 媒体別集客実績',            filters: true },
+  'revenue-trend':        { title: '媒体別集客実績',   crumb: '広告・集客 / 媒体別集客実績',            filters: false },
   'meta-ads':             { title: 'Meta広告',         crumb: '広告・集客 / Meta広告',                  filters: true },
   'ad-cost':              { title: '広告費管理',       crumb: '広告・集客 / 広告費管理',                filters: true },
   'channel':              { title: '集客チャネル',     crumb: '広告・集客 / 集客チャネル',              filters: true },
-  'reservation-list':     { title: '予約一覧',         crumb: '予約管理 / 予約一覧',                    filters: false },
   'reservation-calendar': { title: 'カレンダー',       crumb: '予約管理 / カレンダー',                  filters: false },
   'customers':            { title: '顧客一覧',         crumb: '顧客管理 / 顧客一覧',                    filters: false },
   'clinics':              { title: '店舗マスタ',       crumb: 'マスタ管理 / 店舗',                      filters: false },
   'staff':                { title: 'スタッフ別予約',   crumb: '予約管理 / スタッフ別予約',              filters: false },
-  'staff-attendance':     { title: 'スタッフ勤怠表',   crumb: '予約管理 / 勤怠表',                      filters: false },
+  'staff-attendance':     { title: 'スタッフ勤怠表',   crumb: '勤怠管理 / 勤怠表',                      filters: false },
   'data':                 { title: 'データ管理',       crumb: '設定 / データ管理',                      filters: false },
   'import-customers':     { title: '顧客データ移行',   crumb: '設定 / 顧客データ移行',                  filters: false },
   'import-reservations':  { title: '予約データ移行',   crumb: '設定 / 予約データ移行',                  filters: false },
@@ -1627,13 +1708,13 @@ function getPeriodRange() {
   const lastMonth = ymOf(addMonths(today, -1));
   if (period.startsWith('year:')) {
     const y = period.slice(5);
-    return { from: `${y}-01`, to: `${y}-12` };
+    return { from: `${y}-01-01`, to: `${y}-12-31` };
   }
   switch (period) {
-    case 'thisMonth': return { from: thisMonth, to: thisMonth };
-    case 'lastMonth': return { from: lastMonth, to: lastMonth };
-    case 'last3':     return { from: ymOf(addMonths(today, -2)), to: thisMonth };
-    case 'last6':     return { from: ymOf(addMonths(today, -5)), to: thisMonth };
+    case 'thisMonth': return { from: startOfMonthYMD(thisMonth), to: endOfMonthYMD(thisMonth) };
+    case 'lastMonth': return { from: startOfMonthYMD(lastMonth), to: endOfMonthYMD(lastMonth) };
+    case 'last3':     return { from: startOfMonthYMD(ymOf(addMonths(today, -2))), to: endOfMonthYMD(thisMonth) };
+    case 'last6':     return { from: startOfMonthYMD(ymOf(addMonths(today, -5))), to: endOfMonthYMD(thisMonth) };
     case 'all':       return { from: '', to: '' };
     case 'custom':    return {
       from: document.getElementById('fromMonth').value,
@@ -1654,18 +1735,20 @@ function syncRangeInputs() {
     fromEl.value = from;
     toEl.value = to;
   }
-  if (fromTrigger) fromTrigger.textContent = fromEl.value ? formatYM(fromEl.value) : '月を選択';
-  if (toTrigger) toTrigger.textContent = toEl.value ? formatYM(toEl.value) : '月を選択';
-  // Don't disable — let the user click any time. Picking a month auto-switches to custom mode.
+  if (fromTrigger) fromTrigger.textContent = fromEl.value ? formatYMD(fromEl.value) : '日付を選択';
+  if (toTrigger) toTrigger.textContent = toEl.value ? formatYMD(toEl.value) : '日付を選択';
+  // Don't disable — let the user click any time. Picking a date auto-switches to custom mode.
 }
 
 function filteredEntries() {
   const clinic = document.getElementById('clinicSelect').value;
   const { from, to } = getPeriodRange();
+  const fromYM = from ? from.slice(0, 7) : '';
+  const toYM = to ? to.slice(0, 7) : '';
   return state.entries.filter(e => {
     if (clinic !== 'all' && e.clinic !== clinic) return false;
-    if (from && e.month < from) return false;
-    if (to && e.month > to) return false;
+    if (fromYM && e.month < fromYM) return false;
+    if (toYM && e.month > toYM) return false;
     return true;
   });
 }
@@ -2033,7 +2116,91 @@ document.addEventListener('click', (e) => {
     const wrap = popup.closest('.month-picker');
     if (wrap && !wrap.contains(e.target)) popup.classList.remove('show');
   });
+  document.querySelectorAll('.dp-popup.show').forEach(popup => {
+    const wrap = popup.closest('.day-picker');
+    if (wrap && !wrap.contains(e.target)) popup.classList.remove('show');
+  });
 });
+
+// ===== Day picker (period filter from/to) =====
+function ymdOf(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+function formatYMD(ymd) {
+  if (!ymd) return '日付を選択';
+  const [y, m, d] = ymd.split('-');
+  return `${y}/${Number(m)}/${Number(d)}`;
+}
+function lastDayOfMonth(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}
+function startOfMonthYMD(ym) { return `${ym}-01`; }
+function endOfMonthYMD(ym) { return `${ym}-${pad2(lastDayOfMonth(ym))}`; }
+
+function toggleDayPicker(prefix) {
+  const popup = document.getElementById(prefix + 'Popup');
+  if (!popup) return;
+  const current = document.getElementById(prefix).value;
+  if (!pickerState[prefix]) pickerState[prefix] = {};
+  const base = current || ymdOf(new Date());
+  pickerState[prefix].year = Number(base.slice(0, 4));
+  pickerState[prefix].month = Number(base.slice(5, 7));
+  document.querySelectorAll('.mp-popup.show, .dp-popup.show').forEach(p => { if (p !== popup) p.classList.remove('show'); });
+  popup.classList.toggle('show');
+  if (popup.classList.contains('show')) renderDayPicker(prefix);
+}
+function shiftDayPickerMonth(prefix, delta) {
+  let { year, month } = pickerState[prefix];
+  month += delta;
+  if (month < 1) { month = 12; year--; }
+  if (month > 12) { month = 1; year++; }
+  pickerState[prefix].year = year;
+  pickerState[prefix].month = month;
+  renderDayPicker(prefix);
+}
+function renderDayPicker(prefix) {
+  const popup = document.getElementById(prefix + 'Popup');
+  const current = document.getElementById(prefix).value;
+  const todayYMD = ymdOf(new Date());
+  const { year, month } = pickerState[prefix];
+  const firstDay = new Date(year, month - 1, 1);
+  const startWeekday = firstDay.getDay();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let html = `
+    <div class="dp-header">
+      <button class="mp-nav" onclick="shiftDayPickerMonth('${prefix}', -1)" title="前月">◁</button>
+      <div class="dp-title">${year}年 ${month}月</div>
+      <button class="mp-nav" onclick="shiftDayPickerMonth('${prefix}', 1)" title="翌月">▷</button>
+    </div>
+    <div class="dp-weekdays">
+      <div class="dp-weekday sun">日</div><div class="dp-weekday">月</div><div class="dp-weekday">火</div><div class="dp-weekday">水</div><div class="dp-weekday">木</div><div class="dp-weekday">金</div><div class="dp-weekday sat">土</div>
+    </div>
+    <div class="dp-days">
+  `;
+  for (let i = 0; i < startWeekday; i++) html += '<div class="dp-day empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ymd = `${year}-${pad2(month)}-${pad2(d)}`;
+    const weekday = (startWeekday + d - 1) % 7;
+    const classes = ['dp-day'];
+    if (current === ymd) classes.push('selected');
+    if (todayYMD === ymd && current !== ymd) classes.push('current');
+    if (weekday === 0) classes.push('sun');
+    if (weekday === 6) classes.push('sat');
+    html += `<div class="${classes.join(' ')}" onclick="pickDay('${prefix}','${ymd}')">${d}</div>`;
+  }
+  html += `</div>
+    <div class="dp-actions">
+      <button class="ghost" onclick="pickDay('${prefix}','${todayYMD}')">今日</button>
+      <button class="ghost" onclick="document.getElementById('${prefix}Popup').classList.remove('show')">閉じる</button>
+    </div>`;
+  popup.innerHTML = html;
+}
+function pickDay(prefix, ymd) {
+  const input = document.getElementById(prefix);
+  input.value = ymd;
+  document.getElementById(prefix + 'Trigger').textContent = formatYMD(ymd);
+  document.getElementById(prefix + 'Popup').classList.remove('show');
+  input.dispatchEvent(new Event('change'));
+}
 
 function saveEntry() {
   const month = document.getElementById('f_month').value;
@@ -2665,9 +2832,9 @@ function aggregateMetaForPeriod(clinicFilter, fromMonth, toMonth) {
   }
   const inRange = rows.filter(r => {
     if (!r.date) return false;
-    const ym = r.date.slice(0, 7);
-    if (fromMonth && ym < fromMonth) return false;
-    if (toMonth && ym > toMonth) return false;
+    // r.date は YYYY-MM-DD。fromMonth/toMonth は YYYY-MM-DD で日単位の厳密比較を行う。
+    if (fromMonth && r.date < fromMonth) return false;
+    if (toMonth && r.date > toMonth) return false;
     return true;
   });
   const adspend = inRange.reduce((s, r) => s + (r.amountSpent || 0), 0);
@@ -2912,12 +3079,14 @@ function parseSheetNum(v) {
 // Aggregate daily sheet entries into (month, clinic) groups for the revenue list view.
 function aggregateDailyForRevenueList(clinicFilter, from, to) {
   const map = {};
+  const fromYM = from ? from.slice(0, 7) : '';
+  const toYM = to ? to.slice(0, 7) : '';
   state.dailyEntries.forEach(e => {
     if (clinicFilter !== 'all' && e.clinic !== clinicFilter) return;
     const month = (e.date || '').slice(0, 7);
     if (!month) return;
-    if (from && month < from) return;
-    if (to && month > to) return;
+    if (fromYM && month < fromYM) return;
+    if (toYM && month > toYM) return;
     const key = month + '__' + e.clinic;
     if (!map[key]) {
       map[key] = { month, clinic: e.clinic, cash: 0, square: 0, hpb: 0, other: 0, total: 0, days: 0 };
@@ -3041,11 +3210,12 @@ function setChannelManualEntry(month, clinic, channel, patch) {
 // Meta CSV を 月×店舗×チャネル('meta') の {budget, customers} 形に集計
 function aggregateMetaByMonthClinic(fromMonth, toMonth) {
   const out = {}; // key: month__clinic
+  // fromMonth/toMonth は YYYY-MM-DD。日単位の厳密比較を行う。
   (state.metaRows || []).forEach(r => {
     if (!r.date) return;
     const ym = r.date.slice(0, 7);
-    if (fromMonth && ym < fromMonth) return;
-    if (toMonth && ym > toMonth) return;
+    if (fromMonth && r.date < fromMonth) return;
+    if (toMonth && r.date > toMonth) return;
     const cl = getMetaClinicFromCampaign(r.campaign);
     if (!cl) return;
     const k = `${ym}__${cl}`;
@@ -3086,8 +3256,10 @@ function viewRevenueTrend() {
   const metaAgg = aggregateMetaByMonthClinic(from, to);
   const targetClinics = clinicFilter === 'all' ? Object.keys(CLINICS) : [clinicFilter];
 
-  // 当月選択時にハイライトするための判定（単一月のみ選択 = from===to）
-  const selectedSingleMonth = (from && to && from === to) ? from : null;
+  // 当月選択時にハイライトするための判定（from と to が同じ月の範囲内なら単一月）
+  const fromYM = from ? from.slice(0, 7) : '';
+  const toYM = to ? to.slice(0, 7) : '';
+  const selectedSingleMonth = (fromYM && fromYM === toYM) ? fromYM : null;
   const today = new Date();
   const todayYM = ymOf(today);
   const lastMonthYM = ymOf(addMonths(today, -1));
@@ -3236,7 +3408,7 @@ function viewRevenueTrend() {
             return `<button type="button" onclick="setRevenueTrendMonth('${ym}')" style="padding:6px 10px; min-width:46px; border-radius:6px; border:1px solid ${active ? 'var(--primary)' : (isCurrent ? '#c7d2fe' : '#e5e7eb')}; background:${active ? 'var(--primary)' : '#fff'}; color:${active ? '#fff' : (isCurrent ? 'var(--primary)' : 'var(--text-dark)')}; font-size:13px; font-weight:${active ? '600' : '500'}; cursor:pointer;">${m}月</button>`;
           }).join('')}
           ${(() => {
-            const yearActive = from === `${displayYear}-01` && to === `${displayYear}-12`;
+            const yearActive = from === `${displayYear}-01-01` && to === `${displayYear}-12-31`;
             return `<button type="button" onclick="setRevenueTrendYear(${displayYear})" style="padding:6px 14px; margin-left:6px; border-radius:6px; border:1px solid ${yearActive ? 'var(--primary)' : '#e5e7eb'}; background:${yearActive ? 'var(--primary)' : '#fff'}; color:${yearActive ? '#fff' : 'var(--text-dark)'}; font-size:13px; font-weight:${yearActive ? '600' : '500'}; cursor:pointer;">📆 年間合計</button>`;
           })()}
         </div>
@@ -3272,14 +3444,14 @@ function setRevenueTrendClinic(value) {
 // 媒体別集客実績 ビューの月フィルタ（単一月選択）
 function setRevenueTrendMonth(ym) {
   document.getElementById('periodSelect').value = 'custom';
-  const fromEl = document.getElementById('fromMonth');
-  const toEl = document.getElementById('toMonth');
-  fromEl.value = ym;
-  toEl.value = ym;
+  const fromYMD = startOfMonthYMD(ym);
+  const toYMD = endOfMonthYMD(ym);
+  document.getElementById('fromMonth').value = fromYMD;
+  document.getElementById('toMonth').value = toYMD;
   const fromTrigger = document.getElementById('fromMonthTrigger');
   const toTrigger = document.getElementById('toMonthTrigger');
-  if (fromTrigger) fromTrigger.textContent = formatYM(ym);
-  if (toTrigger) toTrigger.textContent = formatYM(ym);
+  if (fromTrigger) fromTrigger.textContent = formatYMD(fromYMD);
+  if (toTrigger) toTrigger.textContent = formatYMD(toYMD);
   renderView();
 }
 
@@ -3291,13 +3463,13 @@ function setRevenueTrendYear(year) {
     sel.value = `year:${year}`;
   } else {
     sel.value = 'custom';
-    const from = `${year}-01`, to = `${year}-12`;
-    document.getElementById('fromMonth').value = from;
-    document.getElementById('toMonth').value = to;
+    const fromYMD = `${year}-01-01`, toYMD = `${year}-12-31`;
+    document.getElementById('fromMonth').value = fromYMD;
+    document.getElementById('toMonth').value = toYMD;
     const fromTrigger = document.getElementById('fromMonthTrigger');
     const toTrigger = document.getElementById('toMonthTrigger');
-    if (fromTrigger) fromTrigger.textContent = formatYM(from);
-    if (toTrigger) toTrigger.textContent = formatYM(to);
+    if (fromTrigger) fromTrigger.textContent = formatYMD(fromYMD);
+    if (toTrigger) toTrigger.textContent = formatYMD(toYMD);
   }
   renderView();
 }
@@ -3383,14 +3555,87 @@ function viewChannelAfter() {
   });
 }
 
+// 店舗マスタ: 詳細編集の選択状態（モジュールレベル）
+let selectedClinicEdit = null;
+function selectClinicForEdit(key) { selectedClinicEdit = key; renderView(); }
+function deselectClinicForEdit() { selectedClinicEdit = null; renderView(); }
+
+function getClinicDetails(key) {
+  state.clinicDetails = state.clinicDetails || {};
+  state.clinicDetails[key] = state.clinicDetails[key] || { phone: '', address: '', password: '', notes: '' };
+  return state.clinicDetails[key];
+}
+function updateClinicDetail(key, field, value) {
+  const d = getClinicDetails(key);
+  d[field] = value;
+  save();
+}
+
 function viewClinics() {
+  if (selectedClinicEdit) return viewClinicDetail(selectedClinicEdit);
   return `<div class="card"><h2>🏥 店舗一覧</h2>
     <table>
-      <thead><tr><th>店舗名</th><th>コード</th><th class="num">登録データ数</th></tr></thead>
-      <tbody>${Object.entries(CLINICS).map(([key, name]) => `<tr><td>${name}</td><td><code>${key}</code></td><td class="num">${state.entries.filter(e => e.clinic === key).length} 件</td></tr>`).join('')}</tbody>
+      <thead><tr><th>店舗名</th><th>コード</th><th class="num">登録データ数</th><th></th></tr></thead>
+      <tbody>${Object.entries(CLINICS).map(([key, name]) => `
+        <tr style="cursor:pointer;" onclick="selectClinicForEdit('${key}')">
+          <td><strong style="color:var(--primary);">${name}</strong></td>
+          <td><code>${key}</code></td>
+          <td class="num">${state.entries.filter(e => e.clinic === key).length} 件</td>
+          <td class="num" style="color:var(--muted);">編集 ›</td>
+        </tr>`).join('')}</tbody>
     </table>
-    <div class="note">店舗の追加・編集機能は今後対応予定です。現在は中百舌鳥院・天満天六院の2店舗で固定です。</div>
+    <div class="note">店舗名をクリックすると、電話番号・住所・パスワード等の詳細情報を編集できます。</div>
   </div>`;
+}
+
+function viewClinicDetail(key) {
+  const name = CLINICS[key];
+  const d = getClinicDetails(key);
+  const entryCount = state.entries.filter(e => e.clinic === key).length;
+  return `<div class="card">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:12px; flex-wrap:wrap;">
+      <div>
+        <button class="ghost" onclick="deselectClinicForEdit()" style="margin-bottom:8px; padding:6px 12px;">‹ 店舗一覧に戻る</button>
+        <h2 style="margin:0;">🏥 ${name}</h2>
+        <div style="font-size:12px; color:var(--muted); margin-top:4px;">コード: <code>${key}</code> / 登録データ数: ${entryCount} 件</div>
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:14px;">
+      <div>
+        <label style="display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:4px;">📞 電話番号</label>
+        <input type="tel" value="${escapeHtml(d.phone)}" placeholder="例: 06-1234-5678"
+          oninput="updateClinicDetail('${key}','phone',this.value)"
+          style="width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px;" />
+      </div>
+      <div>
+        <label style="display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:4px;">📍 住所</label>
+        <input type="text" value="${escapeHtml(d.address)}" placeholder="例: 大阪府堺市北区..."
+          oninput="updateClinicDetail('${key}','address',this.value)"
+          style="width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px;" />
+      </div>
+      <div>
+        <label style="display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:4px;">🔑 パスワード</label>
+        <div style="display:flex; gap:6px;">
+          <input type="password" id="clinic-pwd-${key}" value="${escapeHtml(d.password)}" placeholder="パスワードを入力"
+            oninput="updateClinicDetail('${key}','password',this.value)"
+            style="flex:1; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px;" />
+          <button type="button" class="ghost" onclick="toggleClinicPwd('${key}')" style="padding:6px 12px;">👁</button>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:14px;">
+      <label style="display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:4px;">📝 関連情報</label>
+      <textarea placeholder="営業時間、定休日、Wi-Fi情報、その他メモなど"
+        oninput="updateClinicDetail('${key}','notes',this.value)"
+        style="width:100%; min-height:120px; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; resize:vertical;">${escapeHtml(d.notes)}</textarea>
+    </div>
+    <div class="note" style="margin-top:14px;">入力内容は自動保存されます。項目は今後追加予定です。</div>
+  </div>`;
+}
+
+function toggleClinicPwd(key) {
+  const el = document.getElementById('clinic-pwd-' + key);
+  if (el) el.type = el.type === 'password' ? 'text' : 'password';
 }
 
 function viewData() {
@@ -3414,14 +3659,6 @@ function placeholder(title, icon, items, desc) {
     <div>${desc}</div>
     <ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>
   </div>`;
-}
-function viewReservationList() {
-  return placeholder('予約一覧', '📅', [
-    '個別予約レコード（日時 / 顧客 / 施術メニュー / 担当）',
-    'ステータス管理（予約済 / 来院済 / キャンセル / 無断キャンセル）',
-    'CSV取り込み（RESERVA / Airリザーブ / LINE公式）',
-    'API連携（外部予約システム）',
-  ], '既存の予約システムからのCSV連携を想定しています。');
 }
 // ===== Reservation Calendar =====
 function switchCalClinic(clinic) { state.calClinic = clinic; save(); renderView(); }
@@ -4683,7 +4920,6 @@ const VIEW_RENDER = {
   'meta-ads':             { html: viewMetaAds, after: viewMetaAdsAfter },
   'ad-cost':              { html: viewAdCost, after: viewAdCostAfter },
   'channel':              { html: viewChannel, after: viewChannelAfter },
-  'reservation-list':     { html: viewReservationList },
   'reservation-calendar': { html: viewReservationCalendar },
   'customers':            { html: viewCustomers },
   'clinics':              { html: viewClinics },
@@ -4708,6 +4944,7 @@ function renderView() {
 }
 
 function switchView(viewName) {
+  if (currentView !== viewName) selectedClinicEdit = null;
   currentView = viewName;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === viewName));
   renderView();
