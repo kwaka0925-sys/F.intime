@@ -3225,9 +3225,9 @@ function viewRevenueTrend() {
         })()}
       </div>
       <div style="display:flex; align-items:center; gap:6px; margin-bottom:14px; flex-wrap:wrap;">
-        <button type="button" onclick="shiftRevenueTrendYear(-1)" style="padding:6px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-size:13px;" title="前年">‹</button>
+        <button type="button" onclick="shiftRevenueTrendYear(-1)" style="padding:6px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-size:14px; color:var(--text-dark);" title="前年">◁</button>
         <div style="min-width:60px; text-align:center; font-weight:700; font-size:14px;">${displayYear}年</div>
-        <button type="button" onclick="shiftRevenueTrendYear(1)" style="padding:6px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-size:13px;" title="翌年">›</button>
+        <button type="button" onclick="shiftRevenueTrendYear(1)" style="padding:6px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-size:14px; color:var(--text-dark);" title="翌年">▷</button>
         <div style="display:flex; gap:4px; flex-wrap:wrap; margin-left:6px;">
           ${[1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
             const ym = `${displayYear}-${pad2(m)}`;
@@ -3235,6 +3235,10 @@ function viewRevenueTrend() {
             const isCurrent = ym === todayYM;
             return `<button type="button" onclick="setRevenueTrendMonth('${ym}')" style="padding:6px 10px; min-width:46px; border-radius:6px; border:1px solid ${active ? 'var(--primary)' : (isCurrent ? '#c7d2fe' : '#e5e7eb')}; background:${active ? 'var(--primary)' : '#fff'}; color:${active ? '#fff' : (isCurrent ? 'var(--primary)' : 'var(--text-dark)')}; font-size:13px; font-weight:${active ? '600' : '500'}; cursor:pointer;">${m}月</button>`;
           }).join('')}
+          ${(() => {
+            const yearActive = from === `${displayYear}-01` && to === `${displayYear}-12`;
+            return `<button type="button" onclick="setRevenueTrendYear(${displayYear})" style="padding:6px 14px; margin-left:6px; border-radius:6px; border:1px solid ${yearActive ? 'var(--primary)' : '#e5e7eb'}; background:${yearActive ? 'var(--primary)' : '#fff'}; color:${yearActive ? '#fff' : 'var(--text-dark)'}; font-size:13px; font-weight:${yearActive ? '600' : '500'}; cursor:pointer;">📆 年間合計</button>`;
+          })()}
         </div>
       </div>
       <div class="kpi-grid">${summaryCards}</div>
@@ -3276,6 +3280,25 @@ function setRevenueTrendMonth(ym) {
   const toTrigger = document.getElementById('toMonthTrigger');
   if (fromTrigger) fromTrigger.textContent = formatYM(ym);
   if (toTrigger) toTrigger.textContent = formatYM(ym);
+  renderView();
+}
+
+// 媒体別集客実績 ビューの年間合計（1月〜12月）
+function setRevenueTrendYear(year) {
+  const sel = document.getElementById('periodSelect');
+  const opt = Array.from(sel.options).find(o => o.value === `year:${year}`);
+  if (opt) {
+    sel.value = `year:${year}`;
+  } else {
+    sel.value = 'custom';
+    const from = `${year}-01`, to = `${year}-12`;
+    document.getElementById('fromMonth').value = from;
+    document.getElementById('toMonth').value = to;
+    const fromTrigger = document.getElementById('fromMonthTrigger');
+    const toTrigger = document.getElementById('toMonthTrigger');
+    if (fromTrigger) fromTrigger.textContent = formatYM(from);
+    if (toTrigger) toTrigger.textContent = formatYM(to);
+  }
   renderView();
 }
 
