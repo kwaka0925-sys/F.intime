@@ -2435,9 +2435,8 @@ function viewDailySales() {
         <button class="ghost" onclick="state.dailyMonth='${ymOf(new Date())}'; save(); renderView();">今月</button>
       </div>
       <div style="margin-top:10px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-        <button onclick="fetchDailyReportSheet(true)" style="background:linear-gradient(135deg,#10b981,#059669);" ${!getDailyReportSheetId(clinic) ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>🔄 当月を同期</button>
-        <button onclick="fetchDailyReportPastMonths(12)" style="background:linear-gradient(135deg,#6366f1,#4f46e5);" ${!getDailyReportSheetId(clinic) ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>📥 過去1年分を一括取込（2025年10月分も含む）</button>
-        <span id="sheetSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastSheetSyncMsg || (getDailyReportSheetId(clinic) ? '※ 日報シートのタブ「日報 YYYYMM」を月単位で同期します' : `※ ${CLINICS[clinic]} のスプレッドシートIDが未設定です`)}</span>
+        <button onclick="fetchDailyReportSheet(true)" style="background:linear-gradient(135deg,#10b981,#059669);" ${!getDailyReportSheetId(clinic) ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>🔄 ${CLINICS[clinic]} の日報シートから同期</button>
+        <span id="sheetSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastSheetSyncMsg || (getDailyReportSheetId(clinic) ? '※ 表示中の月（「日報 YYYYMM」タブ）を取り込みます。前月ボタンで切替えてから同期で過去月も取込可能。' : `※ ${CLINICS[clinic]} のスプレッドシートIDが未設定です`)}</span>
       </div>
       <div style="margin-top:8px; font-size:12px; color:var(--muted);">
         💡 ${synced ? `シートの ${colCount} 列をそのまま反映しています。各セルは手入力でも編集可能です。` : '各セルをクリックして数値を入力すると自動保存します。'}
