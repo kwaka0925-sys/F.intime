@@ -3086,6 +3086,15 @@ function viewRevenueTrend() {
   const metaAgg = aggregateMetaByMonthClinic(from, to);
   const targetClinics = clinicFilter === 'all' ? Object.keys(CLINICS) : [clinicFilter];
 
+  // 当月選択時にハイライトするための判定（単一月のみ選択 = from===to）
+  const selectedSingleMonth = (from && to && from === to) ? from : null;
+  const today = new Date();
+  const todayYM = ymOf(today);
+  const lastMonthYM = ymOf(addMonths(today, -1));
+  const displayYear = selectedSingleMonth
+    ? Number(selectedSingleMonth.slice(0, 4))
+    : (_revenueTrendYearOverride ?? today.getFullYear());
+
   // 期間合計サマリー (5チャネル × 表示対象店舗合算)
   const channelTotals = {};
   ACQUISITION_CHANNELS.forEach(c => channelTotals[c.key] = { budget: 0, customers: 0 });
@@ -3205,6 +3214,29 @@ function viewRevenueTrend() {
         ${clinicBtn('nakamozu', 'NAORU整体 中百舌鳥院')}
         ${clinicBtn('tenrokuten', 'NAORU整体 天満天六院')}
       </div>
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+        ${(() => {
+          const cur = selectedSingleMonth === todayYM;
+          return `<button type="button" onclick="setRevenueTrendMonth('${todayYM}')" style="padding:6px 14px; border-radius:6px; border:1px solid ${cur ? 'var(--primary)' : '#e5e7eb'}; background:${cur ? 'var(--primary)' : '#fff'}; color:${cur ? '#fff' : 'var(--text-dark)'}; font-size:13px; font-weight:${cur ? '600' : '500'}; cursor:pointer;">📅 当月</button>`;
+        })()}
+        ${(() => {
+          const cur = selectedSingleMonth === lastMonthYM;
+          return `<button type="button" onclick="setRevenueTrendMonth('${lastMonthYM}')" style="padding:6px 14px; border-radius:6px; border:1px solid ${cur ? 'var(--primary)' : '#e5e7eb'}; background:${cur ? 'var(--primary)' : '#fff'}; color:${cur ? '#fff' : 'var(--text-dark)'}; font-size:13px; font-weight:${cur ? '600' : '500'}; cursor:pointer;">⏮ 先月</button>`;
+        })()}
+      </div>
+      <div style="display:flex; align-items:center; gap:6px; margin-bottom:14px; flex-wrap:wrap;">
+        <button type="button" onclick="shiftRevenueTrendYear(-1)" style="padding:6px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-size:13px;" title="前年">‹</button>
+        <div style="min-width:60px; text-align:center; font-weight:700; font-size:14px;">${displayYear}年</div>
+        <button type="button" onclick="shiftRevenueTrendYear(1)" style="padding:6px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-size:13px;" title="翌年">›</button>
+        <div style="display:flex; gap:4px; flex-wrap:wrap; margin-left:6px;">
+          ${[1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
+            const ym = `${displayYear}-${pad2(m)}`;
+            const active = selectedSingleMonth === ym;
+            const isCurrent = ym === todayYM;
+            return `<button type="button" onclick="setRevenueTrendMonth('${ym}')" style="padding:6px 10px; min-width:46px; border-radius:6px; border:1px solid ${active ? 'var(--primary)' : (isCurrent ? '#c7d2fe' : '#e5e7eb')}; background:${active ? 'var(--primary)' : '#fff'}; color:${active ? '#fff' : (isCurrent ? 'var(--primary)' : 'var(--text-dark)')}; font-size:13px; font-weight:${active ? '600' : '500'}; cursor:pointer;">${m}月</button>`;
+          }).join('')}
+        </div>
+      </div>
       <div class="kpi-grid">${summaryCards}</div>
       <div style="font-size:11px; color:var(--muted); margin-top:10px;">
         📡 メタ広告は Meta広告画面で取り込んだCSVから自動集計されます。チラシ・HPB・MAP・スレッズは下表のセルを直接編集して保存できます。
@@ -3230,6 +3262,37 @@ function setRevenueTrendClinic(value) {
   if (sel) {
     sel.value = value;
     sel.dispatchEvent(new Event('change'));
+  }
+}
+
+// 媒体別集客実績 ビューの月フィルタ（単一月選択）
+function setRevenueTrendMonth(ym) {
+  document.getElementById('periodSelect').value = 'custom';
+  const fromEl = document.getElementById('fromMonth');
+  const toEl = document.getElementById('toMonth');
+  fromEl.value = ym;
+  toEl.value = ym;
+  const fromTrigger = document.getElementById('fromMonthTrigger');
+  const toTrigger = document.getElementById('toMonthTrigger');
+  if (fromTrigger) fromTrigger.textContent = formatYM(ym);
+  if (toTrigger) toTrigger.textContent = formatYM(ym);
+  renderView();
+}
+
+// 媒体別集客実績 ビュー: 年送り（選択月のみ年シフト、未選択なら現在表示年からシフト）
+let _revenueTrendYearOverride = null;
+function shiftRevenueTrendYear(delta) {
+  const { from, to } = getPeriodRange();
+  const baseYear = (from && to && from === to)
+    ? Number(from.slice(0, 4))
+    : (_revenueTrendYearOverride ?? new Date().getFullYear());
+  const newYear = baseYear + delta;
+  if (from && to && from === to) {
+    const mm = from.slice(5);
+    setRevenueTrendMonth(`${newYear}-${mm}`);
+  } else {
+    _revenueTrendYearOverride = newYear;
+    renderView();
   }
 }
 
