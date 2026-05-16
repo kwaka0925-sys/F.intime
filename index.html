@@ -489,7 +489,7 @@
   .cal-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
+    gap: 6px;
     background: transparent;
     border: none;
     border-radius: 12px;
@@ -497,9 +497,9 @@
   }
   .cal-grid > .dow {
     background: linear-gradient(180deg, #f0f7ff 0%, #e0ecff 100%);
-    padding: 10px;
+    padding: 14px;
     text-align: center;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 700;
     color: #4b5563;
     border-radius: 8px;
@@ -508,8 +508,8 @@
   .cal-grid > .dow.sat { background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%); color: #1d4ed8; }
   .cal-day {
     background: white;
-    min-height: 110px;
-    padding: 8px 10px;
+    min-height: 150px;
+    padding: 10px 12px;
     cursor: pointer;
     position: relative;
     border-radius: 10px;
@@ -523,17 +523,17 @@
   .cal-day.sat-bg { background: #f0f9ff; }
   .cal-day.today { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-color: #fcd34d; }
   .cal-day.today .date-num { color: #b45309; font-weight: 800; }
-  .cal-day .date-num { font-size: 14px; font-weight: 700; margin-bottom: 6px; color: #1f2937; }
+  .cal-day .date-num { font-size: 16px; font-weight: 700; margin-bottom: 8px; color: #1f2937; }
   .cal-day .date-num.sun { color: #dc2626; }
   .cal-day .date-num.sat { color: #2563eb; }
   .staff-chip {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 3px 8px;
-    margin-top: 3px;
+    padding: 5px 10px;
+    margin-top: 4px;
     border-radius: 6px;
-    font-size: 11px;
+    font-size: 12px;
     background: #f8fafc;
     color: #94a3b8;
   }
@@ -548,9 +548,9 @@
   .cal-day.all-off { background: repeating-linear-gradient(45deg, #fff5f5 0 8px, #fef2f2 8px 16px) !important; }
   .cal-day .day-total {
     position: absolute;
-    top: 6px; right: 8px;
-    font-size: 11px;
-    padding: 2px 8px;
+    top: 8px; right: 10px;
+    font-size: 12px;
+    padding: 3px 10px;
     border-radius: 999px;
     background: linear-gradient(135deg, #818cf8, #6366f1);
     color: white;
