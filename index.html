@@ -738,6 +738,85 @@
   .mp-actions { margin-top: 12px; display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
   .mp-actions button { flex: 1; padding: 8px; font-size: 12px; border-radius: 8px; }
 
+  /* ----- Day picker popup ----- */
+  .day-picker { position: relative; display: block; width: 100%; }
+  .day-picker-trigger {
+    width: 100%;
+    padding: 9px 12px;
+    text-align: left;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+    font-family: inherit;
+  }
+  .day-picker-trigger:hover:not(:disabled) { border-color: var(--primary); }
+  .day-picker-trigger::after { content: '📅'; float: right; opacity: 0.7; }
+  .dp-popup {
+    display: none;
+    position: absolute;
+    top: 100%; left: 0;
+    margin-top: 6px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 14px 40px rgba(15, 23, 42, 0.18);
+    padding: 14px;
+    z-index: 200;
+    width: 280px;
+  }
+  .dp-popup.show { display: block; }
+  .dp-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 10px;
+  }
+  .dp-title { font-weight: 700; font-size: 15px; color: var(--text); }
+  .dp-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    margin-bottom: 4px;
+  }
+  .dp-weekday {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    padding: 4px 0;
+  }
+  .dp-weekday.sun { color: #dc2626; }
+  .dp-weekday.sat { color: #2563eb; }
+  .dp-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+  }
+  .dp-day {
+    text-align: center;
+    font-size: 12px;
+    padding: 7px 0;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #fafbfc;
+    color: var(--text);
+    border: 1px solid transparent;
+    transition: background 0.1s;
+  }
+  .dp-day:hover { background: #eef2ff; border-color: var(--primary); }
+  .dp-day.empty { background: transparent; cursor: default; }
+  .dp-day.empty:hover { background: transparent; border-color: transparent; }
+  .dp-day.selected { background: var(--primary); color: white; font-weight: 700; border-color: var(--primary); }
+  .dp-day.current { border-color: var(--primary); color: var(--primary); font-weight: 700; }
+  .dp-day.sun { color: #dc2626; }
+  .dp-day.sat { color: #2563eb; }
+  .dp-day.selected.sun, .dp-day.selected.sat { color: white; }
+  .dp-actions { margin-top: 10px; display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+  .dp-actions button { flex: 1; padding: 8px; font-size: 12px; border-radius: 8px; }
+
   /* ----- Attendance grid ----- */
   .att-wrap { overflow-x: auto; }
   .att-grid {
@@ -1148,16 +1227,16 @@
         </select>
         <label>期間</label>
         <select id="periodSelect"></select>
-        <div class="month-picker" id="fromMonthWrapper" style="width:140px;">
-          <button type="button" class="month-picker-trigger" id="fromMonthTrigger" onclick="toggleMonthPicker('fromMonth')">月を選択</button>
+        <div class="day-picker" id="fromMonthWrapper" style="width:160px;">
+          <button type="button" class="day-picker-trigger" id="fromMonthTrigger" onclick="toggleDayPicker('fromMonth')">日付を選択</button>
           <input type="hidden" id="fromMonth" />
-          <div class="mp-popup" id="fromMonthPopup"></div>
+          <div class="dp-popup" id="fromMonthPopup"></div>
         </div>
         <span style="color: var(--muted); font-size: 12px;">〜</span>
-        <div class="month-picker" id="toMonthWrapper" style="width:140px;">
-          <button type="button" class="month-picker-trigger" id="toMonthTrigger" onclick="toggleMonthPicker('toMonth')">月を選択</button>
+        <div class="day-picker" id="toMonthWrapper" style="width:160px;">
+          <button type="button" class="day-picker-trigger" id="toMonthTrigger" onclick="toggleDayPicker('toMonth')">日付を選択</button>
           <input type="hidden" id="toMonth" />
-          <div class="mp-popup" id="toMonthPopup"></div>
+          <div class="dp-popup" id="toMonthPopup"></div>
         </div>
       </div>
     </div>
@@ -1627,13 +1706,13 @@ function getPeriodRange() {
   const lastMonth = ymOf(addMonths(today, -1));
   if (period.startsWith('year:')) {
     const y = period.slice(5);
-    return { from: `${y}-01`, to: `${y}-12` };
+    return { from: `${y}-01-01`, to: `${y}-12-31` };
   }
   switch (period) {
-    case 'thisMonth': return { from: thisMonth, to: thisMonth };
-    case 'lastMonth': return { from: lastMonth, to: lastMonth };
-    case 'last3':     return { from: ymOf(addMonths(today, -2)), to: thisMonth };
-    case 'last6':     return { from: ymOf(addMonths(today, -5)), to: thisMonth };
+    case 'thisMonth': return { from: startOfMonthYMD(thisMonth), to: endOfMonthYMD(thisMonth) };
+    case 'lastMonth': return { from: startOfMonthYMD(lastMonth), to: endOfMonthYMD(lastMonth) };
+    case 'last3':     return { from: startOfMonthYMD(ymOf(addMonths(today, -2))), to: endOfMonthYMD(thisMonth) };
+    case 'last6':     return { from: startOfMonthYMD(ymOf(addMonths(today, -5))), to: endOfMonthYMD(thisMonth) };
     case 'all':       return { from: '', to: '' };
     case 'custom':    return {
       from: document.getElementById('fromMonth').value,
@@ -1654,18 +1733,20 @@ function syncRangeInputs() {
     fromEl.value = from;
     toEl.value = to;
   }
-  if (fromTrigger) fromTrigger.textContent = fromEl.value ? formatYM(fromEl.value) : '月を選択';
-  if (toTrigger) toTrigger.textContent = toEl.value ? formatYM(toEl.value) : '月を選択';
-  // Don't disable — let the user click any time. Picking a month auto-switches to custom mode.
+  if (fromTrigger) fromTrigger.textContent = fromEl.value ? formatYMD(fromEl.value) : '日付を選択';
+  if (toTrigger) toTrigger.textContent = toEl.value ? formatYMD(toEl.value) : '日付を選択';
+  // Don't disable — let the user click any time. Picking a date auto-switches to custom mode.
 }
 
 function filteredEntries() {
   const clinic = document.getElementById('clinicSelect').value;
   const { from, to } = getPeriodRange();
+  const fromYM = from ? from.slice(0, 7) : '';
+  const toYM = to ? to.slice(0, 7) : '';
   return state.entries.filter(e => {
     if (clinic !== 'all' && e.clinic !== clinic) return false;
-    if (from && e.month < from) return false;
-    if (to && e.month > to) return false;
+    if (fromYM && e.month < fromYM) return false;
+    if (toYM && e.month > toYM) return false;
     return true;
   });
 }
@@ -2033,7 +2114,91 @@ document.addEventListener('click', (e) => {
     const wrap = popup.closest('.month-picker');
     if (wrap && !wrap.contains(e.target)) popup.classList.remove('show');
   });
+  document.querySelectorAll('.dp-popup.show').forEach(popup => {
+    const wrap = popup.closest('.day-picker');
+    if (wrap && !wrap.contains(e.target)) popup.classList.remove('show');
+  });
 });
+
+// ===== Day picker (period filter from/to) =====
+function ymdOf(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+function formatYMD(ymd) {
+  if (!ymd) return '日付を選択';
+  const [y, m, d] = ymd.split('-');
+  return `${y}/${Number(m)}/${Number(d)}`;
+}
+function lastDayOfMonth(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}
+function startOfMonthYMD(ym) { return `${ym}-01`; }
+function endOfMonthYMD(ym) { return `${ym}-${pad2(lastDayOfMonth(ym))}`; }
+
+function toggleDayPicker(prefix) {
+  const popup = document.getElementById(prefix + 'Popup');
+  if (!popup) return;
+  const current = document.getElementById(prefix).value;
+  if (!pickerState[prefix]) pickerState[prefix] = {};
+  const base = current || ymdOf(new Date());
+  pickerState[prefix].year = Number(base.slice(0, 4));
+  pickerState[prefix].month = Number(base.slice(5, 7));
+  document.querySelectorAll('.mp-popup.show, .dp-popup.show').forEach(p => { if (p !== popup) p.classList.remove('show'); });
+  popup.classList.toggle('show');
+  if (popup.classList.contains('show')) renderDayPicker(prefix);
+}
+function shiftDayPickerMonth(prefix, delta) {
+  let { year, month } = pickerState[prefix];
+  month += delta;
+  if (month < 1) { month = 12; year--; }
+  if (month > 12) { month = 1; year++; }
+  pickerState[prefix].year = year;
+  pickerState[prefix].month = month;
+  renderDayPicker(prefix);
+}
+function renderDayPicker(prefix) {
+  const popup = document.getElementById(prefix + 'Popup');
+  const current = document.getElementById(prefix).value;
+  const todayYMD = ymdOf(new Date());
+  const { year, month } = pickerState[prefix];
+  const firstDay = new Date(year, month - 1, 1);
+  const startWeekday = firstDay.getDay();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let html = `
+    <div class="dp-header">
+      <button class="mp-nav" onclick="shiftDayPickerMonth('${prefix}', -1)" title="前月">◁</button>
+      <div class="dp-title">${year}年 ${month}月</div>
+      <button class="mp-nav" onclick="shiftDayPickerMonth('${prefix}', 1)" title="翌月">▷</button>
+    </div>
+    <div class="dp-weekdays">
+      <div class="dp-weekday sun">日</div><div class="dp-weekday">月</div><div class="dp-weekday">火</div><div class="dp-weekday">水</div><div class="dp-weekday">木</div><div class="dp-weekday">金</div><div class="dp-weekday sat">土</div>
+    </div>
+    <div class="dp-days">
+  `;
+  for (let i = 0; i < startWeekday; i++) html += '<div class="dp-day empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ymd = `${year}-${pad2(month)}-${pad2(d)}`;
+    const weekday = (startWeekday + d - 1) % 7;
+    const classes = ['dp-day'];
+    if (current === ymd) classes.push('selected');
+    if (todayYMD === ymd && current !== ymd) classes.push('current');
+    if (weekday === 0) classes.push('sun');
+    if (weekday === 6) classes.push('sat');
+    html += `<div class="${classes.join(' ')}" onclick="pickDay('${prefix}','${ymd}')">${d}</div>`;
+  }
+  html += `</div>
+    <div class="dp-actions">
+      <button class="ghost" onclick="pickDay('${prefix}','${todayYMD}')">今日</button>
+      <button class="ghost" onclick="document.getElementById('${prefix}Popup').classList.remove('show')">閉じる</button>
+    </div>`;
+  popup.innerHTML = html;
+}
+function pickDay(prefix, ymd) {
+  const input = document.getElementById(prefix);
+  input.value = ymd;
+  document.getElementById(prefix + 'Trigger').textContent = formatYMD(ymd);
+  document.getElementById(prefix + 'Popup').classList.remove('show');
+  input.dispatchEvent(new Event('change'));
+}
 
 function saveEntry() {
   const month = document.getElementById('f_month').value;
@@ -2665,9 +2830,9 @@ function aggregateMetaForPeriod(clinicFilter, fromMonth, toMonth) {
   }
   const inRange = rows.filter(r => {
     if (!r.date) return false;
-    const ym = r.date.slice(0, 7);
-    if (fromMonth && ym < fromMonth) return false;
-    if (toMonth && ym > toMonth) return false;
+    // r.date は YYYY-MM-DD。fromMonth/toMonth は YYYY-MM-DD で日単位の厳密比較を行う。
+    if (fromMonth && r.date < fromMonth) return false;
+    if (toMonth && r.date > toMonth) return false;
     return true;
   });
   const adspend = inRange.reduce((s, r) => s + (r.amountSpent || 0), 0);
@@ -2912,12 +3077,14 @@ function parseSheetNum(v) {
 // Aggregate daily sheet entries into (month, clinic) groups for the revenue list view.
 function aggregateDailyForRevenueList(clinicFilter, from, to) {
   const map = {};
+  const fromYM = from ? from.slice(0, 7) : '';
+  const toYM = to ? to.slice(0, 7) : '';
   state.dailyEntries.forEach(e => {
     if (clinicFilter !== 'all' && e.clinic !== clinicFilter) return;
     const month = (e.date || '').slice(0, 7);
     if (!month) return;
-    if (from && month < from) return;
-    if (to && month > to) return;
+    if (fromYM && month < fromYM) return;
+    if (toYM && month > toYM) return;
     const key = month + '__' + e.clinic;
     if (!map[key]) {
       map[key] = { month, clinic: e.clinic, cash: 0, square: 0, hpb: 0, other: 0, total: 0, days: 0 };
@@ -3041,11 +3208,12 @@ function setChannelManualEntry(month, clinic, channel, patch) {
 // Meta CSV を 月×店舗×チャネル('meta') の {budget, customers} 形に集計
 function aggregateMetaByMonthClinic(fromMonth, toMonth) {
   const out = {}; // key: month__clinic
+  // fromMonth/toMonth は YYYY-MM-DD。日単位の厳密比較を行う。
   (state.metaRows || []).forEach(r => {
     if (!r.date) return;
     const ym = r.date.slice(0, 7);
-    if (fromMonth && ym < fromMonth) return;
-    if (toMonth && ym > toMonth) return;
+    if (fromMonth && r.date < fromMonth) return;
+    if (toMonth && r.date > toMonth) return;
     const cl = getMetaClinicFromCampaign(r.campaign);
     if (!cl) return;
     const k = `${ym}__${cl}`;
@@ -3086,8 +3254,10 @@ function viewRevenueTrend() {
   const metaAgg = aggregateMetaByMonthClinic(from, to);
   const targetClinics = clinicFilter === 'all' ? Object.keys(CLINICS) : [clinicFilter];
 
-  // 当月選択時にハイライトするための判定（単一月のみ選択 = from===to）
-  const selectedSingleMonth = (from && to && from === to) ? from : null;
+  // 当月選択時にハイライトするための判定（from と to が同じ月の範囲内なら単一月）
+  const fromYM = from ? from.slice(0, 7) : '';
+  const toYM = to ? to.slice(0, 7) : '';
+  const selectedSingleMonth = (fromYM && fromYM === toYM) ? fromYM : null;
   const today = new Date();
   const todayYM = ymOf(today);
   const lastMonthYM = ymOf(addMonths(today, -1));
@@ -3236,7 +3406,7 @@ function viewRevenueTrend() {
             return `<button type="button" onclick="setRevenueTrendMonth('${ym}')" style="padding:6px 10px; min-width:46px; border-radius:6px; border:1px solid ${active ? 'var(--primary)' : (isCurrent ? '#c7d2fe' : '#e5e7eb')}; background:${active ? 'var(--primary)' : '#fff'}; color:${active ? '#fff' : (isCurrent ? 'var(--primary)' : 'var(--text-dark)')}; font-size:13px; font-weight:${active ? '600' : '500'}; cursor:pointer;">${m}月</button>`;
           }).join('')}
           ${(() => {
-            const yearActive = from === `${displayYear}-01` && to === `${displayYear}-12`;
+            const yearActive = from === `${displayYear}-01-01` && to === `${displayYear}-12-31`;
             return `<button type="button" onclick="setRevenueTrendYear(${displayYear})" style="padding:6px 14px; margin-left:6px; border-radius:6px; border:1px solid ${yearActive ? 'var(--primary)' : '#e5e7eb'}; background:${yearActive ? 'var(--primary)' : '#fff'}; color:${yearActive ? '#fff' : 'var(--text-dark)'}; font-size:13px; font-weight:${yearActive ? '600' : '500'}; cursor:pointer;">📆 年間合計</button>`;
           })()}
         </div>
@@ -3272,14 +3442,14 @@ function setRevenueTrendClinic(value) {
 // 媒体別集客実績 ビューの月フィルタ（単一月選択）
 function setRevenueTrendMonth(ym) {
   document.getElementById('periodSelect').value = 'custom';
-  const fromEl = document.getElementById('fromMonth');
-  const toEl = document.getElementById('toMonth');
-  fromEl.value = ym;
-  toEl.value = ym;
+  const fromYMD = startOfMonthYMD(ym);
+  const toYMD = endOfMonthYMD(ym);
+  document.getElementById('fromMonth').value = fromYMD;
+  document.getElementById('toMonth').value = toYMD;
   const fromTrigger = document.getElementById('fromMonthTrigger');
   const toTrigger = document.getElementById('toMonthTrigger');
-  if (fromTrigger) fromTrigger.textContent = formatYM(ym);
-  if (toTrigger) toTrigger.textContent = formatYM(ym);
+  if (fromTrigger) fromTrigger.textContent = formatYMD(fromYMD);
+  if (toTrigger) toTrigger.textContent = formatYMD(toYMD);
   renderView();
 }
 
@@ -3291,13 +3461,13 @@ function setRevenueTrendYear(year) {
     sel.value = `year:${year}`;
   } else {
     sel.value = 'custom';
-    const from = `${year}-01`, to = `${year}-12`;
-    document.getElementById('fromMonth').value = from;
-    document.getElementById('toMonth').value = to;
+    const fromYMD = `${year}-01-01`, toYMD = `${year}-12-31`;
+    document.getElementById('fromMonth').value = fromYMD;
+    document.getElementById('toMonth').value = toYMD;
     const fromTrigger = document.getElementById('fromMonthTrigger');
     const toTrigger = document.getElementById('toMonthTrigger');
-    if (fromTrigger) fromTrigger.textContent = formatYM(from);
-    if (toTrigger) toTrigger.textContent = formatYM(to);
+    if (fromTrigger) fromTrigger.textContent = formatYMD(fromYMD);
+    if (toTrigger) toTrigger.textContent = formatYMD(toYMD);
   }
   renderView();
 }
