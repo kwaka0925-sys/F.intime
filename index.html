@@ -669,46 +669,74 @@
     display: none;
     position: absolute;
     top: 100%; left: 0;
-    margin-top: 4px;
+    margin-top: 6px;
     background: white;
     border: 1px solid var(--border);
-    border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-    padding: 14px;
+    border-radius: 14px;
+    box-shadow: 0 14px 40px rgba(15, 23, 42, 0.18);
+    padding: 16px;
     z-index: 200;
-    width: 280px;
+    width: 320px;
   }
   .mp-popup.show { display: block; }
   .mp-header {
     display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f1f5f9;
     margin-bottom: 12px;
   }
-  .mp-year { font-weight: 700; font-size: 15px; color: var(--text); }
+  .mp-year { font-weight: 700; font-size: 16px; color: var(--text); letter-spacing: 0.5px; }
   .mp-nav {
-    background: transparent; color: var(--text);
-    padding: 4px 10px; font-size: 14px; border-radius: 6px;
-  }
-  .mp-nav:hover { background: #f3f4f6; }
-  .mp-months {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-  }
-  .mp-month {
-    padding: 10px 4px;
-    text-align: center;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 12px;
-    background: #f8fafc;
+    background: transparent;
     color: var(--text);
+    padding: 6px 12px;
+    font-size: 16px;
+    line-height: 1;
+    border-radius: 8px;
     border: 1px solid transparent;
   }
-  .mp-month:hover { background: #dbeafe; border-color: var(--primary); }
-  .mp-month.selected { background: var(--primary); color: white; font-weight: 700; border-color: var(--primary); }
-  .mp-month.current { color: var(--primary); font-weight: 700; }
-  .mp-actions { margin-top: 10px; display: flex; gap: 6px; }
-  .mp-actions button { flex: 1; padding: 6px; font-size: 11px; }
+  .mp-nav:hover { background: #eef2ff; border-color: #c7d2fe; color: var(--primary); }
+  .mp-grid {
+    display: grid;
+    grid-template-columns: 28px repeat(3, 1fr);
+    gap: 6px 8px;
+    align-items: center;
+  }
+  .mp-quarter {
+    text-align: center;
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .mp-month {
+    padding: 12px 4px 10px;
+    text-align: center;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    background: #f8fafc;
+    color: var(--text);
+    border: 1px solid #f1f5f9;
+    position: relative;
+    transition: background 0.12s, border-color 0.12s, transform 0.08s;
+  }
+  .mp-month:hover { background: #eef2ff; border-color: var(--primary); transform: translateY(-1px); }
+  .mp-month.selected { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25); }
+  .mp-month.selected::after { display: none; }
+  .mp-month.current { color: var(--primary); border-color: #c7d2fe; }
+  .mp-month.current::after {
+    content: '';
+    position: absolute;
+    bottom: 4px; left: 50%;
+    transform: translateX(-50%);
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--primary);
+  }
+  .mp-actions { margin-top: 12px; display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+  .mp-actions button { flex: 1; padding: 8px; font-size: 12px; border-radius: 8px; }
 
   /* ----- Attendance grid ----- */
   .att-wrap { overflow-x: auto; }
@@ -1745,7 +1773,9 @@ function viewSummary() {
     : '';
 
   // Pull 広告費 / 予約数 from Meta広告データ when available (overrides manual entries)
-  const metaSummary = aggregateMetaForPeriod(clinicFilter, from, to);
+  // 広告費 / 予約数 / CPA は **当月のみ** の Meta データを表示する（期間フィルタを無視）
+  const currentYM = ymOf(new Date());
+  const metaSummary = aggregateMetaForPeriod(clinicFilter, currentYM, currentYM);
   const hasMeta = metaSummary.hasData;
   const adspend = hasMeta ? metaSummary.adspend : t.adspend;
   const reservations = hasMeta ? metaSummary.registrations : t.reservations;
@@ -1758,7 +1788,8 @@ function viewSummary() {
   const showRoas = adspend > 0;
   const showCpa = reservations > 0 && adspend > 0;
   const showAvg = (t.newCustomers + t.repeatVisits) > 0;
-  const metaTag = hasMeta ? '<span style="font-size:10px; color:var(--primary); background:#eff6ff; padding:1px 5px; border-radius:3px; margin-left:4px;">Meta連携</span>' : '';
+  const monthLabel = `${currentYM.slice(0, 4)}年${Number(currentYM.slice(5))}月`;
+  const metaTag = hasMeta ? `<span style="font-size:10px; color:var(--primary); background:#eff6ff; padding:1px 5px; border-radius:3px; margin-left:4px;">Meta連携 ${monthLabel}</span>` : '';
 
   return `
     <div class="kpi-grid">
@@ -1771,64 +1802,9 @@ function viewSummary() {
       <div class="kpi-card"><div class="kpi-label">客単価</div><div class="kpi-value">${showAvg ? yen(avgPerCust) : dash}</div></div>
       <div class="kpi-card"><div class="kpi-label">予約数${metaTag}</div><div class="kpi-value">${fmt(reservations)}</div></div>
     </div>
-    <div class="grid-2">
-      <div class="card"><h2>📈 月次売上推移</h2><canvas id="chart_summary_revenue" height="180"></canvas></div>
-      <div class="card"><h2>💰 広告費 vs 新規顧客</h2><canvas id="chart_summary_ad" height="180"></canvas></div>
-    </div>
   `;
 }
-function viewSummaryAfter() {
-  const entries = filteredEntries();
-  if (!hasPlotData(entries)) {
-    emptyChart('chart_summary_revenue');
-    emptyChart('chart_summary_ad');
-    return;
-  }
-  const months = [...new Set(entries.map(e => e.month))].sort();
-  const clinic = document.getElementById('clinicSelect').value;
-  const datasets = [];
-  if (clinic === 'all') {
-    Object.keys(CLINICS).forEach((cKey, i) => {
-      datasets.push({
-        label: CLINICS[cKey],
-        data: months.map(m => { const e = entries.find(x => x.month === m && x.clinic === cKey); return e ? e.revenue : 0; }),
-        backgroundColor: i === 0 ? '#2563eb' : '#7c3aed',
-      });
-    });
-  } else {
-    datasets.push({
-      label: CLINICS[clinic],
-      data: months.map(m => { const e = entries.find(x => x.month === m); return e ? e.revenue : 0; }),
-      backgroundColor: '#2563eb',
-    });
-  }
-  destroyChart('summary_revenue');
-  charts.summary_revenue = new Chart(document.getElementById('chart_summary_revenue'), {
-    type: 'bar', data: { labels: months, datasets },
-    options: { responsive: true, plugins: {
-        legend: { position: 'bottom' },
-        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + yen(ctx.parsed.y) } },
-      },
-      scales: { y: { beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } } } },
-  });
-  const adData = months.map(m => entries.filter(e => e.month === m).reduce((s,e) => s + e.adspend, 0));
-  const newData = months.map(m => entries.filter(e => e.month === m).reduce((s,e) => s + e.newCustomers, 0));
-  destroyChart('summary_ad');
-  charts.summary_ad = new Chart(document.getElementById('chart_summary_ad'), {
-    type: 'bar',
-    data: { labels: months, datasets: [
-      { type: 'bar', label: '広告費', data: adData, backgroundColor: '#f59e0b', yAxisID: 'y' },
-      { type: 'line', label: '新規顧客', data: newData, borderColor: '#10b981', backgroundColor: '#10b981', yAxisID: 'y1', tension: 0.3 },
-    ]},
-    options: { responsive: true, plugins: {
-        legend: { position: 'bottom' },
-        tooltip: { callbacks: { label: ctx => ctx.dataset.label === '広告費' ? '広告費: ' + yen(ctx.parsed.y) : '新規顧客: ' + fmt(ctx.parsed.y) + '人' } },
-      },
-      scales: {
-        y:  { position: 'left',  beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } },
-        y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { precision: 0, stepSize: 1, callback: v => v + '人' } } } },
-  });
-}
+function viewSummaryAfter() { /* charts removed */ }
 
 function viewRevenueEntry() {
   const today = new Date();
@@ -2023,16 +1999,20 @@ function renderMonthPicker(prefix) {
   const year = pickerState[prefix].year;
   let html = `
     <div class="mp-header">
-      <button class="mp-nav" onclick="shiftMonthPickerYear('${prefix}', -1)">‹</button>
+      <button class="mp-nav" onclick="shiftMonthPickerYear('${prefix}', -1)" title="前年">‹</button>
       <div class="mp-year">${year}年</div>
-      <button class="mp-nav" onclick="shiftMonthPickerYear('${prefix}', 1)">›</button>
+      <button class="mp-nav" onclick="shiftMonthPickerYear('${prefix}', 1)" title="翌年">›</button>
     </div>
-    <div class="mp-months">
+    <div class="mp-grid">
   `;
-  for (let m = 1; m <= 12; m++) {
-    const ym = `${year}-${pad2(m)}`;
-    const cls = (current === ym ? 'selected ' : '') + (todayYM === ym ? 'current ' : '');
-    html += `<div class="mp-month ${cls}" onclick="pickMonth('${prefix}','${ym}')">${m}月</div>`;
+  for (let q = 0; q < 4; q++) {
+    html += `<div class="mp-quarter">Q${q + 1}</div>`;
+    for (let i = 1; i <= 3; i++) {
+      const m = q * 3 + i;
+      const ym = `${year}-${pad2(m)}`;
+      const cls = (current === ym ? 'selected ' : '') + (todayYM === ym ? 'current ' : '');
+      html += `<div class="mp-month ${cls}" onclick="pickMonth('${prefix}','${ym}')">${m}月</div>`;
+    }
   }
   html += `</div>
     <div class="mp-actions">
