@@ -2081,9 +2081,9 @@ function renderMonthPicker(prefix) {
   const year = pickerState[prefix].year;
   let html = `
     <div class="mp-header">
-      <button class="mp-nav" onclick="shiftMonthPickerYear('${prefix}', -1)" title="前年">‹</button>
+      <button class="mp-nav" onclick="event.stopPropagation(); shiftMonthPickerYear('${prefix}', -1)" title="前年">‹</button>
       <div class="mp-year">${year}年</div>
-      <button class="mp-nav" onclick="shiftMonthPickerYear('${prefix}', 1)" title="翌年">›</button>
+      <button class="mp-nav" onclick="event.stopPropagation(); shiftMonthPickerYear('${prefix}', 1)" title="翌年">›</button>
     </div>
     <div class="mp-grid">
   `;
@@ -2166,9 +2166,9 @@ function renderDayPicker(prefix) {
   const daysInMonth = new Date(year, month, 0).getDate();
   let html = `
     <div class="dp-header">
-      <button class="mp-nav" onclick="shiftDayPickerMonth('${prefix}', -1)" title="前月">◁</button>
+      <button class="mp-nav" onclick="event.stopPropagation(); shiftDayPickerMonth('${prefix}', -1)" title="前月">◁</button>
       <div class="dp-title">${year}年 ${month}月</div>
-      <button class="mp-nav" onclick="shiftDayPickerMonth('${prefix}', 1)" title="翌月">▷</button>
+      <button class="mp-nav" onclick="event.stopPropagation(); shiftDayPickerMonth('${prefix}', 1)" title="翌月">▷</button>
     </div>
     <div class="dp-weekdays">
       <div class="dp-weekday sun">日</div><div class="dp-weekday">月</div><div class="dp-weekday">火</div><div class="dp-weekday">水</div><div class="dp-weekday">木</div><div class="dp-weekday">金</div><div class="dp-weekday sat">土</div>
