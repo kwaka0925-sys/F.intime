@@ -1073,7 +1073,6 @@
       <div class="nav-item" data-view="meta-ads"><span class="icon">📣</span>Meta広告</div>
       <div class="nav-item" data-view="ad-cost"><span class="icon">💰</span>広告費管理</div>
       <div class="nav-item" data-view="channel"><span class="icon">📊</span>集客チャネル</div>
-      <div class="nav-item" data-view="cpa-roas"><span class="icon">🎯</span>CPA / ROAS分析</div>
     </div>
 
     <div class="nav-group collapsible" id="grp-reservations">
@@ -1203,7 +1202,6 @@ const VIEWS = {
   'meta-ads':             { title: 'Meta広告',         crumb: '広告・集客 / Meta広告',                  filters: true },
   'ad-cost':              { title: '広告費管理',       crumb: '広告・集客 / 広告費管理',                filters: true },
   'channel':              { title: '集客チャネル',     crumb: '広告・集客 / 集客チャネル',              filters: true },
-  'cpa-roas':             { title: 'CPA / ROAS分析',   crumb: '広告・集客 / CPA / ROAS分析',            filters: true },
   'reservation-list':     { title: '予約一覧',         crumb: '予約管理 / 予約一覧',                    filters: false },
   'reservation-calendar': { title: 'カレンダー',       crumb: '予約管理 / カレンダー',                  filters: false },
   'customers':            { title: '顧客一覧',         crumb: '顧客管理 / 顧客一覧',                    filters: false },
@@ -3292,52 +3290,6 @@ function viewChannelAfter() {
   });
 }
 
-function viewCpaRoas() {
-  const entries = filteredEntries();
-  return `<div class="card"><h2>🎯 月次 CPA / ROAS 推移</h2><canvas id="chart_cpa" height="120"></canvas></div>
-    <div class="card" style="margin-top:18px;"><h2>月次明細</h2>
-      <table><thead><tr><th>年月</th><th>店舗</th><th class="num">広告費</th><th class="num">新規顧客</th><th class="num">CPA</th><th class="num">売上</th><th class="num">ROAS</th></tr></thead>
-      <tbody>${entries.length === 0 ? '<tr><td colspan="7" class="empty">データなし</td></tr>' :
-        entries.map(e => {
-          const cpa = e.newCustomers > 0 ? e.adspend / e.newCustomers : 0;
-          const roas = e.adspend > 0 ? (e.revenue / e.adspend) * 100 : 0;
-          return `<tr><td>${e.month}</td><td>${CLINICS[e.clinic]}</td><td class="num">${yen(e.adspend)}</td><td class="num">${e.newCustomers}</td><td class="num">${yen(cpa)}</td><td class="num">${yen(e.revenue)}</td><td class="num">${roas.toFixed(0)}%</td></tr>`;
-        }).join('')}
-      </tbody></table>
-    </div>`;
-}
-function viewCpaRoasAfter() {
-  const entries = filteredEntries();
-  if (!entries.length || !entries.some(e => e.adspend > 0)) { emptyChart('chart_cpa', 'この期間の広告費データはありません'); return; }
-  const months = [...new Set(entries.map(e => e.month))].sort();
-  const cpaData = months.map(m => {
-    const ms = entries.filter(e => e.month === m);
-    const ad = ms.reduce((s,e) => s + e.adspend, 0);
-    const nc = ms.reduce((s,e) => s + e.newCustomers, 0);
-    return nc > 0 ? Math.round(ad / nc) : 0;
-  });
-  const roasData = months.map(m => {
-    const ms = entries.filter(e => e.month === m);
-    const ad = ms.reduce((s,e) => s + e.adspend, 0);
-    const rv = ms.reduce((s,e) => s + e.revenue, 0);
-    return ad > 0 ? Math.round((rv / ad) * 100) : 0;
-  });
-  destroyChart('cpa');
-  charts.cpa = new Chart(document.getElementById('chart_cpa'), {
-    data: { labels: months, datasets: [
-      { type: 'bar', label: 'CPA (円)', data: cpaData, backgroundColor: '#f59e0b', yAxisID: 'y' },
-      { type: 'line', label: 'ROAS (%)', data: roasData, borderColor: '#10b981', backgroundColor: '#10b981', yAxisID: 'y1', tension: 0.3 },
-    ]},
-    options: { responsive: true, plugins: {
-        legend: { position: 'bottom' },
-        tooltip: { callbacks: { label: ctx => ctx.dataset.label === 'CPA (円)' ? 'CPA: ' + yen(ctx.parsed.y) : 'ROAS: ' + ctx.parsed.y + '%' } },
-      },
-      scales: {
-        y:  { position: 'left',  beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } },
-        y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { precision: 0, callback: v => v + '%' } } } },
-  });
-}
-
 function viewClinics() {
   return `<div class="card"><h2>🏥 店舗一覧</h2>
     <table>
@@ -4638,7 +4590,6 @@ const VIEW_RENDER = {
   'meta-ads':             { html: viewMetaAds, after: viewMetaAdsAfter },
   'ad-cost':              { html: viewAdCost, after: viewAdCostAfter },
   'channel':              { html: viewChannel, after: viewChannelAfter },
-  'cpa-roas':             { html: viewCpaRoas, after: viewCpaRoasAfter },
   'reservation-list':     { html: viewReservationList },
   'reservation-calendar': { html: viewReservationCalendar },
   'customers':            { html: viewCustomers },
