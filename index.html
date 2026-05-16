@@ -1065,7 +1065,7 @@
       <div class="nav-item" data-view="revenue-entry"><span class="icon">📝</span>月次売上入力</div>
       <div class="nav-item" data-view="daily-sales"><span class="icon">📅</span>日次売上</div>
       <div class="nav-item" data-view="revenue-list"><span class="icon">📋</span>売上一覧</div>
-      <div class="nav-item" data-view="revenue-trend"><span class="icon">📈</span>売上推移</div>
+      <div class="nav-item" data-view="revenue-trend"><span class="icon">📊</span>媒体別集客実績</div>
     </div>
 
     <div class="nav-group collapsible" id="grp-ads">
@@ -1180,6 +1180,14 @@ const CHANNEL_LABELS = {
   organic: '自然検索/MEO',
   other: 'その他',
 };
+// 媒体別集客実績シート用：チャネル定義（meta は Meta CSV から自動取り込み、その他は手入力）
+const ACQUISITION_CHANNELS = [
+  { key: 'flyer',   label: 'チラシ',    icon: '📄', manual: true  },
+  { key: 'hpb',     label: 'HPB',       icon: '💇', manual: true  },
+  { key: 'meta',    label: 'メタ広告',  icon: '📣', manual: false },
+  { key: 'gmap',    label: 'MAP',       icon: '🗺️', manual: true  },
+  { key: 'threads', label: 'スレッズ',  icon: '🧵', manual: true  },
+];
 const STORAGE_KEY = 'naoru_dashboard_v1';
 
 let state = { entries: [] };
@@ -1191,7 +1199,7 @@ const VIEWS = {
   'revenue-entry':        { title: '月次売上入力',     crumb: '売上管理 / 月次売上入力',                filters: false },
   'daily-sales':          { title: '日次売上',         crumb: '売上管理 / 日次売上',                    filters: false },
   'revenue-list':         { title: '売上一覧',         crumb: '売上管理 / 売上一覧',                    filters: true },
-  'revenue-trend':        { title: '売上推移',         crumb: '売上管理 / 売上推移',                    filters: true },
+  'revenue-trend':        { title: '媒体別集客実績',   crumb: '広告・集客 / 媒体別集客実績',            filters: true },
   'meta-ads':             { title: 'Meta広告',         crumb: '広告・集客 / Meta広告',                  filters: true },
   'ad-cost':              { title: '広告費管理',       crumb: '広告・集客 / 広告費管理',                filters: true },
   'channel':              { title: '集客チャネル',     crumb: '広告・集客 / 集客チャネル',              filters: true },
@@ -1274,6 +1282,7 @@ function load() {
   if (!state.calView) state.calView = 'month';
   if (!state.attendanceMonth) state.attendanceMonth = ymOf(new Date());
   if (!state.dailyEntries) state.dailyEntries = [];
+  if (!state.channelEntries) state.channelEntries = []; // {month, clinic, channel, budget, customers}
   if (!state.dailyClinic) state.dailyClinic = 'nakamozu';
   if (!state.dailyMonth) state.dailyMonth = '2026-05';
   if (!state.dailySeeded) {
@@ -1737,25 +1746,32 @@ function viewSummary() {
        </div>`
     : '';
 
-  const cpa = t.newCustomers > 0 ? t.adspend / t.newCustomers : 0;
-  const roas = t.adspend > 0 ? (t.revenue / t.adspend) * 100 : 0;
+  // Pull 広告費 / 予約数 from Meta広告データ when available (overrides manual entries)
+  const metaSummary = aggregateMetaForPeriod(clinicFilter, from, to);
+  const hasMeta = metaSummary.hasData;
+  const adspend = hasMeta ? metaSummary.adspend : t.adspend;
+  const reservations = hasMeta ? metaSummary.registrations : t.reservations;
+
+  const cpa = reservations > 0 ? adspend / reservations : 0;
+  const roas = adspend > 0 ? (t.revenue / adspend) * 100 : 0;
   const avgPerCust = (t.newCustomers + t.repeatVisits) > 0 ? t.revenue / (t.newCustomers + t.repeatVisits) : 0;
 
   const dash = '—';
-  const showRoas = t.adspend > 0;
-  const showCpa = t.newCustomers > 0;
+  const showRoas = adspend > 0;
+  const showCpa = reservations > 0 && adspend > 0;
   const showAvg = (t.newCustomers + t.repeatVisits) > 0;
+  const metaTag = hasMeta ? '<span style="font-size:10px; color:var(--primary); background:#eff6ff; padding:1px 5px; border-radius:3px; margin-left:4px;">Meta連携</span>' : '';
 
   return `
     <div class="kpi-grid">
       <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:var(--primary);">${yen(t.revenue)}</div><div class="kpi-sub">${groupNote}</div>${breakdownHtml}</div>
-      <div class="kpi-card"><div class="kpi-label">広告費</div><div class="kpi-value">${yen(t.adspend)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">広告費${metaTag}</div><div class="kpi-value">${yen(adspend)}</div></div>
       <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(t.newCustomers)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
       <div class="kpi-card"><div class="kpi-label">リピート来院</div><div class="kpi-value">${fmt(t.repeatVisits)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
-      <div class="kpi-card"><div class="kpi-label">CPA</div><div class="kpi-value">${showCpa ? yen(cpa) : dash}</div><div class="kpi-sub">${showCpa ? '顧客獲得単価' : 'データなし'}</div></div>
-      <div class="kpi-card"><div class="kpi-label">ROAS</div><div class="kpi-value">${showRoas ? Math.round(roas) + '%' : dash}</div><div class="kpi-sub ${showRoas ? (roas >= 300 ? 'up' : 'down') : ''}">${showRoas ? (roas >= 300 ? '良好' : '要改善 (目安300%以上)') : 'データなし'}</div></div>
+      <div class="kpi-card"><div class="kpi-label">CPA${metaTag}</div><div class="kpi-value">${showCpa ? yen(cpa) : dash}</div><div class="kpi-sub">${showCpa ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
+      <div class="kpi-card"><div class="kpi-label">ROAS</div><div class="kpi-value">${showRoas ? Math.round(roas) + '%' : dash}</div><div class="kpi-sub ${showRoas ? (roas >= 300 ? 'up' : 'down') : ''}">${showRoas ? (roas >= 300 ? '良好 (売上 ÷ 広告費)' : '要改善 (目安300%以上)') : 'データなし'}</div></div>
       <div class="kpi-card"><div class="kpi-label">客単価</div><div class="kpi-value">${showAvg ? yen(avgPerCust) : dash}</div></div>
-      <div class="kpi-card"><div class="kpi-label">予約数</div><div class="kpi-value">${fmt(t.reservations)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">予約数${metaTag}</div><div class="kpi-value">${fmt(reservations)}</div></div>
     </div>
     <div class="grid-2">
       <div class="card"><h2>📈 月次売上推移</h2><canvas id="chart_summary_revenue" height="180"></canvas></div>
@@ -2657,6 +2673,34 @@ function getFilteredMetaRows() {
   return allRows.filter(r => r.campaign && r.campaign.includes(keyword));
 }
 
+// Aggregate Meta ad data for a clinic filter ('all' | 'nakamozu' | 'tenrokuten')
+// and YYYY-MM period range. Used by 経営サマリー to surface Meta-derived
+// adspend / 予約数 / CPA without manual entry.
+function aggregateMetaForPeriod(clinicFilter, fromMonth, toMonth) {
+  const allRows = state.metaRows || [];
+  let rows;
+  if (clinicFilter === 'all') {
+    rows = allRows.filter(r => getMetaClinicFromCampaign(r.campaign));
+  } else {
+    const keyword = clinicFilter === 'nakamozu' ? '中百舌鳥' : '天満天六';
+    rows = allRows.filter(r => r.campaign && r.campaign.includes(keyword));
+  }
+  const inRange = rows.filter(r => {
+    if (!r.date) return false;
+    const ym = r.date.slice(0, 7);
+    if (fromMonth && ym < fromMonth) return false;
+    if (toMonth && ym > toMonth) return false;
+    return true;
+  });
+  const adspend = inRange.reduce((s, r) => s + (r.amountSpent || 0), 0);
+  const registrations = inRange.reduce((s, r) => s + (r.registrations || 0), 0);
+  return {
+    adspend,
+    registrations,
+    hasData: inRange.length > 0 && (adspend > 0 || registrations > 0),
+  };
+}
+
 function renderMetaDebug() {
   if (!state.metaHeaders || state.metaHeaders.length === 0) return '';
   // Auto-open when the parser produced 0 rows so the user sees the diagnostic immediately
@@ -2996,47 +3040,192 @@ function viewRevenueList() {
     </div>`;
 }
 
-function viewRevenueTrend() {
-  return `<div class="card"><h2>📈 月次売上推移</h2><canvas id="chart_trend" height="120"></canvas></div>
-    <div class="card" style="margin-top:18px;"><h2>店舗別 売上構成比</h2><canvas id="chart_share" height="120"></canvas></div>`;
+// ===== 媒体別集客実績シート =====
+// 5 チャネル (チラシ / HPB / メタ広告 / MAP / スレッズ) について
+// 期間×店舗ごとに「予算」と「集客数」を表示。メタ広告は Meta CSV から自動集計し、
+// それ以外は手入力で保存する。
+function getChannelManualEntry(month, clinic, channel) {
+  return (state.channelEntries || []).find(
+    e => e.month === month && e.clinic === clinic && e.channel === channel,
+  );
 }
-function viewRevenueTrendAfter() {
-  const entries = filteredEntries();
-  if (!hasPlotData(entries)) {
-    emptyChart('chart_trend');
-    emptyChart('chart_share');
-    return;
+function setChannelManualEntry(month, clinic, channel, patch) {
+  state.channelEntries = state.channelEntries || [];
+  let e = getChannelManualEntry(month, clinic, channel);
+  if (!e) {
+    e = { month, clinic, channel, budget: 0, customers: 0 };
+    state.channelEntries.push(e);
   }
-  const months = [...new Set(entries.map(e => e.month))].sort();
-  const clinic = document.getElementById('clinicSelect').value;
-  const datasets = clinic === 'all'
-    ? Object.keys(CLINICS).map((cKey, i) => ({
-        label: CLINICS[cKey],
-        data: months.map(m => { const e = entries.find(x => x.month === m && x.clinic === cKey); return e ? e.revenue : 0; }),
-        borderColor: i === 0 ? '#2563eb' : '#7c3aed',
-        backgroundColor: i === 0 ? 'rgba(37,99,235,0.1)' : 'rgba(124,58,237,0.1)',
-        tension: 0.3, fill: true,
-      }))
-    : [{ label: CLINICS[clinic], data: months.map(m => { const e = entries.find(x => x.month === m); return e ? e.revenue : 0; }), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)', tension: 0.3, fill: true }];
-  destroyChart('trend');
-  charts.trend = new Chart(document.getElementById('chart_trend'), {
-    type: 'line', data: { labels: months, datasets },
-    options: { responsive: true, plugins: {
-        legend: { position: 'bottom' },
-        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + yen(ctx.parsed.y) } },
-      },
-      scales: { y: { beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } } } },
+  if (patch.budget !== undefined) e.budget = Math.max(0, Number(patch.budget) || 0);
+  if (patch.customers !== undefined) e.customers = Math.max(0, Number(patch.customers) || 0);
+  save();
+}
+// Meta CSV を 月×店舗×チャネル('meta') の {budget, customers} 形に集計
+function aggregateMetaByMonthClinic(fromMonth, toMonth) {
+  const out = {}; // key: month__clinic
+  (state.metaRows || []).forEach(r => {
+    if (!r.date) return;
+    const ym = r.date.slice(0, 7);
+    if (fromMonth && ym < fromMonth) return;
+    if (toMonth && ym > toMonth) return;
+    const cl = getMetaClinicFromCampaign(r.campaign);
+    if (!cl) return;
+    const k = `${ym}__${cl}`;
+    if (!out[k]) out[k] = { budget: 0, customers: 0 };
+    out[k].budget += r.amountSpent || 0;
+    out[k].customers += r.registrations || 0;
   });
-  const totals = Object.keys(CLINICS).map(c => entries.filter(e => e.clinic === c).reduce((s,e) => s + e.revenue, 0));
-  destroyChart('share');
-  charts.share = new Chart(document.getElementById('chart_share'), {
-    type: 'doughnut',
-    data: { labels: Object.values(CLINICS), datasets: [{ data: totals, backgroundColor: ['#2563eb', '#7c3aed'] }] },
-    options: { responsive: true, plugins: {
-        legend: { position: 'bottom' },
-        tooltip: { callbacks: { label: ctx => ctx.label + ': ' + yen(ctx.parsed) } },
-      } },
+  return out;
+}
+function getChannelValue(month, clinic, channel, metaAgg) {
+  if (channel === 'meta') {
+    return metaAgg[`${month}__${clinic}`] || { budget: 0, customers: 0, fromMeta: true };
+  }
+  const e = getChannelManualEntry(month, clinic, channel);
+  return e ? { budget: e.budget, customers: e.customers } : { budget: 0, customers: 0 };
+}
+function listMonthsInRange(fromMonth, toMonth) {
+  if (!fromMonth || !toMonth) {
+    // fallback: this year
+    const y = new Date().getFullYear();
+    return Array.from({ length: 12 }, (_, i) => `${y}-${pad2(i + 1)}`);
+  }
+  const out = [];
+  const [fy, fm] = fromMonth.split('-').map(Number);
+  const [ty, tm] = toMonth.split('-').map(Number);
+  let y = fy, m = fm;
+  while (y < ty || (y === ty && m <= tm)) {
+    out.push(`${y}-${pad2(m)}`);
+    m++; if (m > 12) { m = 1; y++; }
+  }
+  return out;
+}
+
+function viewRevenueTrend() {
+  const clinicFilter = document.getElementById('clinicSelect').value;
+  const { from, to } = getPeriodRange();
+  const months = listMonthsInRange(from, to);
+  const metaAgg = aggregateMetaByMonthClinic(from, to);
+  const targetClinics = clinicFilter === 'all' ? Object.keys(CLINICS) : [clinicFilter];
+
+  // 期間合計サマリー (5チャネル × 表示対象店舗合算)
+  const channelTotals = {};
+  ACQUISITION_CHANNELS.forEach(c => channelTotals[c.key] = { budget: 0, customers: 0 });
+  months.forEach(m => {
+    targetClinics.forEach(cl => {
+      ACQUISITION_CHANNELS.forEach(c => {
+        const v = getChannelValue(m, cl, c.key, metaAgg);
+        channelTotals[c.key].budget += v.budget;
+        channelTotals[c.key].customers += v.customers;
+      });
+    });
   });
+  const grandBudget = Object.values(channelTotals).reduce((s, v) => s + v.budget, 0);
+  const grandCustomers = Object.values(channelTotals).reduce((s, v) => s + v.customers, 0);
+  const grandCpa = grandCustomers > 0 ? Math.round(grandBudget / grandCustomers) : 0;
+
+  const clinicLabel = clinicFilter === 'all' ? '全店舗合算' : CLINICS[clinicFilter];
+  const periodLabel = months.length === 1 ? months[0] : `${months[0]} 〜 ${months[months.length - 1]}`;
+
+  const summaryCards = ACQUISITION_CHANNELS.map(c => {
+    const t = channelTotals[c.key];
+    const cpa = t.customers > 0 ? Math.round(t.budget / t.customers) : 0;
+    const isMeta = !c.manual;
+    return `<div class="kpi-card" style="${isMeta ? 'background:#eff6ff;' : ''}">
+      <div class="kpi-label">${c.icon} ${c.label}${isMeta ? ' <span style="font-size:10px; color:var(--primary); background:#dbeafe; padding:1px 5px; border-radius:3px;">Meta連携</span>' : ''}</div>
+      <div style="font-size:13px; color:var(--muted); margin-top:6px;">予算</div>
+      <div style="font-weight:700; color:var(--text-dark);">${yen(t.budget)}</div>
+      <div style="font-size:13px; color:var(--muted); margin-top:6px;">集客</div>
+      <div style="font-weight:700; color:var(--text-dark);">${fmt(t.customers)} <span style="font-size:11px; color:var(--muted);">名</span></div>
+      <div style="font-size:13px; color:var(--muted); margin-top:6px;">CPA</div>
+      <div style="font-weight:700; color:${cpa > 0 ? 'var(--text-dark)' : 'var(--muted)'};">${t.customers > 0 ? yen(cpa) : '—'}</div>
+    </div>`;
+  }).join('');
+
+  // 月次内訳テーブル：行=月（×店舗 'all'時）、列=媒体（予算/集客）
+  const rows = [];
+  months.forEach(m => {
+    targetClinics.forEach(cl => {
+      rows.push({ month: m, clinic: cl });
+    });
+  });
+
+  const tableHtml = rows.length === 0 ? '<div class="empty">期間を選択してください。</div>' : `
+    <div style="overflow-x:auto;">
+    <table style="min-width:100%; font-size:13px;">
+      <thead>
+        <tr style="background:#f8fafc;">
+          <th rowspan="2" style="position:sticky; left:0; background:#f8fafc; z-index:1;">年月</th>
+          ${clinicFilter === 'all' ? '<th rowspan="2">店舗</th>' : ''}
+          ${ACQUISITION_CHANNELS.map(c => `<th colspan="2" style="text-align:center; ${c.manual ? '' : 'background:#eff6ff;'}">${c.icon} ${c.label}${c.manual ? '' : ' <span style="font-size:9px;">📡</span>'}</th>`).join('')}
+          <th rowspan="2" class="num">月計 予算</th>
+          <th rowspan="2" class="num">月計 集客</th>
+        </tr>
+        <tr style="background:#f8fafc;">
+          ${ACQUISITION_CHANNELS.map(c => `<th class="num" style="${c.manual ? '' : 'background:#eff6ff;'}">予算</th><th class="num" style="${c.manual ? '' : 'background:#eff6ff;'}">集客</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => {
+          let rowBudget = 0, rowCustomers = 0;
+          const cells = ACQUISITION_CHANNELS.map(c => {
+            const v = getChannelValue(r.month, r.clinic, c.key, metaAgg);
+            rowBudget += v.budget;
+            rowCustomers += v.customers;
+            if (c.manual) {
+              return `
+                <td class="num"><input type="number" min="0" step="100" value="${v.budget || ''}" placeholder="0"
+                    style="width:90px; text-align:right; padding:4px 6px; border:1px solid #e5e7eb; border-radius:4px;"
+                    onchange="updateChannelEntry('${r.month}','${r.clinic}','${c.key}','budget',this.value)" /></td>
+                <td class="num"><input type="number" min="0" step="1" value="${v.customers || ''}" placeholder="0"
+                    style="width:60px; text-align:right; padding:4px 6px; border:1px solid #e5e7eb; border-radius:4px;"
+                    onchange="updateChannelEntry('${r.month}','${r.clinic}','${c.key}','customers',this.value)" /></td>`;
+            }
+            return `<td class="num" style="background:#eff6ff; color:var(--text-dark);">${v.budget > 0 ? yen(v.budget) : '—'}</td>
+                    <td class="num" style="background:#eff6ff; color:var(--text-dark);">${v.customers > 0 ? fmt(v.customers) : '—'}</td>`;
+          }).join('');
+          return `<tr>
+            <td style="position:sticky; left:0; background:#fff; font-weight:600;">${r.month}</td>
+            ${clinicFilter === 'all' ? `<td>${CLINICS[r.clinic]}</td>` : ''}
+            ${cells}
+            <td class="num" style="font-weight:600;">${yen(rowBudget)}</td>
+            <td class="num" style="font-weight:600;">${fmt(rowCustomers)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>`;
+
+  return `
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+        <div>
+          <h2 style="margin:0;">📊 媒体別 集客実績 (${clinicLabel})</h2>
+          <div style="font-size:12px; color:var(--muted); margin-top:4px;">期間: ${periodLabel}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:12px; color:var(--muted);">期間合計</div>
+          <div style="font-size:13px;"><strong>予算 ${yen(grandBudget)}</strong> / <strong>集客 ${fmt(grandCustomers)}名</strong></div>
+          <div style="font-size:12px; color:var(--muted);">平均CPA: ${grandCustomers > 0 ? yen(grandCpa) : '—'}</div>
+        </div>
+      </div>
+      <div class="kpi-grid">${summaryCards}</div>
+      <div style="font-size:11px; color:var(--muted); margin-top:10px;">
+        📡 メタ広告は Meta広告画面で取り込んだCSVから自動集計されます。チラシ・HPB・MAP・スレッズは下表のセルを直接編集して保存できます。
+      </div>
+    </div>
+    <div class="card" style="margin-top:18px;">
+      <h2 style="margin-top:0;">📋 月次内訳 (クリックで入力)</h2>
+      ${tableHtml}
+    </div>
+  `;
+}
+function viewRevenueTrendAfter() { /* no charts for now */ }
+
+// テーブルの inline 編集ハンドラ
+function updateChannelEntry(month, clinic, channel, field, value) {
+  setChannelManualEntry(month, clinic, channel, { [field]: value });
+  renderView();
 }
 
 function viewAdCost() {
