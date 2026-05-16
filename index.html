@@ -126,7 +126,7 @@
   .topbar .filters { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .topbar label { font-size: 13px; color: var(--muted); margin-right: 4px; }
 
-  .content { padding: 24px 28px; }
+  .content { padding: 24px 28px; min-width: 0; overflow-x: hidden; }
 
   /* ----- Common form/input ----- */
   select, input[type="number"], input[type="month"], input[type="text"], input[type="date"], input[type="email"], input[type="password"] {
@@ -174,19 +174,20 @@
   /* ----- Cards / KPI ----- */
   .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
     margin-bottom: 20px;
   }
   .kpi-card {
     background: linear-gradient(135deg, #ffffff 0%, #fdfaff 100%);
-    padding: 16px 18px;
+    padding: 12px 14px;
     border-radius: 14px;
     border: 1px solid var(--border);
     box-shadow: 0 1px 3px rgba(99,102,241,0.04);
+    min-width: 0;
   }
-  .kpi-label { font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
-  .kpi-value { font-size: 26px; font-weight: 800; color: var(--text-dark); }
+  .kpi-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+  .kpi-value { font-size: 22px; font-weight: 800; color: var(--text-dark); word-break: break-word; }
   .kpi-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .kpi-sub.up { color: var(--success); }
   .kpi-sub.down { color: var(--danger); }
@@ -1239,7 +1240,7 @@
         <div class="day-picker" id="toMonthWrapper" style="width:160px;">
           <button type="button" class="day-picker-trigger" id="toMonthTrigger" onclick="toggleDayPicker('toMonth')">日付を選択</button>
           <input type="hidden" id="toMonth" />
-          <div class="dp-popup" id="toMonthPopup"></div>
+          <div class="dp-popup" id="toMonthPopup" style="right:0; left:auto;"></div>
         </div>
       </div>
     </div>
@@ -1856,9 +1857,8 @@ function viewSummary() {
     : '';
 
   // Pull 広告費 / 予約数 from Meta広告データ when available (overrides manual entries)
-  // 広告費 / 予約数 / CPA は **当月のみ** の Meta データを表示する（期間フィルタを無視）
-  const currentYM = ymOf(new Date());
-  const metaSummary = aggregateMetaForPeriod(clinicFilter, currentYM, currentYM);
+  // 期間フィルタ from/to に従って Meta データを集計
+  const metaSummary = aggregateMetaForPeriod(clinicFilter, from, to);
   const hasMeta = metaSummary.hasData;
   const adspend = hasMeta ? metaSummary.adspend : t.adspend;
   const reservations = hasMeta ? metaSummary.registrations : t.reservations;
@@ -1871,8 +1871,7 @@ function viewSummary() {
   const showRoas = adspend > 0;
   const showCpa = reservations > 0 && adspend > 0;
   const showAvg = (t.newCustomers + t.repeatVisits) > 0;
-  const monthLabel = `${currentYM.slice(0, 4)}年${Number(currentYM.slice(5))}月`;
-  const metaTag = hasMeta ? `<span style="font-size:10px; color:var(--primary); background:#eff6ff; padding:1px 5px; border-radius:3px; margin-left:4px;">Meta連携 ${monthLabel}</span>` : '';
+  const metaTag = hasMeta ? '<span style="font-size:10px; color:var(--primary); background:#eff6ff; padding:1px 5px; border-radius:3px; margin-left:4px;">Meta連携</span>' : '';
 
   return `
     <div class="kpi-grid">
