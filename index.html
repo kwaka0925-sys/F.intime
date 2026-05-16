@@ -1186,8 +1186,11 @@
       <div class="nav-group-title" onclick="toggleNavGroup('reservations')">予約管理<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="staff"><span class="icon">🧑‍⚕️</span>スタッフ別予約</div>
       <div class="nav-item" data-view="reservation-calendar"><span class="icon">🗓️</span>カレンダー</div>
+    </div>
+
+    <div class="nav-group collapsible" id="grp-attendance">
+      <div class="nav-group-title" onclick="toggleNavGroup('attendance')">勤怠管理<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="staff-attendance"><span class="icon">📋</span>勤怠表</div>
-      <div class="nav-item" data-view="reservation-list"><span class="icon">📅</span>予約一覧<span class="badge-sm">準備中</span></div>
     </div>
 
     <div class="nav-group collapsible" id="grp-customers">
@@ -1309,12 +1312,11 @@ const VIEWS = {
   'meta-ads':             { title: 'Meta広告',         crumb: '広告・集客 / Meta広告',                  filters: true },
   'ad-cost':              { title: '広告費管理',       crumb: '広告・集客 / 広告費管理',                filters: true },
   'channel':              { title: '集客チャネル',     crumb: '広告・集客 / 集客チャネル',              filters: true },
-  'reservation-list':     { title: '予約一覧',         crumb: '予約管理 / 予約一覧',                    filters: false },
   'reservation-calendar': { title: 'カレンダー',       crumb: '予約管理 / カレンダー',                  filters: false },
   'customers':            { title: '顧客一覧',         crumb: '顧客管理 / 顧客一覧',                    filters: false },
   'clinics':              { title: '店舗マスタ',       crumb: 'マスタ管理 / 店舗',                      filters: false },
   'staff':                { title: 'スタッフ別予約',   crumb: '予約管理 / スタッフ別予約',              filters: false },
-  'staff-attendance':     { title: 'スタッフ勤怠表',   crumb: '予約管理 / 勤怠表',                      filters: false },
+  'staff-attendance':     { title: 'スタッフ勤怠表',   crumb: '勤怠管理 / 勤怠表',                      filters: false },
   'data':                 { title: 'データ管理',       crumb: '設定 / データ管理',                      filters: false },
   'import-customers':     { title: '顧客データ移行',   crumb: '設定 / 顧客データ移行',                  filters: false },
   'import-reservations':  { title: '予約データ移行',   crumb: '設定 / 予約データ移行',                  filters: false },
@@ -3585,14 +3587,6 @@ function placeholder(title, icon, items, desc) {
     <ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>
   </div>`;
 }
-function viewReservationList() {
-  return placeholder('予約一覧', '📅', [
-    '個別予約レコード（日時 / 顧客 / 施術メニュー / 担当）',
-    'ステータス管理（予約済 / 来院済 / キャンセル / 無断キャンセル）',
-    'CSV取り込み（RESERVA / Airリザーブ / LINE公式）',
-    'API連携（外部予約システム）',
-  ], '既存の予約システムからのCSV連携を想定しています。');
-}
 // ===== Reservation Calendar =====
 function switchCalClinic(clinic) { state.calClinic = clinic; save(); renderView(); }
 function switchCalView(view) { state.calView = view; save(); renderView(); }
@@ -4853,7 +4847,6 @@ const VIEW_RENDER = {
   'meta-ads':             { html: viewMetaAds, after: viewMetaAdsAfter },
   'ad-cost':              { html: viewAdCost, after: viewAdCostAfter },
   'channel':              { html: viewChannel, after: viewChannelAfter },
-  'reservation-list':     { html: viewReservationList },
   'reservation-calendar': { html: viewReservationCalendar },
   'customers':            { html: viewCustomers },
   'clinics':              { html: viewClinics },
