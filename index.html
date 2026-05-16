@@ -1073,7 +1073,6 @@
       <div class="nav-item" data-view="meta-ads"><span class="icon">📣</span>Meta広告</div>
       <div class="nav-item" data-view="ad-cost"><span class="icon">💰</span>広告費管理</div>
       <div class="nav-item" data-view="channel"><span class="icon">📊</span>集客チャネル</div>
-      <div class="nav-item" data-view="cpa-roas"><span class="icon">🎯</span>CPA / ROAS分析</div>
     </div>
 
     <div class="nav-group collapsible" id="grp-reservations">
@@ -1203,7 +1202,6 @@ const VIEWS = {
   'meta-ads':             { title: 'Meta広告',         crumb: '広告・集客 / Meta広告',                  filters: true },
   'ad-cost':              { title: '広告費管理',       crumb: '広告・集客 / 広告費管理',                filters: true },
   'channel':              { title: '集客チャネル',     crumb: '広告・集客 / 集客チャネル',              filters: true },
-  'cpa-roas':             { title: 'CPA / ROAS分析',   crumb: '広告・集客 / CPA / ROAS分析',            filters: true },
   'reservation-list':     { title: '予約一覧',         crumb: '予約管理 / 予約一覧',                    filters: false },
   'reservation-calendar': { title: 'カレンダー',       crumb: '予約管理 / カレンダー',                  filters: false },
   'customers':            { title: '顧客一覧',         crumb: '顧客管理 / 顧客一覧',                    filters: false },
@@ -3157,12 +3155,13 @@ function viewRevenueTrend() {
         <tr style="background:#f8fafc;">
           <th rowspan="2" style="position:sticky; left:0; background:#f8fafc; z-index:1;">年月</th>
           ${clinicFilter === 'all' ? '<th rowspan="2">店舗</th>' : ''}
-          ${ACQUISITION_CHANNELS.map(c => `<th colspan="2" style="text-align:center; ${c.manual ? '' : 'background:#eff6ff;'}">${c.icon} ${c.label}${c.manual ? '' : ' <span style="font-size:9px;">📡</span>'}</th>`).join('')}
+          ${ACQUISITION_CHANNELS.map(c => `<th colspan="3" style="text-align:center; ${c.manual ? '' : 'background:#eff6ff;'}">${c.icon} ${c.label}${c.manual ? '' : ' <span style="font-size:9px;">📡</span>'}</th>`).join('')}
           <th rowspan="2" class="num">月計 予算</th>
           <th rowspan="2" class="num">月計 集客</th>
+          <th rowspan="2" class="num">月計 CPA</th>
         </tr>
         <tr style="background:#f8fafc;">
-          ${ACQUISITION_CHANNELS.map(c => `<th class="num" style="${c.manual ? '' : 'background:#eff6ff;'}">予算</th><th class="num" style="${c.manual ? '' : 'background:#eff6ff;'}">集客</th>`).join('')}
+          ${ACQUISITION_CHANNELS.map(c => `<th class="num" style="${c.manual ? '' : 'background:#eff6ff;'}">予算</th><th class="num" style="${c.manual ? '' : 'background:#eff6ff;'}">集客</th><th class="num" style="${c.manual ? '' : 'background:#eff6ff;'}">CPA</th>`).join('')}
         </tr>
       </thead>
       <tbody>
@@ -3172,6 +3171,8 @@ function viewRevenueTrend() {
             const v = getChannelValue(r.month, r.clinic, c.key, metaAgg);
             rowBudget += v.budget;
             rowCustomers += v.customers;
+            const cpa = v.customers > 0 ? Math.round(v.budget / v.customers) : 0;
+            const cpaCell = `<td class="num" style="${c.manual ? '' : 'background:#eff6ff;'} color:${cpa > 0 ? 'var(--text-dark)' : 'var(--muted)'};">${cpa > 0 ? yen(cpa) : '—'}</td>`;
             if (c.manual) {
               return `
                 <td class="num"><input type="number" min="0" step="100" value="${v.budget || ''}" placeholder="0"
@@ -3179,26 +3180,36 @@ function viewRevenueTrend() {
                     onchange="updateChannelEntry('${r.month}','${r.clinic}','${c.key}','budget',this.value)" /></td>
                 <td class="num"><input type="number" min="0" step="1" value="${v.customers || ''}" placeholder="0"
                     style="width:60px; text-align:right; padding:4px 6px; border:1px solid #e5e7eb; border-radius:4px;"
-                    onchange="updateChannelEntry('${r.month}','${r.clinic}','${c.key}','customers',this.value)" /></td>`;
+                    onchange="updateChannelEntry('${r.month}','${r.clinic}','${c.key}','customers',this.value)" />
+                </td>
+                ${cpaCell}`;
             }
             return `<td class="num" style="background:#eff6ff; color:var(--text-dark);">${v.budget > 0 ? yen(v.budget) : '—'}</td>
-                    <td class="num" style="background:#eff6ff; color:var(--text-dark);">${v.customers > 0 ? fmt(v.customers) : '—'}</td>`;
+                    <td class="num" style="background:#eff6ff; color:var(--text-dark);">${v.customers > 0 ? fmt(v.customers) : '—'}</td>
+                    ${cpaCell}`;
           }).join('');
+          const rowCpa = rowCustomers > 0 ? Math.round(rowBudget / rowCustomers) : 0;
           return `<tr>
             <td style="position:sticky; left:0; background:#fff; font-weight:600;">${r.month}</td>
             ${clinicFilter === 'all' ? `<td>${CLINICS[r.clinic]}</td>` : ''}
             ${cells}
             <td class="num" style="font-weight:600;">${yen(rowBudget)}</td>
             <td class="num" style="font-weight:600;">${fmt(rowCustomers)}</td>
+            <td class="num" style="font-weight:600; color:${rowCpa > 0 ? 'var(--text-dark)' : 'var(--muted)'};">${rowCpa > 0 ? yen(rowCpa) : '—'}</td>
           </tr>`;
         }).join('')}
       </tbody>
     </table>
     </div>`;
 
+  const clinicBtn = (val, label) => {
+    const active = clinicFilter === val;
+    return `<button type="button" onclick="setRevenueTrendClinic('${val}')" style="padding:6px 14px; border-radius:6px; border:1px solid ${active ? 'var(--primary)' : '#e5e7eb'}; background:${active ? 'var(--primary)' : '#fff'}; color:${active ? '#fff' : 'var(--text-dark)'}; font-size:13px; font-weight:${active ? '600' : '500'}; cursor:pointer;">${label}</button>`;
+  };
+
   return `
     <div class="card">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:12px; flex-wrap:wrap;">
         <div>
           <h2 style="margin:0;">📊 媒体別 集客実績 (${clinicLabel})</h2>
           <div style="font-size:12px; color:var(--muted); margin-top:4px;">期間: ${periodLabel}</div>
@@ -3208,6 +3219,11 @@ function viewRevenueTrend() {
           <div style="font-size:13px;"><strong>予算 ${yen(grandBudget)}</strong> / <strong>集客 ${fmt(grandCustomers)}名</strong></div>
           <div style="font-size:12px; color:var(--muted);">平均CPA: ${grandCustomers > 0 ? yen(grandCpa) : '—'}</div>
         </div>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+        ${clinicBtn('all', '🏥 全店舗')}
+        ${clinicBtn('nakamozu', 'NAORU整体 中百舌鳥院')}
+        ${clinicBtn('tenrokuten', 'NAORU整体 天満天六院')}
       </div>
       <div class="kpi-grid">${summaryCards}</div>
       <div style="font-size:11px; color:var(--muted); margin-top:10px;">
@@ -3226,6 +3242,15 @@ function viewRevenueTrendAfter() { /* no charts for now */ }
 function updateChannelEntry(month, clinic, channel, field, value) {
   setChannelManualEntry(month, clinic, channel, { [field]: value });
   renderView();
+}
+
+// 媒体別集客実績 ビューの店舗フィルタボタン
+function setRevenueTrendClinic(value) {
+  const sel = document.getElementById('clinicSelect');
+  if (sel) {
+    sel.value = value;
+    sel.dispatchEvent(new Event('change'));
+  }
 }
 
 function viewAdCost() {
@@ -3289,52 +3314,6 @@ function viewChannelAfter() {
         legend: { position: 'bottom' },
         tooltip: { callbacks: { label: ctx => ctx.label + ': ' + fmt(ctx.parsed) + '人' } },
       } },
-  });
-}
-
-function viewCpaRoas() {
-  const entries = filteredEntries();
-  return `<div class="card"><h2>🎯 月次 CPA / ROAS 推移</h2><canvas id="chart_cpa" height="120"></canvas></div>
-    <div class="card" style="margin-top:18px;"><h2>月次明細</h2>
-      <table><thead><tr><th>年月</th><th>店舗</th><th class="num">広告費</th><th class="num">新規顧客</th><th class="num">CPA</th><th class="num">売上</th><th class="num">ROAS</th></tr></thead>
-      <tbody>${entries.length === 0 ? '<tr><td colspan="7" class="empty">データなし</td></tr>' :
-        entries.map(e => {
-          const cpa = e.newCustomers > 0 ? e.adspend / e.newCustomers : 0;
-          const roas = e.adspend > 0 ? (e.revenue / e.adspend) * 100 : 0;
-          return `<tr><td>${e.month}</td><td>${CLINICS[e.clinic]}</td><td class="num">${yen(e.adspend)}</td><td class="num">${e.newCustomers}</td><td class="num">${yen(cpa)}</td><td class="num">${yen(e.revenue)}</td><td class="num">${roas.toFixed(0)}%</td></tr>`;
-        }).join('')}
-      </tbody></table>
-    </div>`;
-}
-function viewCpaRoasAfter() {
-  const entries = filteredEntries();
-  if (!entries.length || !entries.some(e => e.adspend > 0)) { emptyChart('chart_cpa', 'この期間の広告費データはありません'); return; }
-  const months = [...new Set(entries.map(e => e.month))].sort();
-  const cpaData = months.map(m => {
-    const ms = entries.filter(e => e.month === m);
-    const ad = ms.reduce((s,e) => s + e.adspend, 0);
-    const nc = ms.reduce((s,e) => s + e.newCustomers, 0);
-    return nc > 0 ? Math.round(ad / nc) : 0;
-  });
-  const roasData = months.map(m => {
-    const ms = entries.filter(e => e.month === m);
-    const ad = ms.reduce((s,e) => s + e.adspend, 0);
-    const rv = ms.reduce((s,e) => s + e.revenue, 0);
-    return ad > 0 ? Math.round((rv / ad) * 100) : 0;
-  });
-  destroyChart('cpa');
-  charts.cpa = new Chart(document.getElementById('chart_cpa'), {
-    data: { labels: months, datasets: [
-      { type: 'bar', label: 'CPA (円)', data: cpaData, backgroundColor: '#f59e0b', yAxisID: 'y' },
-      { type: 'line', label: 'ROAS (%)', data: roasData, borderColor: '#10b981', backgroundColor: '#10b981', yAxisID: 'y1', tension: 0.3 },
-    ]},
-    options: { responsive: true, plugins: {
-        legend: { position: 'bottom' },
-        tooltip: { callbacks: { label: ctx => ctx.dataset.label === 'CPA (円)' ? 'CPA: ' + yen(ctx.parsed.y) : 'ROAS: ' + ctx.parsed.y + '%' } },
-      },
-      scales: {
-        y:  { position: 'left',  beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } },
-        y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { precision: 0, callback: v => v + '%' } } } },
   });
 }
 
@@ -4638,7 +4617,6 @@ const VIEW_RENDER = {
   'meta-ads':             { html: viewMetaAds, after: viewMetaAdsAfter },
   'ad-cost':              { html: viewAdCost, after: viewAdCostAfter },
   'channel':              { html: viewChannel, after: viewChannelAfter },
-  'cpa-roas':             { html: viewCpaRoas, after: viewCpaRoasAfter },
   'reservation-list':     { html: viewReservationList },
   'reservation-calendar': { html: viewReservationCalendar },
   'customers':            { html: viewCustomers },
