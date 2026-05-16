@@ -2252,22 +2252,14 @@ function editEntry(month, clinic) {
 }
 
 // ===== Daily sales view =====
-// Per-clinic Google Sheets ID。タブ名 `日報 YYYYMM` を gviz API で月単位取得します。
-// シートは「リンクを知っている全員: 閲覧者」に共有しておく必要があります。
-const DAILY_REPORT_SHEET_IDS = {
-  nakamozu:   '1Y_2shrIM14a3KhaPpwNkAhwJCHsjq6l4Cn7Yt9N3kb4',
-  tenrokuten: '', // 天満天六院 のスプレッドシートIDを設定したらここに貼ります
+// Per-clinic published-CSV URLs. Currently only 中百舌鳥院 is configured;
+// 天満天六院 用の URL が設定されると同期できるようになります。
+const DAILY_REPORT_SHEET_URLS = {
+  nakamozu:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2129032732&single=true&output=csv',
+  tenrokuten: '', // 天満天六院 のスプレッドシートURLを設定したらここに貼ります
 };
-function getDailyReportSheetId(clinic) {
-  return DAILY_REPORT_SHEET_IDS[clinic] || '';
-}
-function getDailyReportSheetUrl(clinic, ym) {
-  // 後方互換: 月指定なしの場合は当月タブ。
-  const id = getDailyReportSheetId(clinic);
-  if (!id) return '';
-  const yymm = (ym || ymOf(new Date())).replace('-', '');
-  const sheetName = `日報 ${yymm}`;
-  return `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+function getDailyReportSheetUrl(clinic) {
+  return DAILY_REPORT_SHEET_URLS[clinic] || '';
 }
 let lastSheetFetchTime = 0;
 let sheetFetchInFlight = false;
@@ -2435,8 +2427,8 @@ function viewDailySales() {
         <button class="ghost" onclick="state.dailyMonth='${ymOf(new Date())}'; save(); renderView();">今月</button>
       </div>
       <div style="margin-top:10px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-        <button onclick="fetchDailyReportSheet(true)" style="background:linear-gradient(135deg,#10b981,#059669);" ${!getDailyReportSheetId(clinic) ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>🔄 ${CLINICS[clinic]} の日報シートから同期</button>
-        <span id="sheetSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastSheetSyncMsg || (getDailyReportSheetId(clinic) ? '※ 表示中の月（「日報 YYYYMM」タブ）を取り込みます。前月ボタンで切替えてから同期で過去月も取込可能。' : `※ ${CLINICS[clinic]} のスプレッドシートIDが未設定です`)}</span>
+        <button onclick="fetchDailyReportSheet(true)" style="background:linear-gradient(135deg,#10b981,#059669);" ${!getDailyReportSheetUrl(clinic) ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>🔄 ${CLINICS[clinic]} の日報シートから同期</button>
+        <span id="sheetSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastSheetSyncMsg || (getDailyReportSheetUrl(clinic) ? '※ ページを開くたびに自動で最新を取り込みます' : `※ ${CLINICS[clinic]} のスプレッドシートURLが未設定です`)}</span>
       </div>
       <div style="margin-top:8px; font-size:12px; color:var(--muted);">
         💡 ${synced ? `シートの ${colCount} 列をそのまま反映しています。各セルは手入力でも編集可能です。` : '各セルをクリックして数値を入力すると自動保存します。'}
@@ -2462,7 +2454,7 @@ function maybeAutoFetchDailyReport() {
   fetchDailyReportSheet(false);
 }
 
-async function fetchDailyReportSheet(manual, targetYM) {
+async function fetchDailyReportSheet(manual) {
   if (sheetFetchInFlight) return;
   sheetFetchInFlight = true;
   lastSheetFetchTime = Date.now();
@@ -2472,19 +2464,16 @@ async function fetchDailyReportSheet(manual, targetYM) {
     if (el) el.textContent = msg;
   };
   const targetClinic = state.dailyClinic;
-  const ym = targetYM || state.dailyMonth || ymOf(new Date());
-  const sheetUrl = getDailyReportSheetUrl(targetClinic, ym);
+  const sheetUrl = getDailyReportSheetUrl(targetClinic);
   if (!sheetUrl) {
     setStatus(`※ ${CLINICS[targetClinic]} のスプレッドシートURLは未設定です。URLを教えてもらえれば設定します。`);
     sheetFetchInFlight = false;
-    return { ok: false, imported: 0 };
+    return;
   }
-  const yymm = ym.replace('-', '');
-  setStatus(`⏳ ${CLINICS[targetClinic]} 日報 ${yymm} を取得中...`);
+  setStatus(`⏳ ${CLINICS[targetClinic]} の日報シートから同期中...`);
 
-  const sheetParam = encodeURIComponent(`日報 ${yymm}`);
   const candidates = [
-    { label: 'サーバー関数経由', url: `/api/sheet?clinic=${encodeURIComponent(targetClinic)}&sheet=${sheetParam}` },
+    { label: 'サーバー関数経由', url: '/api/sheet?clinic=' + encodeURIComponent(targetClinic) },
     { label: '直接',           url: sheetUrl },
     { label: 'corsproxy.io 経由', url: 'https://corsproxy.io/?' + encodeURIComponent(sheetUrl) },
     { label: 'allorigins 経由',   url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(sheetUrl) },
@@ -2496,6 +2485,7 @@ async function fetchDailyReportSheet(manual, targetYM) {
 
   for (const c of candidates) {
     try {
+      setStatus('⏳ ' + c.label + 'で取得中...');
       const res = await fetch(c.url, { cache: 'no-store' });
       if (!res.ok) {
         let detail = '';
@@ -2505,7 +2495,7 @@ async function fetchDailyReportSheet(manual, targetYM) {
       }
       const t = await res.text();
       if (!t || t.trim().startsWith('<') || /<!DOCTYPE/i.test(t.slice(0, 200))) {
-        errors.push(`${c.label}: HTMLが返されました（タブ存在 or 共有設定の可能性）`);
+        errors.push(`${c.label}: HTMLが返されました`);
         continue;
       }
       text = t;
@@ -2519,9 +2509,9 @@ async function fetchDailyReportSheet(manual, targetYM) {
   if (!text) {
     console.error('Sheet sync errors:', errors);
     const short = errors.map(e => '・' + e).join(' / ');
-    setStatus(`✕ ${yymm} 同期失敗 - ${short}`);
+    setStatus('✕ 同期失敗 - ' + short);
     sheetFetchInFlight = false;
-    return { ok: false, imported: 0, errors };
+    return;
   }
 
   try {
@@ -2531,7 +2521,7 @@ async function fetchDailyReportSheet(manual, targetYM) {
     state.dailyHeaders = headers.filter(h => h);
     let imported = 0, skipped = 0;
     rows.slice(1).forEach(row => {
-      const entry = mapDailyReportRow(headers, row, ym);
+      const entry = mapDailyReportRow(headers, row);
       if (!entry) { skipped++; return; }
       const idx = state.dailyEntries.findIndex(e => e.date === entry.date && e.clinic === entry.clinic);
       if (idx >= 0) state.dailyEntries[idx] = entry;
@@ -2540,64 +2530,21 @@ async function fetchDailyReportSheet(manual, targetYM) {
     });
     save();
     const ts = new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-    setStatus(`✓ ${yymm}: ${imported}件取込${skipped > 0 ? ` / ${skipped}件スキップ` : ''} (${usedLabel} / ${ts})`);
+    setStatus(`✓ ${imported}件を取込${skipped > 0 ? ` / ${skipped}件スキップ` : ''} (${usedLabel} / ${ts})`);
     if (manual) renderView();
     else {
       const card = document.querySelector('.daily-wrap');
       if (card) renderView();
     }
-    return { ok: true, imported, skipped };
   } catch (e) {
     console.error(e);
-    setStatus(`✕ ${yymm} 解析失敗: ` + (e.message || e));
-    return { ok: false, imported: 0 };
+    setStatus('✕ 解析失敗: ' + (e.message || e));
   } finally {
     sheetFetchInFlight = false;
   }
 }
 
-// 過去 N ヶ月（当月を含む）を順番に取り込み
-async function fetchDailyReportPastMonths(numMonths) {
-  const setStatus = (msg) => {
-    state.lastSheetSyncMsg = msg;
-    const el = document.getElementById('sheetSyncStatus');
-    if (el) el.textContent = msg;
-  };
-  const clinic = state.dailyClinic;
-  if (!getDailyReportSheetId(clinic)) {
-    setStatus(`※ ${CLINICS[clinic]} のスプレッドシートIDは未設定です。`);
-    return;
-  }
-  const today = new Date();
-  const months = [];
-  for (let i = 0; i < numMonths; i++) {
-    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    months.push(`${d.getFullYear()}-${pad2(d.getMonth() + 1)}`);
-  }
-  let totalImported = 0;
-  let okCount = 0;
-  const failures = [];
-  for (let i = 0; i < months.length; i++) {
-    const ym = months[i];
-    setStatus(`⏳ ${i + 1}/${months.length} 月 (${ym}) を取込中...`);
-    // sheetFetchInFlight が立つので、外して逐次実行
-    sheetFetchInFlight = false;
-    const r = await fetchDailyReportSheet(false, ym);
-    if (r && r.ok) {
-      totalImported += r.imported || 0;
-      okCount++;
-    } else {
-      failures.push(ym);
-    }
-  }
-  const ts = new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-  let msg = `✓ ${okCount}/${months.length} ヶ月の取込完了 (${totalImported}件 / ${ts})`;
-  if (failures.length) msg += ` ／ 失敗: ${failures.join(', ')}`;
-  setStatus(msg);
-  renderView();
-}
-
-function mapDailyReportRow(headers, row, targetYM) {
+function mapDailyReportRow(headers, row) {
   const findIdx = (...names) => {
     for (const n of names) {
       const i = headers.findIndex(h => h && h.toString().trim() === n);
@@ -2615,11 +2562,6 @@ function mapDailyReportRow(headers, row, targetYM) {
     return i >= 0 ? (row[i] || '').toString().trim() : '';
   };
 
-  // 日付フォールバック用: 対象月 → 当月の順
-  const fallback = (targetYM && /^\d{4}-\d{2}$/.test(targetYM))
-    ? { y: Number(targetYM.slice(0, 4)), m: Number(targetYM.slice(5)) }
-    : { y: new Date().getFullYear(), m: new Date().getMonth() + 1 };
-
   // Date detection
   const dateRaw = val('日付', '営業日', '日報日', 'date');
   if (!dateRaw) return null;
@@ -2631,15 +2573,14 @@ function mapDailyReportRow(headers, row, targetYM) {
     date = `${y}-${pad2(mo)}-${pad2(d)}`;
   } else if (/^\d{1,2}\/\d{1,2}/.test(dateRaw)) {
     const [mo, d] = dateRaw.split('/').map(Number);
-    date = `${fallback.y}-${pad2(mo)}-${pad2(d)}`;
+    const y = new Date().getFullYear();
+    date = `${y}-${pad2(mo)}-${pad2(d)}`;
   } else if (/^\d{1,2}月\d{1,2}日/.test(dateRaw)) {
     const mm = dateRaw.match(/(\d{1,2})月(\d{1,2})日/);
     if (mm) {
-      date = `${fallback.y}-${pad2(Number(mm[1]))}-${pad2(Number(mm[2]))}`;
+      const y = new Date().getFullYear();
+      date = `${y}-${pad2(Number(mm[1]))}-${pad2(Number(mm[2]))}`;
     }
-  } else if (/^\d{1,2}$/.test(dateRaw)) {
-    // 単純な日番号（"15" のような）は対象月の日として解釈
-    date = `${fallback.y}-${pad2(fallback.m)}-${pad2(Number(dateRaw))}`;
   }
   if (!date) return null;
 
