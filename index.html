@@ -4241,20 +4241,23 @@ function viewStaffWeek() {
     b.type !== '休憩' && b.type !== 'MTG'
   ).length;
 
-  // build per-staff blocks (rows = each day in this week, cols = time slots)
+  // build 7 day-blocks each with the full time-slot grid
   let body = '';
-  staffList.forEach(s => {
-    const sBookings = state.bookings.filter(b =>
-      days.includes(b.date) && b.staffId === s.id && b.type !== '休憩' && b.type !== 'MTG'
-    );
-    const sOff = days.filter(d => getShift(s.id, d) === '休み').length;
+  days.forEach(d => {
+    const dd = new Date(d);
+    const dow = dd.getDay();
+    const isToday = d === today;
+    const titleCls = isToday ? 'today' : (dow === 0 ? 'sun' : dow === 6 ? 'sat' : '');
+    const dayBookings = state.bookings.filter(b => b.date === d && staffList.some(s => s.id === b.staffId));
+    const dayTreatments = dayBookings.filter(b => b.type !== '休憩' && b.type !== 'MTG').length;
     body += `
-      <div class="card" style="margin-bottom:18px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
-          <h3 style="margin:0; font-size:15px;">🧑‍⚕️ ${s.name} <span style="font-size:12px; color:var(--muted); font-weight:400; margin-left:6px;">${s.role}</span></h3>
-          <div style="font-size:12px; color:var(--muted);">施術 ${sBookings.length}件 / 休 ${sOff}日</div>
+      <div class="day-block">
+        <div class="day-block-title ${titleCls}">
+          <span>${jpDate(d)}${isToday ? ' ・ 今日' : ''}</span>
+          <span style="font-size:12px; font-weight:500; opacity:0.9;">施術 ${dayTreatments}件 / 全${dayBookings.length}件</span>
+          <button class="ghost sm" style="margin-left:auto;" onclick="event.stopPropagation(); openBookingModal('','${d}','')">+ 予約を追加</button>
         </div>
-        ${renderStaffWeekGrid(s, days)}
+        ${renderScheduleGrid(staffList, d, { showLegend: false })}
       </div>
     `;
   });
@@ -4296,70 +4299,6 @@ function viewStaffWeek() {
     </div>
     ${body}
   `;
-}
-
-// スタッフ 1 人ぶんの「日付行 × 時間列」グリッド
-function renderStaffWeekGrid(staff, days) {
-  const slotWidth = 90;
-  const dateLabelWidth = 140;
-  const cols = `${dateLabelWidth}px repeat(${TIME_SLOTS.length}, ${slotWidth}px)`;
-  const today = ymd(new Date());
-  let html = `<div class="schedule-wrap"><div class="schedule-grid" style="grid-template-columns: ${cols};">`;
-  // header row: blank corner + time slots
-  html += `<div class="head staff-label"></div>`;
-  html += TIME_SLOTS.map(t => `<div class="head time-head">${t}</div>`).join('');
-  // one row per day
-  days.forEach(date => {
-    const dd = new Date(date);
-    const dow = ['日','月','火','水','木','金','土'][dd.getDay()];
-    const isToday = date === today;
-    const dowCls = dd.getDay() === 0 ? 'sun' : dd.getDay() === 6 ? 'sat' : '';
-    const todayCls = isToday ? ' today' : '';
-    const shift = getShift(staff.id, date);
-    const isOff = shift === '休み';
-    const shiftLabel = isOff ? '休日' : '[10:00-19:30]';
-    const shiftColor = isOff ? '#dc2626' : 'var(--muted)';
-    html += `<div class="staff-label${todayCls}">
-      <div class="name"><span class="${dowCls}">${dd.getMonth() + 1}月${dd.getDate()}日 (${dow})</span></div>
-      <div class="sub" style="color:${shiftColor};">${shiftLabel}</div>
-    </div>`;
-    const covered = new Set();
-    TIME_SLOTS.forEach((time, slotIdx) => {
-      if (covered.has(slotIdx)) return;
-      const b = state.bookings.find(x => x.staffId === staff.id && x.date === date && x.time === time);
-      if (b) {
-        const span = Math.min(
-          Math.max(1, Math.round((b.durationMin || 60) / 30)),
-          TIME_SLOTS.length - slotIdx,
-        );
-        for (let i = 0; i < span; i++) covered.add(slotIdx + i);
-        const endTime = TIME_SLOTS[Math.min(slotIdx + span, TIME_SLOTS.length - 1)] || '';
-        let typeCls, inner, titleText;
-        if (b.type === '休憩') {
-          typeCls = 'break';
-          inner = `<div class="booking-name">☕ 休憩</div><div class="booking-time">${b.time}〜${endTime} (${b.durationMin || 30}分)</div>`;
-          titleText = '休憩 ' + b.time + '-' + endTime + (b.notes ? ' / ' + b.notes : '');
-        } else if (b.type === 'MTG') {
-          typeCls = 'mtg';
-          inner = `<div class="booking-name">👥 MTG</div><div class="booking-time">${b.time}〜${endTime} (${b.durationMin || 60}分)</div>${b.notes ? `<div class="booking-menu">${escapeHtml(b.notes)}</div>` : ''}`;
-          titleText = 'MTG ' + b.time + '-' + endTime + (b.notes ? ' / ' + b.notes : '');
-        } else {
-          typeCls = 'booked ' + menuClass(b.menu);
-          inner = `<div class="booking-name">${escapeHtml(b.customer || '施術')}</div>${b.menu ? `<div class="booking-menu">${escapeHtml(b.menu)}</div>` : ''}<div class="booking-time">${b.time}〜${endTime}</div>`;
-          titleText = (b.customer || '施術') + (b.menu ? ' / ' + b.menu : '') + ' (' + b.time + '-' + endTime + ')';
-        }
-        const conflictCls = isOff ? ' conflict' : '';
-        const conflictTitle = isOff ? `\n⚠ このスタッフはこの日が「休み」設定です` : '';
-        html += `<div class="slot ${typeCls}${conflictCls}" style="grid-column: span ${span};" onclick="openBookingModal('${staff.id}','${date}','${b.time}','${b.id}')" title="${titleText}${conflictTitle}">${inner}</div>`;
-      } else if (isOff) {
-        html += `<div class="slot off">—</div>`;
-      } else {
-        html += `<div class="slot" onclick="openBookingModal('${staff.id}','${date}','${time}')"></div>`;
-      }
-    });
-  });
-  html += `</div></div>`;
-  return html;
 }
 
 function jumpToStaffDayInClinic(date, clinic) {
