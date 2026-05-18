@@ -1699,8 +1699,8 @@ function populatePeriodSelect() {
       <option value="custom">カスタム範囲...</option>
     </optgroup>
   `;
-  sel.value = prev || `year:${thisYear}`;
-  if (!sel.value) sel.value = `year:${thisYear}`;
+  sel.value = prev || 'thisMonth';
+  if (!sel.value) sel.value = 'thisMonth';
 }
 
 function getPeriodRange() {
@@ -1810,81 +1810,65 @@ function destroyChart(key) { if (charts[key]) { charts[key].destroy(); delete ch
 
 // ===== Views =====
 function viewSummary() {
-  const entries = filteredEntries();
-  const t = aggregate(entries);
-
-  // Roll up daily-sheet totals into the revenue so 合計売上 reflects both clinics' actual sales.
-  const clinicFilter = document.getElementById('clinicSelect').value;
   const { from, to } = getPeriodRange();
-  const dailyAgg = aggregateDailyForRevenueList(clinicFilter, from, to);
-  Object.entries(dailyAgg).forEach(([key, agg]) => {
-    const [month, clinic] = key.split('__');
-    const mon = entries.find(e => e.month === month && e.clinic === clinic);
-    if (mon) {
-      t.revenue = t.revenue - (mon.revenue || 0) + agg.total;
-    } else {
-      t.revenue += agg.total;
-    }
-  });
+  const fromYM = from ? from.slice(0, 7) : '';
+  const toYM = to ? to.slice(0, 7) : '';
 
-  // Per-clinic revenue breakdown (always computed, regardless of filter)
-  function revenueForClinic(c) {
-    const cEntries = state.entries.filter(e => {
-      if (e.clinic !== c) return false;
-      if (from && e.month < from) return false;
-      if (to && e.month > to) return false;
+  // 1 院ぶんの KPI を計算（'all' で全院合算）
+  function computeKpis(clinicKey) {
+    const entries = state.entries.filter(e => {
+      if (clinicKey !== 'all' && e.clinic !== clinicKey) return false;
+      if (fromYM && e.month < fromYM) return false;
+      if (toYM && e.month > toYM) return false;
       return true;
     });
-    let rev = cEntries.reduce((s, e) => s + (e.revenue || 0), 0);
-    const cDaily = aggregateDailyForRevenueList(c, from, to);
-    Object.entries(cDaily).forEach(([key, agg]) => {
-      const m = key.split('__')[0];
-      const mon = cEntries.find(e => e.month === m);
-      if (mon) rev = rev - (mon.revenue || 0) + agg.total;
-      else rev += agg.total;
+    const t = aggregate(entries);
+
+    // 日次売上シートの実績で revenue を上書き加算
+    const dailyAgg = aggregateDailyForRevenueList(clinicKey, from, to);
+    Object.entries(dailyAgg).forEach(([k, agg]) => {
+      const [m, c] = k.split('__');
+      const mon = entries.find(e => e.month === m && e.clinic === c);
+      if (mon) t.revenue = t.revenue - (mon.revenue || 0) + agg.total;
+      else t.revenue += agg.total;
     });
-    return { revenue: rev, hasDaily: Object.keys(cDaily).length > 0 };
+
+    // Meta 広告連携（広告費・予約数）
+    const meta = aggregateMetaForPeriod(clinicKey, from, to);
+    const hasMeta = meta.hasData;
+    const adspend = hasMeta ? meta.adspend : t.adspend;
+    const reservations = hasMeta ? meta.registrations : t.reservations;
+    const cpa = reservations > 0 && adspend > 0 ? adspend / reservations : 0;
+    return { ...t, adspend, reservations, cpa, hasMeta };
   }
-  const naka = revenueForClinic('nakamozu');
-  const tenroku = revenueForClinic('tenrokuten');
-  const groupNote = clinicFilter === 'all'
-    ? '中百舌鳥院 + 天満天六院 の合計'
-    : `${CLINICS[clinicFilter]} のみ`;
-  const breakdownHtml = clinicFilter === 'all'
-    ? `<div style="margin-top:6px; font-size:11px; line-height:1.5;">
-         <div><span style="color:#dc2626;">中百舌鳥院 (既存データ): ${yen(naka.revenue)}</span></div>
-         <div><span style="color:var(--text);">天満天六院: <strong>${yen(tenroku.revenue)}</strong></span></div>
-       </div>`
-    : '';
 
-  // Pull 広告費 / 予約数 from Meta広告データ when available (overrides manual entries)
-  // 期間フィルタ from/to に従って Meta データを集計
-  const metaSummary = aggregateMetaForPeriod(clinicFilter, from, to);
-  const hasMeta = metaSummary.hasData;
-  const adspend = hasMeta ? metaSummary.adspend : t.adspend;
-  const reservations = hasMeta ? metaSummary.registrations : t.reservations;
+  const naka = computeKpis('nakamozu');
+  const ten  = computeKpis('tenrokuten');
+  const all  = computeKpis('all');
 
-  const cpa = reservations > 0 ? adspend / reservations : 0;
-  const roas = adspend > 0 ? (t.revenue / adspend) * 100 : 0;
-  const avgPerCust = (t.newCustomers + t.repeatVisits) > 0 ? t.revenue / (t.newCustomers + t.repeatVisits) : 0;
-
-  const dash = '—';
-  const showRoas = adspend > 0;
-  const showCpa = reservations > 0 && adspend > 0;
-  const showAvg = (t.newCustomers + t.repeatVisits) > 0;
-  const metaTag = hasMeta ? '<span style="font-size:10px; color:var(--primary); background:#eff6ff; padding:1px 5px; border-radius:3px; margin-left:4px;">Meta連携</span>' : '';
+  function rowHtml(label, kpi, accent, cardBg) {
+    const metaTag = kpi.hasMeta
+      ? '<span style="font-size:9px; color:var(--primary); background:#eff6ff; padding:1px 4px; border-radius:3px; margin-left:3px;">Meta</span>'
+      : '';
+    const cpaText = kpi.reservations > 0 && kpi.adspend > 0 ? yen(kpi.cpa) : '—';
+    return `
+      <div style="margin-bottom:18px;">
+        <h3 style="font-size:14px; font-weight:700; color:${accent}; margin:0 0 8px 0;">${label}</h3>
+        <div class="kpi-grid">
+          <div class="kpi-card" style="background:${cardBg};"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:${accent};">${yen(kpi.revenue)}</div></div>
+          <div class="kpi-card"><div class="kpi-label">広告費${metaTag}</div><div class="kpi-value">${yen(kpi.adspend)}</div></div>
+          <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(kpi.newCustomers)} <span style="font-size:12px; color:var(--muted);">人</span></div></div>
+          <div class="kpi-card"><div class="kpi-label">リピート来院</div><div class="kpi-value">${fmt(kpi.repeatVisits)} <span style="font-size:12px; color:var(--muted);">人</span></div></div>
+          <div class="kpi-card"><div class="kpi-label">CPA${metaTag}</div><div class="kpi-value">${cpaText}</div><div class="kpi-sub">${cpaText !== '—' ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
+          <div class="kpi-card"><div class="kpi-label">予約数${metaTag}</div><div class="kpi-value">${fmt(kpi.reservations)}</div></div>
+        </div>
+      </div>`;
+  }
 
   return `
-    <div class="kpi-grid">
-      <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:var(--primary);">${yen(t.revenue)}</div><div class="kpi-sub">${groupNote}</div>${breakdownHtml}</div>
-      <div class="kpi-card"><div class="kpi-label">広告費${metaTag}</div><div class="kpi-value">${yen(adspend)}</div></div>
-      <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(t.newCustomers)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
-      <div class="kpi-card"><div class="kpi-label">リピート来院</div><div class="kpi-value">${fmt(t.repeatVisits)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
-      <div class="kpi-card"><div class="kpi-label">CPA${metaTag}</div><div class="kpi-value">${showCpa ? yen(cpa) : dash}</div><div class="kpi-sub">${showCpa ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
-      <div class="kpi-card"><div class="kpi-label">ROAS</div><div class="kpi-value">${showRoas ? Math.round(roas) + '%' : dash}</div><div class="kpi-sub ${showRoas ? (roas >= 300 ? 'up' : 'down') : ''}">${showRoas ? (roas >= 300 ? '良好 (売上 ÷ 広告費)' : '要改善 (目安300%以上)') : 'データなし'}</div></div>
-      <div class="kpi-card"><div class="kpi-label">客単価</div><div class="kpi-value">${showAvg ? yen(avgPerCust) : dash}</div></div>
-      <div class="kpi-card"><div class="kpi-label">予約数${metaTag}</div><div class="kpi-value">${fmt(reservations)}</div></div>
-    </div>
+    ${rowHtml('🏥 NAORU整体 中百舌鳥院', naka, '#dc2626', '#fff5f5')}
+    ${rowHtml('🏥 NAORU整体 天満天六院', ten, '#7c3aed', '#f5f3ff')}
+    ${rowHtml('📊 合計', all, 'var(--primary)', '#eff6ff')}
   `;
 }
 function viewSummaryAfter() { /* charts removed */ }
@@ -1908,6 +1892,13 @@ function viewRevenueEntry() {
   const initRepeat      = mon ? (mon.repeatVisits || '') : '';
   const initReservations= mon ? (mon.reservations || '') : '';
   const initChannel     = mon ? (mon.channel || 'google') : 'google';
+  // Meta 連携: 該当月の Meta データから 広告費/予約数 を取得（手入力が無い場合のみ採用）
+  const metaSummary = aggregateMetaForPeriod(defaultClinic, `${defaultMonth}-01`, `${defaultMonth}-31`);
+  const hasMetaAd = metaSummary.hasData && metaSummary.adspend > 0;
+  const hasMetaRes = metaSummary.hasData && metaSummary.registrations > 0;
+  const finalAdspend = initAdspend || (hasMetaAd ? metaSummary.adspend : '');
+  const finalReservations = initReservations || (hasMetaRes ? metaSummary.registrations : '');
+  const metaBadge = '<span style="font-size:9px; color:var(--primary); background:#eff6ff; padding:1px 5px; border-radius:3px; margin-left:4px;">Meta連携</span>';
   const noteColor = source === 'daily' ? 'var(--success)' : source === 'manual' ? 'var(--warning)' : 'var(--muted)';
   const noteText  = source === 'daily'
     ? `✓ 日次売上シートから自動反映済み（${formatYM(defaultMonth)} ${CLINICS[defaultClinic]}）`
@@ -1951,10 +1942,10 @@ function viewRevenueEntry() {
 
       <h3 style="font-size:13px; margin:18px 0 8px; color:var(--muted);">📣 広告・集客</h3>
       <div class="form-grid">
-        <label>広告費 (円)<input type="number" id="f_adspend" min="0" step="1000" value="${initAdspend}" placeholder="例: 200000" /></label>
+        <label>広告費 (円)${hasMetaAd && !initAdspend ? metaBadge : ''}<input type="number" id="f_adspend" min="0" step="1000" value="${finalAdspend}" placeholder="例: 200000" /></label>
         <label>新規顧客数<input type="number" id="f_new" min="0" value="${initNew}" placeholder="例: 35" /></label>
         <label>リピート来院数<input type="number" id="f_repeat" min="0" value="${initRepeat}" placeholder="例: 120" /></label>
-        <label>予約数 (全体)<input type="number" id="f_reservations" min="0" value="${initReservations}" placeholder="例: 180" /></label>
+        <label>予約数 (全体)${hasMetaRes && !initReservations ? metaBadge : ''}<input type="number" id="f_reservations" min="0" value="${finalReservations}" placeholder="例: 180" /></label>
         <label>主要集客チャネル
           <select id="f_channel">
             ${['google','meta','hotpepper','referral','organic','other'].map(c => `<option value="${c}" ${c === initChannel ? 'selected' : ''}>${CHANNEL_LABELS[c]}</option>`).join('')}
@@ -2006,6 +1997,11 @@ function refreshEntryFromDaily() {
   const mon = state.entries.find(e => e.month === month && e.clinic === clinic);
   const note = document.getElementById('entryFromDailyNote');
 
+  // Meta 連携の取得（広告費 / 予約数）
+  const metaSummary = aggregateMetaForPeriod(clinic, `${month}-01`, `${month}-31`);
+  const metaAd = (metaSummary.hasData && metaSummary.adspend > 0) ? metaSummary.adspend : null;
+  const metaRes = (metaSummary.hasData && metaSummary.registrations > 0) ? metaSummary.registrations : null;
+
   const setRevFields = (cash, square, hpb, other, readonly) => {
     ['f_revCash','f_revSquare','f_revHpb','f_revOther'].forEach((id, i) => {
       const el = document.getElementById(id);
@@ -2015,11 +2011,12 @@ function refreshEntryFromDaily() {
       else { el.removeAttribute('readonly'); el.classList.remove('readonly-amount'); }
     });
   };
+  // adspend / reservations は manual 値がなければ Meta 値を採用
   const setAdFields = (adspend, nc, rp, rsv, channel) => {
-    document.getElementById('f_adspend').value      = adspend != null ? adspend : '';
+    document.getElementById('f_adspend').value      = (adspend != null && adspend !== '') ? adspend : (metaAd != null ? metaAd : '');
     document.getElementById('f_new').value          = nc      != null ? nc      : '';
     document.getElementById('f_repeat').value       = rp      != null ? rp      : '';
-    document.getElementById('f_reservations').value = rsv     != null ? rsv     : '';
+    document.getElementById('f_reservations').value = (rsv != null && rsv !== '') ? rsv : (metaRes != null ? metaRes : '');
     if (channel) document.getElementById('f_channel').value = channel;
   };
 
@@ -2028,21 +2025,21 @@ function refreshEntryFromDaily() {
     setAdFields(mon && mon.adspend, mon && mon.newCustomers, mon && mon.repeatVisits, mon && mon.reservations, mon && mon.channel);
     if (note) {
       note.style.color = 'var(--success)';
-      note.textContent = `✓ 日次売上シートから自動反映（読み取り専用）（${formatYM(month)} ${CLINICS[clinic]}）`;
+      note.textContent = `✓ 日次売上シートから自動反映（読み取り専用）（${formatYM(month)} ${CLINICS[clinic]}）${metaAd != null ? ' / 広告費はMeta連携' : ''}`;
     }
   } else if (mon) {
     setRevFields(mon.revenueCash, mon.revenueSquare, mon.revenueHpb, mon.revenueOther, false);
     setAdFields(mon.adspend, mon.newCustomers, mon.repeatVisits, mon.reservations, mon.channel);
     if (note) {
       note.style.color = 'var(--warning)';
-      note.textContent = `📝 手入力データを表示中（${formatYM(month)} ${CLINICS[clinic]}）`;
+      note.textContent = `📝 手入力データを表示中（${formatYM(month)} ${CLINICS[clinic]}）${metaAd != null && !mon.adspend ? ' / 広告費はMeta連携' : ''}`;
     }
   } else {
     setRevFields('', '', '', '', false);
     setAdFields('', '', '', '', '');
     if (note) {
       note.style.color = 'var(--muted)';
-      note.textContent = `※ ${formatYM(month)} ${CLINICS[clinic]} のデータがまだありません。手入力してください。`;
+      note.textContent = `※ ${formatYM(month)} ${CLINICS[clinic]} のデータがまだありません。${metaAd != null ? '広告費はMeta連携済。他は手入力してください。' : '手入力してください。'}`;
     }
   }
   updateRevenueTotal();
@@ -3609,7 +3606,11 @@ function getClinicDetails(key) {
   // 旧構造（phone/address/password/notes）からの移行と既定値の補完
   d.phone = d.phone || '';
   d.address = d.address || '';
-  d.therapists = d.therapists || '';
+  // セラピストは配列管理。旧構造（文字列、改行区切り）からの自動マイグレーション。
+  if (typeof d.therapists === 'string') {
+    d.therapists = d.therapists.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  }
+  if (!Array.isArray(d.therapists)) d.therapists = [];
   d.credentials = d.credentials || {};
   ['hpb', 'sattou', 'camera'].forEach(svc => {
     d.credentials[svc] = d.credentials[svc] || { id: '', password: '' };
@@ -3627,6 +3628,29 @@ function updateClinicCredential(key, svc, field, value) {
   d.credentials[svc] = d.credentials[svc] || { id: '', password: '' };
   d.credentials[svc][field] = value;
   save();
+}
+function updateClinicTherapist(key, idx, value) {
+  const d = getClinicDetails(key);
+  if (idx < 0 || idx >= d.therapists.length) return;
+  d.therapists[idx] = value;
+  save();
+}
+function addClinicTherapist(key) {
+  const d = getClinicDetails(key);
+  d.therapists.push('');
+  save();
+  renderView();
+  // 新しい入力欄にフォーカス
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('input[data-therapist-input]');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 0);
+}
+function removeClinicTherapist(key, idx) {
+  const d = getClinicDetails(key);
+  d.therapists.splice(idx, 1);
+  save();
+  renderView();
 }
 
 function viewClinics() {
@@ -3729,9 +3753,19 @@ function viewClinicDetail(key) {
 
     <div style="margin-top:14px;">
       <label style="${labelStyle}">🧑‍⚕️ セラピスト名</label>
-      <textarea placeholder="セラピスト名を改行区切りで入力（例：&#10;穴井 将太&#10;村田 鵬暢）"
-        oninput="updateClinicDetail('${key}','therapists',this.value)"
-        style="width:100%; min-height:100px; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; resize:vertical;">${escapeHtml(d.therapists)}</textarea>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        ${d.therapists.length === 0
+          ? `<div style="font-size:12px; color:var(--muted); padding:8px 4px;">セラピストはまだ登録されていません。</div>`
+          : d.therapists.map((name, idx) => `
+            <div style="display:flex; gap:6px; align-items:center;">
+              <span style="font-size:12px; color:var(--muted); width:28px; text-align:right;">${idx + 1}.</span>
+              <input type="text" data-therapist-input value="${escapeHtml(name)}" placeholder="セラピスト名"
+                oninput="updateClinicTherapist('${key}', ${idx}, this.value)"
+                style="${inputStyle}" />
+              <button type="button" class="ghost" onclick="if(confirm('このセラピストを削除しますか？')) removeClinicTherapist('${key}', ${idx})" title="削除" style="padding:6px 10px; color:#dc2626;">🗑</button>
+            </div>`).join('')}
+      </div>
+      <button type="button" class="ghost" onclick="addClinicTherapist('${key}')" style="margin-top:8px; padding:6px 14px;">＋ セラピストを追加</button>
     </div>
 
     <div style="margin-top:18px;">
@@ -3774,10 +3808,118 @@ function viewData() {
       <button class="ghost" onclick="document.getElementById('importFile').click()">📥 JSONインポート</button>
       <input type="file" id="importFile" style="display:none" accept="application/json" onchange="importData(event)" />
       <button class="ghost" onclick="loadSample()">🎲 サンプルデータ投入</button>
+      <button class="ghost" onclick="loadStaffWeekSample()" style="background:linear-gradient(135deg,#fef9c3,#fde68a); color:#92400e; border-color:#fcd34d;">📅 スタッフ予約サンプル投入（5/19週・中百舌鳥）</button>
       <button class="danger" onclick="if(confirm('全データを削除します。元に戻せません。よろしいですか？')) { localStorage.removeItem(STORAGE_KEY); state = { entries: [] }; renderView(); }">🗑 全データ削除</button>
     </div>
     <div class="note">現在 ${state.entries.length} 件のデータが保存されています。</div>
   </div>`;
+}
+
+// スクリーンショットから抽出したスタッフ予約サンプル（2026/5/19〜25 中百舌鳥）
+function loadStaffWeekSample() {
+  const hasInRange = (state.bookings || []).some(b => b.date >= '2026-05-18' && b.date <= '2026-05-25');
+  if (hasInRange && !confirm('2026年5月18日〜25日 のスタッフ予約データを上書きします。よろしいですか？')) return;
+  state.bookings = (state.bookings || []).filter(b => !(b.date >= '2026-05-18' && b.date <= '2026-05-25'));
+
+  // Off days (休み) per screenshots
+  state.shifts = state.shifts || {};
+  state.shifts[shiftKey('anai',   '2026-05-21')] = '休み';
+  state.shifts[shiftKey('anai',   '2026-05-23')] = '休み';
+  state.shifts[shiftKey('anai',   '2026-05-24')] = '休み';
+  state.shifts[shiftKey('murata', '2026-05-20')] = '休み';
+  state.shifts[shiftKey('murata', '2026-05-22')] = '休み';
+
+  // [staffId, date, time, durationMin, customer, menu]
+  const data = [
+    // ─── 穴井将太 5/19 (火) ───
+    ['anai','2026-05-19','10:00',60,'【既存】カツノ アイ508','《会員》整体コース60分'],
+    ['anai','2026-05-19','11:00',60,'【既存】フジワラ サオリ495','《会員》整体コース60分'],
+    ['anai','2026-05-19','12:00',60,'【既存】モリグチ イクコ443','《会員》整体コース60分'],
+    ['anai','2026-05-19','14:00',60,'【新規】池中 基博','《新規限定》自律神経整体×AI姿勢検査コース60分 2,000円'],
+    ['anai','2026-05-19','17:30',30,'【既存】セノオ アカリ359','《Threads限定》全身フルコース整体 初回1,000円'],
+    ['anai','2026-05-19','18:00',60,'【新規】イワキ コウスケ','《Threads限定》全身フルコース整体 初回1,000円'],
+    ['anai','2026-05-19','19:00',30,'【既存】スギサワ ミズキ103','《会員》整体コース30分'],
+    // ─── 穴井将太 5/20 (水) ───
+    ['anai','2026-05-20','10:00',30,'【既存】ハザマ カナト456','《会員》整体コース30分'],
+    ['anai','2026-05-20','10:30',30,'【既存】ツボサキ エツコ529','《会員》整体コース30分'],
+    ['anai','2026-05-20','11:00',30,'【既存】アキヤマ カズヒ277','《会員》整体コース30分'],
+    ['anai','2026-05-20','11:30',30,'【既存】フクハラ タケユキ360','《会員》整体コース30分'],
+    ['anai','2026-05-20','12:00',30,'【既存】トミヤマ メグミ492','《会員》整体コース30分'],
+    ['anai','2026-05-20','12:30',30,'【既存】ニシジ マミ536','《会員》整体コース30分'],
+    ['anai','2026-05-20','13:00',60,'【既存】フクダ リョウ3','《会員》整体コース60分'],
+    ['anai','2026-05-20','18:00',30,'【既存】ウエダ サヤカ523','《会員》整体コース30分'],
+    ['anai','2026-05-20','18:30',60,'【新規】(顧客名不明)','《Threads限定》全身フルコース整体 1,000円 / 左上半身が気になる'],
+    // 5/21 (木) 休日
+    // ─── 穴井将太 5/22 (金) ───
+    ['anai','2026-05-22','10:00',30,'【既存】ササキ キョウ254','《会員》整体コース30分'],
+    ['anai','2026-05-22','10:30',30,'【既存】アキヤマ カズヒ277','《会員》整体コース30分'],
+    ['anai','2026-05-22','11:00',30,'【既存】ヤマモト トモ181','《会員》整体コース30分'],
+    ['anai','2026-05-22','11:30',30,'【既存】ウエナカ テル333','《会員》整体コース30分'],
+    ['anai','2026-05-22','13:00',60,'【既存】ヤマモト ユウト390','《会員》整体コース60分'],
+    ['anai','2026-05-22','14:30',30,'【既存】あまの あきら193','《会員》整体コース30分'],
+    ['anai','2026-05-22','16:00',30,'【既存】マツムラ ヨシアキ379','《会員》整体コース30分'],
+    ['anai','2026-05-22','17:00',60,'【新規】キヨタ ナオト','《Threads限定》全身フルコース整体 初回1,000円'],
+    ['anai','2026-05-22','18:00',30,'【既存】シミズ ヒロミ481','《会員》整体コース30分'],
+    ['anai','2026-05-22','18:30',30,'【既存】シミマ ユカ179','《会員》整体コース30分'],
+    ['anai','2026-05-22','19:00',30,'【既存】オカダ ミオ372','《会員》整体コース30分'],
+    // 5/23 (土) 休日
+    // 5/24 (日) 休日
+    // ─── 穴井将太 5/25 (月) ───
+    ['anai','2026-05-25','10:00',60,'【既存】ヨシムラ コウイチロウ514','《会員》整体コース60分'],
+    ['anai','2026-05-25','11:00',30,'【既存】ミヤサキ カホ85','《会員》整体コース30分'],
+    ['anai','2026-05-25','17:30',60,'【新規】藤井 友吾','《新規限定》自律神経整体×AI姿勢検査コース60分 2,000円'],
+
+    // ─── 村田鵬暢 5/19 (火) ───
+    ['murata','2026-05-19','10:00',30,'【既存】モリグチ ヒロシ','《会員》整体コース30分'],
+    ['murata','2026-05-19','11:00',60,'キタジマ ノブユキ355','《会員》整体コース60分'],
+    ['murata','2026-05-19','12:00',60,'【新規】黄 正鎬','《新規限定》自律神経整体×AI姿勢検査コース60分 2,000円'],
+    ['murata','2026-05-19','13:00',60,'【既存】サカモト メメ530','《2回目以降》単発5,000円'],
+    ['murata','2026-05-19','19:00',30,'おだ さん','《会員》整体コース30分'],
+    // 5/20 (水) 休日
+    // ─── 村田鵬暢 5/21 (木) ───
+    ['murata','2026-05-21','10:00',60,'どい めぐみ','《会員》整体コース60分'],
+    ['murata','2026-05-21','11:00',30,'たから さゆり','《会員》整体コース30分'],
+    ['murata','2026-05-21','11:30',60,'ナカムラ イズミ365','《会員》整体コース60分'],
+    ['murata','2026-05-21','13:00',30,'ヨシオカ シンペイ53','《会員》整体コース30分'],
+    ['murata','2026-05-21','13:30',60,'【新規】シオミ コウスケ','《Threads限定》全身フルコース整体 初回1,000円'],
+    ['murata','2026-05-21','18:00',30,'【HPB既存】サコダ コウ','さろんぱど/ホットペッパー予約'],
+    // 5/22 (金) 休日
+    // ─── 村田鵬暢 5/23 (土) ───
+    ['murata','2026-05-23','10:00',60,'【既存2回分】クサノ ホダカ','《会員》整体コース60分'],
+    ['murata','2026-05-23','11:00',30,'【既存】ハルザキ ミドリ494','《会員》整体コース30分'],
+    ['murata','2026-05-23','12:00',30,'【既存】おおうら まゆ','《会員》整体コース30分'],
+    ['murata','2026-05-23','13:30',30,'オクノ リョウヘイ','《会員》整体コース30分'],
+    ['murata','2026-05-23','14:00',60,'【既存】モリウチ カズキ','《会員》整体コース60分'],
+    ['murata','2026-05-23','15:00',60,'【既存】ハラ ヒデキ187','《会員》整体コース60分'],
+    ['murata','2026-05-23','16:00',30,'タノウエ アヤ527','《会員》整体コース30分'],
+    // ─── 村田鵬暢 5/24 (日) ───
+    ['murata','2026-05-24','10:00',30,'オオツジ カナコ452','《会員》整体コース30分'],
+    ['murata','2026-05-24','11:00',30,'アカマツ トミ305','《会員》整体コース30分'],
+    ['murata','2026-05-24','12:00',60,'【既存】イシイ ソウマ486','《会員》整体コース60分'],
+    ['murata','2026-05-24','14:30',60,'【既存】ヒラタニさん夫妻','《会員》整体コース60分'],
+    ['murata','2026-05-24','15:30',30,'【既存】ナイトウ ゆかり528','《会員》整体コース30分'],
+    ['murata','2026-05-24','16:30',30,'ナカニシ アヤノ356','《会員》整体コース30分'],
+    ['murata','2026-05-24','17:30',30,'ナガタ カズマサ526','《会員》整体コース30分'],
+    // ─── 村田鵬暢 5/25 (月) ───
+    ['murata','2026-05-25','12:00',60,'【検査】コンドウ ナオミ','《会員》整体コース'],
+    ['murata','2026-05-25','17:00',60,'【既存】オカザワ ミホ','《会員》整体コース60分'],
+  ];
+
+  const ts = Date.now();
+  data.forEach(([staffId, date, time, durationMin, customer, menu], i) => {
+    state.bookings.push({
+      id: 'sb' + ts + '_' + i,
+      staffId, date, time, durationMin,
+      customer, menu, type: '施術', notes: '',
+    });
+  });
+
+  state.staffViewClinic = 'nakamozu';
+  state.staffWeekStart = '2026-05-18';
+  state.staffViewMode = 'week';
+  save();
+  alert(`✓ ${data.length}件のスタッフ予約を投入しました（中百舌鳥院 5/19〜5/25）。\n\nスタッフ別予約 → 週表示でご確認ください。\n\n※ スクショから読み取って入力したため、顧客名や時刻に誤りがある可能性があります。表上で個別に修正してください。`);
+  renderView();
 }
 
 function placeholder(title, icon, items, desc) {
