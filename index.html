@@ -1699,8 +1699,8 @@ function populatePeriodSelect() {
       <option value="custom">カスタム範囲...</option>
     </optgroup>
   `;
-  sel.value = prev || `year:${thisYear}`;
-  if (!sel.value) sel.value = `year:${thisYear}`;
+  sel.value = prev || 'thisMonth';
+  if (!sel.value) sel.value = 'thisMonth';
 }
 
 function getPeriodRange() {
@@ -1810,81 +1810,65 @@ function destroyChart(key) { if (charts[key]) { charts[key].destroy(); delete ch
 
 // ===== Views =====
 function viewSummary() {
-  const entries = filteredEntries();
-  const t = aggregate(entries);
-
-  // Roll up daily-sheet totals into the revenue so 合計売上 reflects both clinics' actual sales.
-  const clinicFilter = document.getElementById('clinicSelect').value;
   const { from, to } = getPeriodRange();
-  const dailyAgg = aggregateDailyForRevenueList(clinicFilter, from, to);
-  Object.entries(dailyAgg).forEach(([key, agg]) => {
-    const [month, clinic] = key.split('__');
-    const mon = entries.find(e => e.month === month && e.clinic === clinic);
-    if (mon) {
-      t.revenue = t.revenue - (mon.revenue || 0) + agg.total;
-    } else {
-      t.revenue += agg.total;
-    }
-  });
+  const fromYM = from ? from.slice(0, 7) : '';
+  const toYM = to ? to.slice(0, 7) : '';
 
-  // Per-clinic revenue breakdown (always computed, regardless of filter)
-  function revenueForClinic(c) {
-    const cEntries = state.entries.filter(e => {
-      if (e.clinic !== c) return false;
-      if (from && e.month < from) return false;
-      if (to && e.month > to) return false;
+  // 1 院ぶんの KPI を計算（'all' で全院合算）
+  function computeKpis(clinicKey) {
+    const entries = state.entries.filter(e => {
+      if (clinicKey !== 'all' && e.clinic !== clinicKey) return false;
+      if (fromYM && e.month < fromYM) return false;
+      if (toYM && e.month > toYM) return false;
       return true;
     });
-    let rev = cEntries.reduce((s, e) => s + (e.revenue || 0), 0);
-    const cDaily = aggregateDailyForRevenueList(c, from, to);
-    Object.entries(cDaily).forEach(([key, agg]) => {
-      const m = key.split('__')[0];
-      const mon = cEntries.find(e => e.month === m);
-      if (mon) rev = rev - (mon.revenue || 0) + agg.total;
-      else rev += agg.total;
+    const t = aggregate(entries);
+
+    // 日次売上シートの実績で revenue を上書き加算
+    const dailyAgg = aggregateDailyForRevenueList(clinicKey, from, to);
+    Object.entries(dailyAgg).forEach(([k, agg]) => {
+      const [m, c] = k.split('__');
+      const mon = entries.find(e => e.month === m && e.clinic === c);
+      if (mon) t.revenue = t.revenue - (mon.revenue || 0) + agg.total;
+      else t.revenue += agg.total;
     });
-    return { revenue: rev, hasDaily: Object.keys(cDaily).length > 0 };
+
+    // Meta 広告連携（広告費・予約数）
+    const meta = aggregateMetaForPeriod(clinicKey, from, to);
+    const hasMeta = meta.hasData;
+    const adspend = hasMeta ? meta.adspend : t.adspend;
+    const reservations = hasMeta ? meta.registrations : t.reservations;
+    const cpa = reservations > 0 && adspend > 0 ? adspend / reservations : 0;
+    return { ...t, adspend, reservations, cpa, hasMeta };
   }
-  const naka = revenueForClinic('nakamozu');
-  const tenroku = revenueForClinic('tenrokuten');
-  const groupNote = clinicFilter === 'all'
-    ? '中百舌鳥院 + 天満天六院 の合計'
-    : `${CLINICS[clinicFilter]} のみ`;
-  const breakdownHtml = clinicFilter === 'all'
-    ? `<div style="margin-top:6px; font-size:11px; line-height:1.5;">
-         <div><span style="color:#dc2626;">中百舌鳥院 (既存データ): ${yen(naka.revenue)}</span></div>
-         <div><span style="color:var(--text);">天満天六院: <strong>${yen(tenroku.revenue)}</strong></span></div>
-       </div>`
-    : '';
 
-  // Pull 広告費 / 予約数 from Meta広告データ when available (overrides manual entries)
-  // 期間フィルタ from/to に従って Meta データを集計
-  const metaSummary = aggregateMetaForPeriod(clinicFilter, from, to);
-  const hasMeta = metaSummary.hasData;
-  const adspend = hasMeta ? metaSummary.adspend : t.adspend;
-  const reservations = hasMeta ? metaSummary.registrations : t.reservations;
+  const naka = computeKpis('nakamozu');
+  const ten  = computeKpis('tenrokuten');
+  const all  = computeKpis('all');
 
-  const cpa = reservations > 0 ? adspend / reservations : 0;
-  const roas = adspend > 0 ? (t.revenue / adspend) * 100 : 0;
-  const avgPerCust = (t.newCustomers + t.repeatVisits) > 0 ? t.revenue / (t.newCustomers + t.repeatVisits) : 0;
-
-  const dash = '—';
-  const showRoas = adspend > 0;
-  const showCpa = reservations > 0 && adspend > 0;
-  const showAvg = (t.newCustomers + t.repeatVisits) > 0;
-  const metaTag = hasMeta ? '<span style="font-size:10px; color:var(--primary); background:#eff6ff; padding:1px 5px; border-radius:3px; margin-left:4px;">Meta連携</span>' : '';
+  function rowHtml(label, kpi, accent, cardBg) {
+    const metaTag = kpi.hasMeta
+      ? '<span style="font-size:9px; color:var(--primary); background:#eff6ff; padding:1px 4px; border-radius:3px; margin-left:3px;">Meta</span>'
+      : '';
+    const cpaText = kpi.reservations > 0 && kpi.adspend > 0 ? yen(kpi.cpa) : '—';
+    return `
+      <div style="margin-bottom:18px;">
+        <h3 style="font-size:14px; font-weight:700; color:${accent}; margin:0 0 8px 0;">${label}</h3>
+        <div class="kpi-grid">
+          <div class="kpi-card" style="background:${cardBg};"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:${accent};">${yen(kpi.revenue)}</div></div>
+          <div class="kpi-card"><div class="kpi-label">広告費${metaTag}</div><div class="kpi-value">${yen(kpi.adspend)}</div></div>
+          <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(kpi.newCustomers)} <span style="font-size:12px; color:var(--muted);">人</span></div></div>
+          <div class="kpi-card"><div class="kpi-label">リピート来院</div><div class="kpi-value">${fmt(kpi.repeatVisits)} <span style="font-size:12px; color:var(--muted);">人</span></div></div>
+          <div class="kpi-card"><div class="kpi-label">CPA${metaTag}</div><div class="kpi-value">${cpaText}</div><div class="kpi-sub">${cpaText !== '—' ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
+          <div class="kpi-card"><div class="kpi-label">予約数${metaTag}</div><div class="kpi-value">${fmt(kpi.reservations)}</div></div>
+        </div>
+      </div>`;
+  }
 
   return `
-    <div class="kpi-grid">
-      <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:var(--primary);">${yen(t.revenue)}</div><div class="kpi-sub">${groupNote}</div>${breakdownHtml}</div>
-      <div class="kpi-card"><div class="kpi-label">広告費${metaTag}</div><div class="kpi-value">${yen(adspend)}</div></div>
-      <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(t.newCustomers)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
-      <div class="kpi-card"><div class="kpi-label">リピート来院</div><div class="kpi-value">${fmt(t.repeatVisits)} <span style="font-size:14px; color:var(--muted);">人</span></div></div>
-      <div class="kpi-card"><div class="kpi-label">CPA${metaTag}</div><div class="kpi-value">${showCpa ? yen(cpa) : dash}</div><div class="kpi-sub">${showCpa ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
-      <div class="kpi-card"><div class="kpi-label">ROAS</div><div class="kpi-value">${showRoas ? Math.round(roas) + '%' : dash}</div><div class="kpi-sub ${showRoas ? (roas >= 300 ? 'up' : 'down') : ''}">${showRoas ? (roas >= 300 ? '良好 (売上 ÷ 広告費)' : '要改善 (目安300%以上)') : 'データなし'}</div></div>
-      <div class="kpi-card"><div class="kpi-label">客単価</div><div class="kpi-value">${showAvg ? yen(avgPerCust) : dash}</div></div>
-      <div class="kpi-card"><div class="kpi-label">予約数${metaTag}</div><div class="kpi-value">${fmt(reservations)}</div></div>
-    </div>
+    ${rowHtml('🏥 NAORU整体 中百舌鳥院', naka, '#dc2626', '#fff5f5')}
+    ${rowHtml('🏥 NAORU整体 天満天六院', ten, '#7c3aed', '#f5f3ff')}
+    ${rowHtml('📊 合計', all, 'var(--primary)', '#eff6ff')}
   `;
 }
 function viewSummaryAfter() { /* charts removed */ }
