@@ -1930,10 +1930,10 @@ function viewRevenueEntry() {
       </div>
       <div id="entryFromDailyNote" style="font-size:11px; color:${noteColor}; margin-bottom:6px;">${noteText}</div>
       <div class="form-grid">
-        <label>現金売上 (円)<input type="number" id="f_revCash" min="0" step="1000" value="${initCash}" placeholder="例: 300000" oninput="updateRevenueTotal()" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
-        <label>Square売上 (円)<input type="number" id="f_revSquare" min="0" step="1000" value="${initSquare}" placeholder="例: 800000" oninput="updateRevenueTotal()" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
-        <label>HPBポイント (円)<input type="number" id="f_revHpb" min="0" step="1000" value="${initHpb}" placeholder="例: 50000" oninput="updateRevenueTotal()" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
-        <label>その他決済 (円)<input type="number" id="f_revOther" min="0" step="1000" value="${initOther}" placeholder="例: 20000" oninput="updateRevenueTotal()" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
+        <label>現金売上 (円)<input type="number" id="f_revCash" min="0" step="1000" value="${initCash}" placeholder="例: 300000" oninput="updateRevenueTotal(); autoSaveRevenueEntry();" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
+        <label>Square売上 (円)<input type="number" id="f_revSquare" min="0" step="1000" value="${initSquare}" placeholder="例: 800000" oninput="updateRevenueTotal(); autoSaveRevenueEntry();" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
+        <label>HPBポイント (円)<input type="number" id="f_revHpb" min="0" step="1000" value="${initHpb}" placeholder="例: 50000" oninput="updateRevenueTotal(); autoSaveRevenueEntry();" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
+        <label>その他決済 (円)<input type="number" id="f_revOther" min="0" step="1000" value="${initOther}" placeholder="例: 20000" oninput="updateRevenueTotal(); autoSaveRevenueEntry();" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
       </div>
       <div style="background:#f0f9ff; padding:10px 14px; border-radius:8px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
         <span style="font-size:12px; color:var(--muted);">合計売上</span>
@@ -1942,10 +1942,10 @@ function viewRevenueEntry() {
 
       <h3 style="font-size:13px; margin:18px 0 8px; color:var(--muted);">📣 広告・集客</h3>
       <div class="form-grid">
-        <label>広告費 (円)${hasMetaAd && !initAdspend ? metaBadge : ''}<input type="number" id="f_adspend" min="0" step="1000" value="${finalAdspend}" placeholder="例: 200000" /></label>
-        <label>予約数 (全体)${hasMetaRes && !initReservations ? metaBadge : ''}<input type="number" id="f_reservations" min="0" value="${finalReservations}" placeholder="例: 180" /></label>
+        <label>広告費 (円)${hasMetaAd && !initAdspend ? metaBadge : ''}<input type="number" id="f_adspend" min="0" step="1000" value="${finalAdspend}" placeholder="例: 200000" oninput="autoSaveRevenueEntry()" /></label>
+        <label>予約数 (全体)${hasMetaRes && !initReservations ? metaBadge : ''}<input type="number" id="f_reservations" min="0" value="${finalReservations}" placeholder="例: 180" oninput="autoSaveRevenueEntry()" /></label>
         <label>主要集客チャネル
-          <select id="f_channel">
+          <select id="f_channel" onchange="autoSaveRevenueEntry()">
             ${['google','meta','hotpepper','referral','organic','other'].map(c => `<option value="${c}" ${c === initChannel ? 'selected' : ''}>${CHANNEL_LABELS[c]}</option>`).join('')}
           </select>
         </label>
@@ -2195,22 +2195,23 @@ function pickDay(prefix, ymd) {
   input.dispatchEvent(new Event('change'));
 }
 
-function saveEntry() {
-  const month = document.getElementById('f_month').value;
-  if (!month) { alert('対象月を選択してください'); return; }
+// 月次売上入力フォームの自動保存（再描画/通知なし、フォーカス維持）
+function autoSaveRevenueEntry() {
+  const monthEl = document.getElementById('f_month');
+  if (!monthEl) return;
+  const month = monthEl.value;
+  if (!month) return;
   const clinicVal = document.getElementById('f_clinic').value;
   const cash   = Number(document.getElementById('f_revCash').value) || 0;
   const square = Number(document.getElementById('f_revSquare').value) || 0;
   const hpb    = Number(document.getElementById('f_revHpb').value) || 0;
   const other  = Number(document.getElementById('f_revOther').value) || 0;
-  // Remember last edit so the form re-opens to the same month/clinic
   state.lastEntryMonth = month;
   state.lastEntryClinic = clinicVal;
-  // 既存エントリの newCustomers / repeatVisits は保持（フォームから削除されたため）
   const existing = state.entries.find(e => e.month === month && e.clinic === clinicVal);
   upsertEntry({
     month,
-    clinic: document.getElementById('f_clinic').value,
+    clinic: clinicVal,
     revenueCash: cash,
     revenueSquare: square,
     revenueHpb: hpb,
@@ -2222,8 +2223,17 @@ function saveEntry() {
     reservations: Number(document.getElementById('f_reservations').value) || 0,
     channel: document.getElementById('f_channel').value,
   });
+  // 自動保存中のフィードバック（軽め）
   const msg = document.getElementById('saveMsg');
-  if (msg) { msg.textContent = '✓ 保存しました'; setTimeout(() => msg.textContent = '', 2000); }
+  if (msg) { msg.textContent = '✓ 自動保存済み'; msg.style.opacity = '0.7'; }
+}
+
+function saveEntry() {
+  const month = document.getElementById('f_month').value;
+  if (!month) { alert('対象月を選択してください'); return; }
+  autoSaveRevenueEntry();
+  const msg = document.getElementById('saveMsg');
+  if (msg) { msg.textContent = '✓ 保存しました'; msg.style.opacity = '1'; setTimeout(() => msg.textContent = '', 2000); }
   renderView();
 }
 function editEntry(month, clinic) {
@@ -2385,7 +2395,7 @@ function viewDailySales() {
         const val = getCellValue(e, h);
         const display = val === 0 ? '' : (val == null ? '' : String(val));
         const enc = encodeURIComponent(h);
-        return `<td class="${isHlHeader(h) ? 'hl' : ''} daily-cell"><input type="text" value="${escapeHtml(display)}" onchange="updateDailyCellByHeader('${dateStr}','${clinic}','${enc}',this.value)" /></td>`;
+        return `<td class="${isHlHeader(h) ? 'hl' : ''} daily-cell"><input type="text" value="${escapeHtml(display)}" oninput="updateDailyCellByHeader('${dateStr}','${clinic}','${enc}',this.value)" /></td>`;
       }).join('') + `</tr>`;
   }
 
