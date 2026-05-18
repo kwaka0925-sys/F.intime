@@ -2313,7 +2313,9 @@ const DAILY_SKIP_HEADERS = new Set([
 const DAILY_HIDE_FROM_HEADER = '口座へ入金';
 // Display-only header rename map. Keys are sheet column names; values are what we show on the table.
 const DAILY_HEADER_ALIASES = {
-  'Hotpoint': 'HPB point',
+  'Hotpoint':     'HPBポイント',
+  'ホットポイント': 'HPBポイント',
+  'HPB point':    'HPBポイント',
 };
 function displayHeader(h) {
   return DAILY_HEADER_ALIASES[h] || h;
