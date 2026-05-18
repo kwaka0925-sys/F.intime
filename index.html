@@ -210,7 +210,7 @@
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--border); }
   th { font-weight: 700; color: var(--muted); font-size: 12px; background: #fafbfc; }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
   tr:hover td { background: #fafbfc; }
 
   .form-grid {
@@ -982,11 +982,12 @@
     padding: 10px 8px;
     border: 1px solid #ca8a04;
   }
-  .daily-table thead th.hl { background: linear-gradient(180deg, #fed7aa, #fdba74); color: #9a3412; border-color: #c2410c; }
+  .daily-table thead th.hl { background: linear-gradient(180deg, #d1fae5, #6ee7b7); color: #065f46; border-color: #047857; }
   .daily-table tbody td.dow-sun { color: #dc2626; font-weight: 700; background: #fff5f5; }
   .daily-table tbody td.dow-sat { color: #2563eb; font-weight: 700; background: #f0f9ff; }
   .daily-table tbody td.date-cell { font-weight: 700; color: var(--text-dark); background: #fafbfc; }
-  .daily-table tbody td.hl { background: #fff7ed; }
+  .daily-table tbody td.hl { background: #ecfdf5; }
+  .daily-table tbody td.hl input { color: #065f46; font-weight: 600; }
   .daily-table tfoot td {
     background: #dbeafe;
     font-weight: 800;
@@ -2081,9 +2082,9 @@ function renderMonthPicker(prefix) {
   const year = pickerState[prefix].year;
   let html = `
     <div class="mp-header">
-      <button class="mp-nav" onclick="shiftMonthPickerYear('${prefix}', -1)" title="前年">‹</button>
+      <button class="mp-nav" onclick="event.stopPropagation(); shiftMonthPickerYear('${prefix}', -1)" title="前年">‹</button>
       <div class="mp-year">${year}年</div>
-      <button class="mp-nav" onclick="shiftMonthPickerYear('${prefix}', 1)" title="翌年">›</button>
+      <button class="mp-nav" onclick="event.stopPropagation(); shiftMonthPickerYear('${prefix}', 1)" title="翌年">›</button>
     </div>
     <div class="mp-grid">
   `;
@@ -2166,9 +2167,9 @@ function renderDayPicker(prefix) {
   const daysInMonth = new Date(year, month, 0).getDate();
   let html = `
     <div class="dp-header">
-      <button class="mp-nav" onclick="shiftDayPickerMonth('${prefix}', -1)" title="前月">◁</button>
+      <button class="mp-nav" onclick="event.stopPropagation(); shiftDayPickerMonth('${prefix}', -1)" title="前月">◁</button>
       <div class="dp-title">${year}年 ${month}月</div>
-      <button class="mp-nav" onclick="shiftDayPickerMonth('${prefix}', 1)" title="翌月">▷</button>
+      <button class="mp-nav" onclick="event.stopPropagation(); shiftDayPickerMonth('${prefix}', 1)" title="翌月">▷</button>
     </div>
     <div class="dp-weekdays">
       <div class="dp-weekday sun">日</div><div class="dp-weekday">月</div><div class="dp-weekday">火</div><div class="dp-weekday">水</div><div class="dp-weekday">木</div><div class="dp-weekday">金</div><div class="dp-weekday sat">土</div>
@@ -2335,7 +2336,8 @@ function getDailyDataHeaders() {
 }
 
 function isHlHeader(h) {
-  return h === '新患' || h === '実来院数';
+  // 総売上 / スクエア / 現金売上 を強調表示（売上関連の主要列）
+  return h === '総売上' || h === 'スクエア' || h === '現金売上';
 }
 function isWideHeader(h) {
   return /売上|自費|金額|円/.test(h);
@@ -3603,12 +3605,27 @@ function clearMasterPassword() {
 
 function getClinicDetails(key) {
   state.clinicDetails = state.clinicDetails || {};
-  state.clinicDetails[key] = state.clinicDetails[key] || { phone: '', address: '', password: '', notes: '' };
-  return state.clinicDetails[key];
+  const d = state.clinicDetails[key] || {};
+  // 旧構造（phone/address/password/notes）からの移行と既定値の補完
+  d.phone = d.phone || '';
+  d.address = d.address || '';
+  d.therapists = d.therapists || '';
+  d.credentials = d.credentials || {};
+  ['hpb', 'sattou', 'camera'].forEach(svc => {
+    d.credentials[svc] = d.credentials[svc] || { id: '', password: '' };
+  });
+  state.clinicDetails[key] = d;
+  return d;
 }
 function updateClinicDetail(key, field, value) {
   const d = getClinicDetails(key);
   d[field] = value;
+  save();
+}
+function updateClinicCredential(key, svc, field, value) {
+  const d = getClinicDetails(key);
+  d.credentials[svc] = d.credentials[svc] || { id: '', password: '' };
+  d.credentials[svc][field] = value;
   save();
 }
 
@@ -3658,10 +3675,36 @@ function viewClinics() {
   </div>`;
 }
 
+const CLINIC_CRED_SERVICES = [
+  { key: 'hpb',    label: 'HPB',     icon: '💅' },
+  { key: 'sattou', label: 'SATTOU',  icon: '🛠' },
+  { key: 'camera', label: '店内カメラ', icon: '📷' },
+];
+
 function viewClinicDetail(key) {
   const name = CLINICS[key];
   const d = getClinicDetails(key);
   const entryCount = state.entries.filter(e => e.clinic === key).length;
+  const labelStyle = 'display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:4px;';
+  const inputStyle = 'width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px;';
+
+  const credRows = CLINIC_CRED_SERVICES.map(svc => {
+    const c = d.credentials[svc.key] || { id: '', password: '' };
+    return `<tr>
+      <td style="padding:8px 10px; font-weight:600; white-space:nowrap;">${svc.icon} ${svc.label}</td>
+      <td style="padding:8px 10px;">
+        <input type="text" value="${escapeHtml(c.id)}" placeholder="ID"
+          oninput="updateClinicCredential('${key}','${svc.key}','id',this.value)"
+          style="${inputStyle}" />
+      </td>
+      <td style="padding:8px 10px;">
+        <input type="password" data-pass-input="${svc.key}" value="${escapeHtml(c.password)}" placeholder="PASS"
+          oninput="updateClinicCredential('${key}','${svc.key}','password',this.value)"
+          style="${inputStyle}" />
+      </td>
+    </tr>`;
+  }).join('');
+
   return `<div class="card">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:12px; flex-wrap:wrap;">
       <div>
@@ -3670,42 +3713,57 @@ function viewClinicDetail(key) {
         <div style="font-size:12px; color:var(--muted); margin-top:4px;">コード: <code>${key}</code> / 登録データ数: ${entryCount} 件</div>
       </div>
     </div>
+
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:14px;">
       <div>
-        <label style="display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:4px;">📞 電話番号</label>
+        <label style="${labelStyle}">📞 電話番号</label>
         <input type="tel" value="${escapeHtml(d.phone)}" placeholder="例: 06-1234-5678"
-          oninput="updateClinicDetail('${key}','phone',this.value)"
-          style="width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px;" />
+          oninput="updateClinicDetail('${key}','phone',this.value)" style="${inputStyle}" />
       </div>
       <div>
-        <label style="display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:4px;">📍 住所</label>
+        <label style="${labelStyle}">📍 住所</label>
         <input type="text" value="${escapeHtml(d.address)}" placeholder="例: 大阪府堺市北区..."
-          oninput="updateClinicDetail('${key}','address',this.value)"
-          style="width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px;" />
-      </div>
-      <div>
-        <label style="display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:4px;">🔑 パスワード</label>
-        <div style="display:flex; gap:6px;">
-          <input type="password" id="clinic-pwd-${key}" value="${escapeHtml(d.password)}" placeholder="パスワードを入力"
-            oninput="updateClinicDetail('${key}','password',this.value)"
-            style="flex:1; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px;" />
-          <button type="button" class="ghost" onclick="toggleClinicPwd('${key}')" style="padding:6px 12px;">👁</button>
-        </div>
+          oninput="updateClinicDetail('${key}','address',this.value)" style="${inputStyle}" />
       </div>
     </div>
+
     <div style="margin-top:14px;">
-      <label style="display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:4px;">📝 関連情報</label>
-      <textarea placeholder="営業時間、定休日、Wi-Fi情報、その他メモなど"
-        oninput="updateClinicDetail('${key}','notes',this.value)"
-        style="width:100%; min-height:120px; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; resize:vertical;">${escapeHtml(d.notes)}</textarea>
+      <label style="${labelStyle}">🧑‍⚕️ セラピスト名</label>
+      <textarea placeholder="セラピスト名を改行区切りで入力（例：&#10;穴井 将太&#10;村田 鵬暢）"
+        oninput="updateClinicDetail('${key}','therapists',this.value)"
+        style="width:100%; min-height:100px; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; resize:vertical;">${escapeHtml(d.therapists)}</textarea>
     </div>
-    <div class="note" style="margin-top:14px;">入力内容は自動保存されます。項目は今後追加予定です。</div>
+
+    <div style="margin-top:18px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
+        <label style="font-size:13px; font-weight:700; color:var(--text-dark);">🔐 認証情報（ID / PASS）</label>
+        <button type="button" id="clinic-pass-toggle" class="ghost" onclick="toggleAllClinicPasswords(this)" style="padding:6px 14px;">👁 PASS を表示</button>
+      </div>
+      <div style="border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+        <table style="width:100%; border-collapse:collapse; background:#fff;">
+          <thead>
+            <tr style="background:#f8fafc;">
+              <th style="text-align:left; padding:8px 10px; font-size:12px; color:var(--muted); width:140px;">サービス</th>
+              <th style="text-align:left; padding:8px 10px; font-size:12px; color:var(--muted);">ID</th>
+              <th style="text-align:left; padding:8px 10px; font-size:12px; color:var(--muted);">PASS</th>
+            </tr>
+          </thead>
+          <tbody>${credRows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="note" style="margin-top:14px;">入力内容は自動保存されます。「👁 PASS を表示」を押すと全パスワードを一括表示／非表示できます。</div>
   </div>`;
 }
 
-function toggleClinicPwd(key) {
-  const el = document.getElementById('clinic-pwd-' + key);
-  if (el) el.type = el.type === 'password' ? 'text' : 'password';
+function toggleAllClinicPasswords(btn) {
+  const inputs = document.querySelectorAll('input[data-pass-input]');
+  if (!inputs.length) return;
+  const currentlyHidden = Array.from(inputs).some(i => i.type === 'password');
+  const newType = currentlyHidden ? 'text' : 'password';
+  inputs.forEach(i => { i.type = newType; });
+  if (btn) btn.textContent = newType === 'text' ? '🙈 PASS を隠す' : '👁 PASS を表示';
 }
 
 function viewData() {
