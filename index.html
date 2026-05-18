@@ -982,11 +982,12 @@
     padding: 10px 8px;
     border: 1px solid #ca8a04;
   }
-  .daily-table thead th.hl { background: linear-gradient(180deg, #fed7aa, #fdba74); color: #9a3412; border-color: #c2410c; }
+  .daily-table thead th.hl { background: linear-gradient(180deg, #d1fae5, #6ee7b7); color: #065f46; border-color: #047857; }
   .daily-table tbody td.dow-sun { color: #dc2626; font-weight: 700; background: #fff5f5; }
   .daily-table tbody td.dow-sat { color: #2563eb; font-weight: 700; background: #f0f9ff; }
   .daily-table tbody td.date-cell { font-weight: 700; color: var(--text-dark); background: #fafbfc; }
-  .daily-table tbody td.hl { background: #fff7ed; }
+  .daily-table tbody td.hl { background: #ecfdf5; }
+  .daily-table tbody td.hl input { color: #065f46; font-weight: 600; }
   .daily-table tfoot td {
     background: #dbeafe;
     font-weight: 800;
@@ -2335,7 +2336,8 @@ function getDailyDataHeaders() {
 }
 
 function isHlHeader(h) {
-  return h === '新患' || h === '実来院数';
+  // 総売上 / スクエア / 現金売上 を強調表示（売上関連の主要列）
+  return h === '総売上' || h === 'スクエア' || h === '現金売上';
 }
 function isWideHeader(h) {
   return /売上|自費|金額|円/.test(h);
