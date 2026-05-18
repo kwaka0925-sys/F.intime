@@ -3510,39 +3510,94 @@ function viewAdCostAfter() {
 }
 
 function viewChannel() {
-  const entries = filteredEntries();
-  const counts = {};
-  entries.forEach(e => { counts[e.channel] = (counts[e.channel] || 0) + e.newCustomers; });
-  const labels = Object.keys(counts).map(k => CHANNEL_LABELS[k] || k);
-  const data = Object.values(counts);
+  const clinicFilter = document.getElementById('clinicSelect').value;
+  const { from, to } = getPeriodRange();
+  const months = listMonthsInRange(from, to);
+  const metaAgg = aggregateMetaByMonthClinic(from, to);
+  const targetClinics = clinicFilter === 'all' ? Object.keys(CLINICS) : [clinicFilter];
+
+  // 期間×店舗合算で各チャネルの 予算/予約数 を集計
+  const totals = {};
+  ACQUISITION_CHANNELS.forEach(c => totals[c.key] = { budget: 0, customers: 0 });
+  months.forEach(m => {
+    targetClinics.forEach(cl => {
+      ACQUISITION_CHANNELS.forEach(c => {
+        const v = getChannelValue(m, cl, c.key, metaAgg);
+        totals[c.key].budget += v.budget;
+        totals[c.key].customers += v.customers;
+      });
+    });
+  });
+
+  // 訴求価格（チャネル単位、手入力で保存）
+  state.channelPricing = state.channelPricing || {};
+
+  const cards = ACQUISITION_CHANNELS.map(c => {
+    const t = totals[c.key];
+    const cpa = t.customers > 0 ? Math.round(t.budget / t.customers) : 0;
+    const price = state.channelPricing[c.key] != null ? state.channelPricing[c.key] : '';
+    const isMeta = !c.manual;
+    return `
+      <div class="kpi-card" style="${isMeta ? 'background:#eff6ff;' : ''}; padding:14px 16px;">
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:10px;">
+          <span style="font-size:18px;">${c.icon}</span>
+          <strong style="font-size:14px;">${c.label}</strong>
+          ${isMeta ? '<span style="font-size:9px; color:var(--primary); background:#dbeafe; padding:1px 5px; border-radius:3px;">Meta連携</span>' : ''}
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div>
+            <div style="font-size:11px; color:var(--muted);">予算金額</div>
+            <div style="font-weight:700; font-size:15px;">${yen(t.budget)}</div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--muted);">予約数</div>
+            <div style="font-weight:700; font-size:15px;">${fmt(t.customers)} <span style="font-size:11px; color:var(--muted);">名</span></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--muted);">CPA</div>
+            <div style="font-weight:700; font-size:15px; color:${cpa > 0 ? 'var(--text-dark)' : 'var(--muted)'};">${cpa > 0 ? yen(cpa) : '—'}</div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--muted);">訴求価格</div>
+            <input type="number" min="0" step="100" value="${price}" placeholder="例: 1000"
+              onchange="updateChannelPricing('${c.key}', this.value)"
+              style="width:100%; padding:5px 8px; border:1px solid #e5e7eb; border-radius:4px; font-size:14px; font-weight:700;" />
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // 合計
+  const grand = Object.values(totals).reduce((a, t) => ({ budget: a.budget + t.budget, customers: a.customers + t.customers }), { budget: 0, customers: 0 });
+  const grandCpa = grand.customers > 0 ? Math.round(grand.budget / grand.customers) : 0;
+
+  // 期間ラベル
+  const periodLabel = months.length === 0 ? '期間未選択' : months.length === 1 ? months[0] : `${months[0]} 〜 ${months[months.length - 1]}`;
+  const clinicLabel = clinicFilter === 'all' ? '全店舗合算' : CLINICS[clinicFilter];
+
   return `
-    <div class="card"><h2>📣 集客チャネル別 新規顧客数</h2><canvas id="chart_channel" height="120"></canvas></div>
-    <div class="card" style="margin-top:18px;">
-      <h2>チャネル別 内訳</h2>
-      <table>
-        <thead><tr><th>チャネル</th><th class="num">新規顧客数</th><th class="num">構成比</th></tr></thead>
-        <tbody>${labels.length === 0 ? '<tr><td colspan="3" class="empty">データなし</td></tr>' :
-          labels.map((l, i) => `<tr><td>${l}</td><td class="num">${data[i]}</td><td class="num">${data.reduce((a,b) => a+b, 0) > 0 ? ((data[i] / data.reduce((a,b) => a+b, 0)) * 100).toFixed(1) : 0}%</td></tr>`).join('')}
-        </tbody>
-      </table>
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+        <div>
+          <h2 style="margin:0;">📣 集客チャネル別 実績 (${clinicLabel})</h2>
+          <div style="font-size:12px; color:var(--muted); margin-top:4px;">期間: ${periodLabel}</div>
+        </div>
+        <div style="text-align:right; font-size:13px;">
+          <div><strong>予算合計 ${yen(grand.budget)}</strong> / <strong>予約数合計 ${fmt(grand.customers)}名</strong></div>
+          <div style="color:var(--muted);">平均CPA: ${grandCpa > 0 ? yen(grandCpa) : '—'}</div>
+        </div>
+      </div>
+      <div class="kpi-grid">${cards}</div>
+      <div class="note" style="margin-top:12px;">📡 メタ広告は Meta CSV から自動集計。チラシ・HPB・MAP・スレッズの 予算 / 予約数 は「媒体別集客実績」ページで入力できます。訴求価格はこのページで直接編集できます。</div>
     </div>
   `;
 }
-function viewChannelAfter() {
-  const entries = filteredEntries();
-  const counts = {};
-  entries.forEach(e => { if (e.newCustomers > 0) counts[e.channel] = (counts[e.channel] || 0) + e.newCustomers; });
-  if (Object.keys(counts).length === 0) { emptyChart('chart_channel', 'この期間の集客データはありません'); return; }
-  destroyChart('channel');
-  charts.channel = new Chart(document.getElementById('chart_channel'), {
-    type: 'doughnut',
-    data: { labels: Object.keys(counts).map(k => CHANNEL_LABELS[k] || k),
-      datasets: [{ data: Object.values(counts), backgroundColor: ['#2563eb','#7c3aed','#f59e0b','#10b981','#ef4444','#6b7280'] }] },
-    options: { responsive: true, plugins: {
-        legend: { position: 'bottom' },
-        tooltip: { callbacks: { label: ctx => ctx.label + ': ' + fmt(ctx.parsed) + '人' } },
-      } },
-  });
+function viewChannelAfter() { /* no chart */ }
+
+function updateChannelPricing(channelKey, value) {
+  state.channelPricing = state.channelPricing || {};
+  state.channelPricing[channelKey] = Math.max(0, Number(value) || 0);
+  save();
 }
 
 // 店舗マスタ: 詳細編集の選択状態（モジュールレベル）
