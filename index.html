@@ -4916,10 +4916,10 @@ function resetBulkShift() {
 
 function viewImportCustomers() {
   return `<div class="card" style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe); border-color:#7dd3fc;">
-    <h2 style="margin:0 0 8px 0;">🔄 Google Sheets「新患管理」から同期</h2>
+    <h2 style="margin:0 0 8px 0;">🔄 Google Sheets「顧客情報」から同期</h2>
     <p style="font-size:13px; color:var(--muted); margin:0 0 12px 0;">スプレッドシートの最新の顧客情報を一括取り込みします。シート側を更新するだけで、ここから同期できます。</p>
     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-      <button onclick="fetchCustomersFromSheet(true)" style="background:linear-gradient(135deg,#0284c7,#0369a1);">🔄 新患管理シートから同期</button>
+      <button onclick="fetchCustomersFromSheet(true)" style="background:linear-gradient(135deg,#0284c7,#0369a1);">🔄 顧客情報シートから同期</button>
       <span id="customerSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastCustomerSyncMsg || '※ シートを「リンクを知っている全員: 閲覧者」に共有してから同期してください'}</span>
     </div>
   </div>
@@ -4947,36 +4947,75 @@ function viewImportCustomers() {
   </div>
 
   <div class="card" style="margin-top:18px;">
-    <h2>取り込み済み顧客 (${(state.customers || []).length} 件)</h2>
-    ${(state.customers || []).length === 0 ? '<div class="empty">まだ取り込んだ顧客データはありません。</div>' : `
-      <div style="overflow-x:auto;">
-      <table style="font-size:12px;">
-        <thead><tr>
-          <th class="num">#</th><th>氏名</th><th>担当者</th><th>会員</th><th>プラン</th>
-          <th>状態</th><th class="num">来院</th><th>最終</th><th class="num">金額</th><th>取込元</th>
-        </tr></thead>
-        <tbody>${state.customers.slice(0, 100).map(c => `<tr>
-          <td class="num" style="color:var(--muted);">${escapeHtml(c.customerNumber || '-')}</td>
-          <td><strong>${escapeHtml(c.name || '-')}</strong></td>
-          <td>${escapeHtml(c.staffName || '-')}</td>
-          <td>${escapeHtml(c.membership || '-')}</td>
-          <td>${escapeHtml(c.plan || '-')}</td>
-          <td>${escapeHtml(c.status || '-')}</td>
-          <td class="num">${c.visitCount > 0 ? c.visitCount + '回' : '-'}</td>
-          <td>${escapeHtml(c.lastVisit || '-')}</td>
-          <td class="num">${escapeHtml(c.totalAmount || '-')}</td>
-          <td style="font-size:10px; color:var(--muted);">${escapeHtml(c.source || '-')}</td>
-        </tr>`).join('')}</tbody>
-      </table>
-      </div>
-      ${state.customers.length > 100 ? `<div class="empty">先頭100件を表示中（全 ${state.customers.length} 件）</div>` : ''}
+    ${(() => {
+      const all = state.customers || [];
+      if (all.length === 0) return '<h2>取り込み済み顧客 (0 件)</h2><div class="empty">まだ取り込んだ顧客データはありません。</div>';
+      const q = (state.importCustomerSearch || '').toLowerCase().trim();
+      // 検索フィルタ
+      const filtered = q
+        ? all.filter(c =>
+            (c.name || '').toLowerCase().includes(q) ||
+            (c.kana || '').toLowerCase().includes(q) ||
+            (c.customerNumber || '').toString().includes(q) ||
+            (c.staffName || '').includes(q) ||
+            (c.plan || '').includes(q) ||
+            (c.membership || '').includes(q))
+        : all;
+      // 最終来院日 降順 (新しい順、空欄は最後)
+      const sorted = filtered.slice().sort((a, b) => {
+        const av = (a.lastVisit || '').replace(/\D/g, '');
+        const bv = (b.lastVisit || '').replace(/\D/g, '');
+        if (!av && !bv) return 0;
+        if (!av) return 1;
+        if (!bv) return -1;
+        return bv.localeCompare(av);
+      });
+      const pageSize = 100;
+      const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+      const page = Math.min(Math.max(1, state.importCustomerPage || 1), totalPages);
+      const start = (page - 1) * pageSize;
+      const pageRows = sorted.slice(start, start + pageSize);
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+          <h2 style="margin:0;">取り込み済み顧客 <span style="color:var(--muted); font-size:13px; font-weight:500;">(${sorted.length} / ${all.length} 件 / ${page}〜${Math.min(start + pageSize, sorted.length)} 表示)</span></h2>
+          <input type="text" placeholder="🔍 氏名・かな・番号・担当・プランで検索" value="${escapeHtml(state.importCustomerSearch || '')}"
+            oninput="searchImportCustomers(this.value)"
+            style="width:320px; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px;" />
+        </div>
+        <div style="overflow-x:auto;">
+        <table style="font-size:12px;">
+          <thead><tr>
+            <th class="num">#</th><th>氏名</th><th>担当者</th><th>会員</th><th>プラン</th>
+            <th>状態</th><th class="num">来院</th><th>最終</th><th class="num">金額</th><th>取込元</th>
+          </tr></thead>
+          <tbody>${pageRows.map(c => `<tr>
+            <td class="num" style="color:var(--muted);">${escapeHtml(c.customerNumber || '-')}</td>
+            <td><strong>${escapeHtml(c.name || '-')}</strong></td>
+            <td>${escapeHtml(c.staffName || '-')}</td>
+            <td>${escapeHtml(c.membership || '-')}</td>
+            <td>${escapeHtml(c.plan || '-')}</td>
+            <td>${escapeHtml(c.status || '-')}</td>
+            <td class="num">${c.visitCount > 0 ? c.visitCount + '回' : '-'}</td>
+            <td>${escapeHtml(c.lastVisit || '-')}</td>
+            <td class="num">${escapeHtml(c.totalAmount || '-')}</td>
+            <td style="font-size:10px; color:var(--muted);">${escapeHtml(c.source || '-')}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+        </div>
+        <div style="display:flex; gap:8px; justify-content:center; align-items:center; margin-top:14px; flex-wrap:wrap;">
+          <button class="ghost" ${page <= 1 ? 'disabled' : ''} onclick="shiftImportCustomerPage(-1)" style="padding:6px 14px;">← 前の100件</button>
+          <span style="font-size:13px; color:var(--muted);">${page} / ${totalPages} ページ</span>
+          <button class="ghost" ${page >= totalPages ? 'disabled' : ''} onclick="shiftImportCustomerPage(1)" style="padding:6px 14px;">次の100件 →</button>
+        </div>
+      `;
+    })()}
     `}
   </div>`;
 }
 
-// Google Sheets「新患管理」から顧客データを取得
+// Google Sheets「顧客情報」から顧客データを取得
 const CUSTOMERS_SHEET_ID = '1cpAzEelyxtVRFq2s_E5YBTyZP8BZZJ1egAGqFQEic1g';
-const CUSTOMERS_SHEET_TAB = '新患管理';
+const CUSTOMERS_SHEET_TAB = '顧客情報';
 let customerSyncInFlight = false;
 
 async function fetchCustomersFromSheet(manual) {
@@ -4987,7 +5026,7 @@ async function fetchCustomersFromSheet(manual) {
     const el = document.getElementById('customerSyncStatus');
     if (el) el.textContent = msg;
   };
-  setStatus('⏳ 新患管理シートから同期中...');
+  setStatus('⏳ 顧客情報シートから同期中...');
 
   const directUrl = `https://docs.google.com/spreadsheets/d/${CUSTOMERS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(CUSTOMERS_SHEET_TAB)}`;
   const candidates = [
@@ -5037,7 +5076,7 @@ async function fetchCustomersFromSheet(manual) {
     if (rows.length < 2) { setStatus('✕ シートにデータがありません'); return; }
     const headers = rows[0];
     const mapped = rows.slice(1)
-      .map(row => mapCustomerRow(headers, row, 'Google Sheets (新患管理)'))
+      .map(row => mapCustomerRow(headers, row, 'Google Sheets (顧客情報)'))
       .filter(r => r && (r.name || r.kana || r.phone));
     // 上書き同期: スプレッドシート由来分を入れ替え（手動アップロード分は残す）
     const manualKeep = (state.customers || []).filter(c => c.source && !c.source.startsWith('Google Sheets'));
@@ -5050,6 +5089,24 @@ async function fetchCustomersFromSheet(manual) {
     console.error(e);
     setStatus('✕ 解析失敗: ' + (e.message || e));
   }
+}
+
+// 顧客データ移行ページの検索 / ページネーション
+function searchImportCustomers(query) {
+  state.importCustomerSearch = query;
+  state.importCustomerPage = 1;
+  renderView();
+  // 検索入力欄にフォーカスを戻す
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('input[placeholder*="氏名・かな"]');
+    const el = inputs[inputs.length - 1];
+    if (el) { el.focus(); el.setSelectionRange(query.length, query.length); }
+  }, 0);
+}
+function shiftImportCustomerPage(delta) {
+  state.importCustomerPage = (state.importCustomerPage || 1) + delta;
+  renderView();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function handleCustomerCsv(ev) {

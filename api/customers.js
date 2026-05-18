@@ -2,7 +2,7 @@
 // Requires the sheet to be shared as "Anyone with the link can view".
 
 const SHEET_ID = '1cpAzEelyxtVRFq2s_E5YBTyZP8BZZJ1egAGqFQEic1g';
-const DEFAULT_TAB = '新患管理';
+const DEFAULT_TAB = '顧客情報';
 
 module.exports = async function handler(req, res) {
   let sheetName = DEFAULT_TAB;
