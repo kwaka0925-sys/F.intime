@@ -1028,21 +1028,6 @@
 </head>
 <body>
 
-<!-- =================== LOGIN =================== -->
-<div class="login-overlay" id="loginOverlay">
-  <form class="login-card" id="loginForm" onsubmit="return handleLogin(event)">
-    <h2>🏥 NAORU整体 経営ダッシュボード</h2>
-    <div class="sub">サインインしてください</div>
-
-    <label>メールアドレス (ID)</label>
-    <input type="email" id="loginEmail" name="email" autocomplete="username" required />
-    <label>パスワード</label>
-    <input type="password" id="loginPassword" name="password" autocomplete="current-password" required />
-    <button type="submit" style="margin-top:18px;">ログイン</button>
-    <div class="login-error" id="loginError"></div>
-  </form>
-</div>
-
 <!-- =================== BOOKING MODAL =================== -->
 <div class="modal-backdrop" id="bookingModal">
   <div class="modal">
@@ -1155,7 +1140,7 @@
   </div>
 </div>
 
-<div class="app" id="appRoot" style="display:none;">
+<div class="app" id="appRoot">
 
   <!-- =================== SIDEBAR =================== -->
   <aside class="sidebar">
@@ -1364,11 +1349,14 @@ function logout() {
   location.reload();
 }
 function showApp() {
-  document.getElementById('loginOverlay').style.display = 'none';
-  document.getElementById('appRoot').style.display = '';
+  // ログイン画面は廃止。appRoot は常に表示。
+  const overlay = document.getElementById('loginOverlay');
+  if (overlay) overlay.style.display = 'none';
+  const root = document.getElementById('appRoot');
+  if (root) root.style.display = '';
 }
 function checkAuth() {
-  // Login is temporarily disabled — skip the overlay and open the app directly.
+  // ログインは廃止済。アプリを直接開く。
   isAuthedInMemory = true;
   showApp();
   return true;
