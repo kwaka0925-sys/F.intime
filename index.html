@@ -4908,7 +4908,16 @@ function resetBulkShift() {
 }
 
 function viewImportCustomers() {
-  return `<div class="card"><h2>📥 顧客データ移行 (CSVインポート)</h2>
+  return `<div class="card" style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe); border-color:#7dd3fc;">
+    <h2 style="margin:0 0 8px 0;">🔄 Google Sheets「新患管理」から同期</h2>
+    <p style="font-size:13px; color:var(--muted); margin:0 0 12px 0;">スプレッドシートの最新の顧客情報を一括取り込みします。シート側を更新するだけで、ここから同期できます。</p>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <button onclick="fetchCustomersFromSheet(true)" style="background:linear-gradient(135deg,#0284c7,#0369a1);">🔄 新患管理シートから同期</button>
+      <span id="customerSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastCustomerSyncMsg || '※ シートを「リンクを知っている全員: 閲覧者」に共有してから同期してください'}</span>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px;"><h2>📥 CSVから個別取り込み（手動）</h2>
     <p style="font-size:13px; color:var(--muted);">ホットペッパー / RESERVA / Airリザーブ / LINE公式 などから書き出した CSV を取り込めます。</p>
 
     <label class="csv-drop" for="customerCsv">
@@ -4943,6 +4952,84 @@ function viewImportCustomers() {
       ${state.customers.length > 100 ? `<div class="empty">先頭100件を表示中（全 ${state.customers.length} 件）</div>` : ''}
     `}
   </div>`;
+}
+
+// Google Sheets「新患管理」から顧客データを取得
+const CUSTOMERS_SHEET_ID = '1cpAzEelyxtVRFq2s_E5YBTyZP8BZZJ1egAGqFQEic1g';
+const CUSTOMERS_SHEET_TAB = '新患管理';
+let customerSyncInFlight = false;
+
+async function fetchCustomersFromSheet(manual) {
+  if (customerSyncInFlight) return;
+  customerSyncInFlight = true;
+  const setStatus = (msg) => {
+    state.lastCustomerSyncMsg = msg;
+    const el = document.getElementById('customerSyncStatus');
+    if (el) el.textContent = msg;
+  };
+  setStatus('⏳ 新患管理シートから同期中...');
+
+  const directUrl = `https://docs.google.com/spreadsheets/d/${CUSTOMERS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(CUSTOMERS_SHEET_TAB)}`;
+  const candidates = [
+    { label: 'サーバー関数経由', url: '/api/customers' },
+    { label: '直接',           url: directUrl },
+    { label: 'corsproxy.io 経由', url: 'https://corsproxy.io/?' + encodeURIComponent(directUrl) },
+    { label: 'allorigins 経由',   url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(directUrl) },
+  ];
+
+  const errors = [];
+  let text = null;
+  let usedLabel = '';
+
+  for (const c of candidates) {
+    try {
+      const res = await fetch(c.url, { cache: 'no-store' });
+      if (!res.ok) {
+        let detail = '';
+        try { detail = (await res.text()).slice(0, 200); } catch {}
+        errors.push(`${c.label}: HTTP ${res.status}${detail ? ' / ' + detail : ''}`);
+        continue;
+      }
+      const t = await res.text();
+      if (!t || t.trim().startsWith('<') || /<!DOCTYPE/i.test(t.slice(0, 200))) {
+        errors.push(`${c.label}: HTMLが返されました（タブ存在 or 共有設定の可能性）`);
+        continue;
+      }
+      text = t;
+      usedLabel = c.label;
+      break;
+    } catch (e) {
+      errors.push(`${c.label}: ${e.message || e}`);
+    }
+  }
+
+  customerSyncInFlight = false;
+
+  if (!text) {
+    console.error('Customer sync errors:', errors);
+    const short = errors.map(e => '・' + e).join(' / ');
+    setStatus('✕ 同期失敗 - ' + short);
+    return;
+  }
+
+  try {
+    const rows = parseCsv(text);
+    if (rows.length < 2) { setStatus('✕ シートにデータがありません'); return; }
+    const headers = rows[0];
+    const mapped = rows.slice(1)
+      .map(row => mapCustomerRow(headers, row, 'Google Sheets (新患管理)'))
+      .filter(r => r && (r.name || r.kana || r.phone));
+    // 上書き同期: スプレッドシート由来分を入れ替え（手動アップロード分は残す）
+    const manualKeep = (state.customers || []).filter(c => c.source && !c.source.startsWith('Google Sheets'));
+    state.customers = manualKeep.concat(mapped);
+    save();
+    const ts = new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    setStatus(`✓ ${mapped.length} 件を取込（${usedLabel} / ${ts}）`);
+    if (manual) renderView();
+  } catch (e) {
+    console.error(e);
+    setStatus('✕ 解析失敗: ' + (e.message || e));
+  }
 }
 
 function handleCustomerCsv(ev) {
