@@ -1394,8 +1394,8 @@ function load() {
   if (!state.channelEntries) state.channelEntries = []; // {month, clinic, channel, budget, customers}
   if (!state.dailyClinic) state.dailyClinic = 'nakamozu';
   if (!state.dailyMonth) state.dailyMonth = '2026-05';
-  // マスタ管理のデフォルトパスワード（未設定の場合は 'naoru'）
-  if (state.masterPassword == null || state.masterPassword === '') state.masterPassword = 'naoru';
+  // マスタ管理のパスワードは初期状態では無効。'naoru' (旧デフォルト) が保存されていれば自動解除。
+  if (state.masterPassword === 'naoru') state.masterPassword = '';
   if (!state.dailySeeded) {
     seedDailySalesNakamozu();
     state.dailySeeded = true;
