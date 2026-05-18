@@ -3609,7 +3609,11 @@ function getClinicDetails(key) {
   // 旧構造（phone/address/password/notes）からの移行と既定値の補完
   d.phone = d.phone || '';
   d.address = d.address || '';
-  d.therapists = d.therapists || '';
+  // セラピストは配列管理。旧構造（文字列、改行区切り）からの自動マイグレーション。
+  if (typeof d.therapists === 'string') {
+    d.therapists = d.therapists.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  }
+  if (!Array.isArray(d.therapists)) d.therapists = [];
   d.credentials = d.credentials || {};
   ['hpb', 'sattou', 'camera'].forEach(svc => {
     d.credentials[svc] = d.credentials[svc] || { id: '', password: '' };
@@ -3627,6 +3631,29 @@ function updateClinicCredential(key, svc, field, value) {
   d.credentials[svc] = d.credentials[svc] || { id: '', password: '' };
   d.credentials[svc][field] = value;
   save();
+}
+function updateClinicTherapist(key, idx, value) {
+  const d = getClinicDetails(key);
+  if (idx < 0 || idx >= d.therapists.length) return;
+  d.therapists[idx] = value;
+  save();
+}
+function addClinicTherapist(key) {
+  const d = getClinicDetails(key);
+  d.therapists.push('');
+  save();
+  renderView();
+  // 新しい入力欄にフォーカス
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('input[data-therapist-input]');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 0);
+}
+function removeClinicTherapist(key, idx) {
+  const d = getClinicDetails(key);
+  d.therapists.splice(idx, 1);
+  save();
+  renderView();
 }
 
 function viewClinics() {
@@ -3729,9 +3756,19 @@ function viewClinicDetail(key) {
 
     <div style="margin-top:14px;">
       <label style="${labelStyle}">🧑‍⚕️ セラピスト名</label>
-      <textarea placeholder="セラピスト名を改行区切りで入力（例：&#10;穴井 将太&#10;村田 鵬暢）"
-        oninput="updateClinicDetail('${key}','therapists',this.value)"
-        style="width:100%; min-height:100px; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; resize:vertical;">${escapeHtml(d.therapists)}</textarea>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        ${d.therapists.length === 0
+          ? `<div style="font-size:12px; color:var(--muted); padding:8px 4px;">セラピストはまだ登録されていません。</div>`
+          : d.therapists.map((name, idx) => `
+            <div style="display:flex; gap:6px; align-items:center;">
+              <span style="font-size:12px; color:var(--muted); width:28px; text-align:right;">${idx + 1}.</span>
+              <input type="text" data-therapist-input value="${escapeHtml(name)}" placeholder="セラピスト名"
+                oninput="updateClinicTherapist('${key}', ${idx}, this.value)"
+                style="${inputStyle}" />
+              <button type="button" class="ghost" onclick="if(confirm('このセラピストを削除しますか？')) removeClinicTherapist('${key}', ${idx})" title="削除" style="padding:6px 10px; color:#dc2626;">🗑</button>
+            </div>`).join('')}
+      </div>
+      <button type="button" class="ghost" onclick="addClinicTherapist('${key}')" style="margin-top:8px; padding:6px 14px;">＋ セラピストを追加</button>
     </div>
 
     <div style="margin-top:18px;">
