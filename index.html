@@ -1892,6 +1892,13 @@ function viewRevenueEntry() {
   const initRepeat      = mon ? (mon.repeatVisits || '') : '';
   const initReservations= mon ? (mon.reservations || '') : '';
   const initChannel     = mon ? (mon.channel || 'google') : 'google';
+  // Meta 連携: 該当月の Meta データから 広告費/予約数 を取得（手入力が無い場合のみ採用）
+  const metaSummary = aggregateMetaForPeriod(defaultClinic, `${defaultMonth}-01`, `${defaultMonth}-31`);
+  const hasMetaAd = metaSummary.hasData && metaSummary.adspend > 0;
+  const hasMetaRes = metaSummary.hasData && metaSummary.registrations > 0;
+  const finalAdspend = initAdspend || (hasMetaAd ? metaSummary.adspend : '');
+  const finalReservations = initReservations || (hasMetaRes ? metaSummary.registrations : '');
+  const metaBadge = '<span style="font-size:9px; color:var(--primary); background:#eff6ff; padding:1px 5px; border-radius:3px; margin-left:4px;">Meta連携</span>';
   const noteColor = source === 'daily' ? 'var(--success)' : source === 'manual' ? 'var(--warning)' : 'var(--muted)';
   const noteText  = source === 'daily'
     ? `✓ 日次売上シートから自動反映済み（${formatYM(defaultMonth)} ${CLINICS[defaultClinic]}）`
@@ -1935,10 +1942,10 @@ function viewRevenueEntry() {
 
       <h3 style="font-size:13px; margin:18px 0 8px; color:var(--muted);">📣 広告・集客</h3>
       <div class="form-grid">
-        <label>広告費 (円)<input type="number" id="f_adspend" min="0" step="1000" value="${initAdspend}" placeholder="例: 200000" /></label>
+        <label>広告費 (円)${hasMetaAd && !initAdspend ? metaBadge : ''}<input type="number" id="f_adspend" min="0" step="1000" value="${finalAdspend}" placeholder="例: 200000" /></label>
         <label>新規顧客数<input type="number" id="f_new" min="0" value="${initNew}" placeholder="例: 35" /></label>
         <label>リピート来院数<input type="number" id="f_repeat" min="0" value="${initRepeat}" placeholder="例: 120" /></label>
-        <label>予約数 (全体)<input type="number" id="f_reservations" min="0" value="${initReservations}" placeholder="例: 180" /></label>
+        <label>予約数 (全体)${hasMetaRes && !initReservations ? metaBadge : ''}<input type="number" id="f_reservations" min="0" value="${finalReservations}" placeholder="例: 180" /></label>
         <label>主要集客チャネル
           <select id="f_channel">
             ${['google','meta','hotpepper','referral','organic','other'].map(c => `<option value="${c}" ${c === initChannel ? 'selected' : ''}>${CHANNEL_LABELS[c]}</option>`).join('')}
@@ -1990,6 +1997,11 @@ function refreshEntryFromDaily() {
   const mon = state.entries.find(e => e.month === month && e.clinic === clinic);
   const note = document.getElementById('entryFromDailyNote');
 
+  // Meta 連携の取得（広告費 / 予約数）
+  const metaSummary = aggregateMetaForPeriod(clinic, `${month}-01`, `${month}-31`);
+  const metaAd = (metaSummary.hasData && metaSummary.adspend > 0) ? metaSummary.adspend : null;
+  const metaRes = (metaSummary.hasData && metaSummary.registrations > 0) ? metaSummary.registrations : null;
+
   const setRevFields = (cash, square, hpb, other, readonly) => {
     ['f_revCash','f_revSquare','f_revHpb','f_revOther'].forEach((id, i) => {
       const el = document.getElementById(id);
@@ -1999,11 +2011,12 @@ function refreshEntryFromDaily() {
       else { el.removeAttribute('readonly'); el.classList.remove('readonly-amount'); }
     });
   };
+  // adspend / reservations は manual 値がなければ Meta 値を採用
   const setAdFields = (adspend, nc, rp, rsv, channel) => {
-    document.getElementById('f_adspend').value      = adspend != null ? adspend : '';
+    document.getElementById('f_adspend').value      = (adspend != null && adspend !== '') ? adspend : (metaAd != null ? metaAd : '');
     document.getElementById('f_new').value          = nc      != null ? nc      : '';
     document.getElementById('f_repeat').value       = rp      != null ? rp      : '';
-    document.getElementById('f_reservations').value = rsv     != null ? rsv     : '';
+    document.getElementById('f_reservations').value = (rsv != null && rsv !== '') ? rsv : (metaRes != null ? metaRes : '');
     if (channel) document.getElementById('f_channel').value = channel;
   };
 
@@ -2012,21 +2025,21 @@ function refreshEntryFromDaily() {
     setAdFields(mon && mon.adspend, mon && mon.newCustomers, mon && mon.repeatVisits, mon && mon.reservations, mon && mon.channel);
     if (note) {
       note.style.color = 'var(--success)';
-      note.textContent = `✓ 日次売上シートから自動反映（読み取り専用）（${formatYM(month)} ${CLINICS[clinic]}）`;
+      note.textContent = `✓ 日次売上シートから自動反映（読み取り専用）（${formatYM(month)} ${CLINICS[clinic]}）${metaAd != null ? ' / 広告費はMeta連携' : ''}`;
     }
   } else if (mon) {
     setRevFields(mon.revenueCash, mon.revenueSquare, mon.revenueHpb, mon.revenueOther, false);
     setAdFields(mon.adspend, mon.newCustomers, mon.repeatVisits, mon.reservations, mon.channel);
     if (note) {
       note.style.color = 'var(--warning)';
-      note.textContent = `📝 手入力データを表示中（${formatYM(month)} ${CLINICS[clinic]}）`;
+      note.textContent = `📝 手入力データを表示中（${formatYM(month)} ${CLINICS[clinic]}）${metaAd != null && !mon.adspend ? ' / 広告費はMeta連携' : ''}`;
     }
   } else {
     setRevFields('', '', '', '', false);
     setAdFields('', '', '', '', '');
     if (note) {
       note.style.color = 'var(--muted)';
-      note.textContent = `※ ${formatYM(month)} ${CLINICS[clinic]} のデータがまだありません。手入力してください。`;
+      note.textContent = `※ ${formatYM(month)} ${CLINICS[clinic]} のデータがまだありません。${metaAd != null ? '広告費はMeta連携済。他は手入力してください。' : '手入力してください。'}`;
     }
   }
   updateRevenueTotal();
