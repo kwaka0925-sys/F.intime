@@ -1394,6 +1394,8 @@ function load() {
   if (!state.channelEntries) state.channelEntries = []; // {month, clinic, channel, budget, customers}
   if (!state.dailyClinic) state.dailyClinic = 'nakamozu';
   if (!state.dailyMonth) state.dailyMonth = '2026-05';
+  // マスタ管理のデフォルトパスワード（未設定の場合は 'naoru'）
+  if (state.masterPassword == null || state.masterPassword === '') state.masterPassword = 'naoru';
   if (!state.dailySeeded) {
     seedDailySalesNakamozu();
     state.dailySeeded = true;
@@ -1757,6 +1759,19 @@ function filteredEntries() {
 
 // ===== Format =====
 function fmt(n) { return n.toLocaleString('ja-JP'); }
+// 数値入力欄向け: 表示用にカンマを付与、保存用にカンマを除去
+function fmtNum(n) {
+  if (n === '' || n == null) return '';
+  const num = Number(n);
+  if (isNaN(num)) return '';
+  return num.toLocaleString('ja-JP');
+}
+function parseNum(s) {
+  if (s === '' || s == null) return 0;
+  return Number(String(s).replace(/[,\s]/g, '')) || 0;
+}
+// テキスト入力欄にカンマ書式の振る舞いを付与（onfocus/onblur）
+const COMMA_INPUT_HANDLERS = `onfocus="this.value=this.value.replace(/,/g,'')" onblur="this.value=fmtNum(this.value)"`;
 function yen(n) { return '¥' + fmt(Math.round(n)); }
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
@@ -1888,8 +1903,6 @@ function viewRevenueEntry() {
   const initOther  = agg ? agg.other  : (mon && mon.revenueOther  != null ? mon.revenueOther  : '');
   const initTotal  = agg ? agg.total  : (mon ? (mon.revenue || 0) : 0);
   const initAdspend     = mon ? (mon.adspend      || '') : '';
-  const initNew         = mon ? (mon.newCustomers || '') : '';
-  const initRepeat      = mon ? (mon.repeatVisits || '') : '';
   const initReservations= mon ? (mon.reservations || '') : '';
   const initChannel     = mon ? (mon.channel || 'google') : 'google';
   // Meta 連携: 該当月の Meta データから 広告費/予約数 を取得（手入力が無い場合のみ採用）
@@ -1930,10 +1943,10 @@ function viewRevenueEntry() {
       </div>
       <div id="entryFromDailyNote" style="font-size:11px; color:${noteColor}; margin-bottom:6px;">${noteText}</div>
       <div class="form-grid">
-        <label>現金売上 (円)<input type="number" id="f_revCash" min="0" step="1000" value="${initCash}" placeholder="例: 300000" oninput="updateRevenueTotal()" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
-        <label>Square売上 (円)<input type="number" id="f_revSquare" min="0" step="1000" value="${initSquare}" placeholder="例: 800000" oninput="updateRevenueTotal()" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
-        <label>HPBポイント (円)<input type="number" id="f_revHpb" min="0" step="1000" value="${initHpb}" placeholder="例: 50000" oninput="updateRevenueTotal()" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
-        <label>その他決済 (円)<input type="number" id="f_revOther" min="0" step="1000" value="${initOther}" placeholder="例: 20000" oninput="updateRevenueTotal()" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
+        <label>現金売上 (円)<input type="text" inputmode="numeric" id="f_revCash" value="${fmtNum(initCash)}" placeholder="例: 300,000" onfocus="this.value=this.value.replace(/,/g,'')" onblur="this.value=fmtNum(this.value)" oninput="updateRevenueTotal(); autoSaveRevenueEntry();" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
+        <label>Square売上 (円)<input type="text" inputmode="numeric" id="f_revSquare" value="${fmtNum(initSquare)}" placeholder="例: 800,000" onfocus="this.value=this.value.replace(/,/g,'')" onblur="this.value=fmtNum(this.value)" oninput="updateRevenueTotal(); autoSaveRevenueEntry();" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
+        <label>HPBポイント (円)<input type="text" inputmode="numeric" id="f_revHpb" value="${fmtNum(initHpb)}" placeholder="例: 50,000" onfocus="this.value=this.value.replace(/,/g,'')" onblur="this.value=fmtNum(this.value)" oninput="updateRevenueTotal(); autoSaveRevenueEntry();" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
+        <label>その他決済 (円)<input type="text" inputmode="numeric" id="f_revOther" value="${fmtNum(initOther)}" placeholder="例: 20,000" onfocus="this.value=this.value.replace(/,/g,'')" onblur="this.value=fmtNum(this.value)" oninput="updateRevenueTotal(); autoSaveRevenueEntry();" ${source === 'daily' ? 'readonly class="readonly-amount"' : ''} /></label>
       </div>
       <div style="background:#f0f9ff; padding:10px 14px; border-radius:8px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
         <span style="font-size:12px; color:var(--muted);">合計売上</span>
@@ -1942,12 +1955,10 @@ function viewRevenueEntry() {
 
       <h3 style="font-size:13px; margin:18px 0 8px; color:var(--muted);">📣 広告・集客</h3>
       <div class="form-grid">
-        <label>広告費 (円)${hasMetaAd && !initAdspend ? metaBadge : ''}<input type="number" id="f_adspend" min="0" step="1000" value="${finalAdspend}" placeholder="例: 200000" /></label>
-        <label>新規顧客数<input type="number" id="f_new" min="0" value="${initNew}" placeholder="例: 35" /></label>
-        <label>リピート来院数<input type="number" id="f_repeat" min="0" value="${initRepeat}" placeholder="例: 120" /></label>
-        <label>予約数 (全体)${hasMetaRes && !initReservations ? metaBadge : ''}<input type="number" id="f_reservations" min="0" value="${finalReservations}" placeholder="例: 180" /></label>
+        <label>広告費 (円)${hasMetaAd && !initAdspend ? metaBadge : ''}<input type="text" inputmode="numeric" id="f_adspend" value="${fmtNum(finalAdspend)}" placeholder="例: 200,000" onfocus="this.value=this.value.replace(/,/g,'')" onblur="this.value=fmtNum(this.value)" oninput="autoSaveRevenueEntry()" /></label>
+        <label>予約数 (全体)${hasMetaRes && !initReservations ? metaBadge : ''}<input type="text" inputmode="numeric" id="f_reservations" value="${fmtNum(finalReservations)}" placeholder="例: 180" onfocus="this.value=this.value.replace(/,/g,'')" onblur="this.value=fmtNum(this.value)" oninput="autoSaveRevenueEntry()" /></label>
         <label>主要集客チャネル
-          <select id="f_channel">
+          <select id="f_channel" onchange="autoSaveRevenueEntry()">
             ${['google','meta','hotpepper','referral','organic','other'].map(c => `<option value="${c}" ${c === initChannel ? 'selected' : ''}>${CHANNEL_LABELS[c]}</option>`).join('')}
           </select>
         </label>
@@ -2006,37 +2017,37 @@ function refreshEntryFromDaily() {
     ['f_revCash','f_revSquare','f_revHpb','f_revOther'].forEach((id, i) => {
       const el = document.getElementById(id);
       const val = [cash, square, hpb, other][i];
-      el.value = val != null ? val : '';
+      el.value = val != null ? fmtNum(val) : '';
       if (readonly) { el.setAttribute('readonly',''); el.classList.add('readonly-amount'); }
       else { el.removeAttribute('readonly'); el.classList.remove('readonly-amount'); }
     });
   };
   // adspend / reservations は manual 値がなければ Meta 値を採用
-  const setAdFields = (adspend, nc, rp, rsv, channel) => {
-    document.getElementById('f_adspend').value      = (adspend != null && adspend !== '') ? adspend : (metaAd != null ? metaAd : '');
-    document.getElementById('f_new').value          = nc      != null ? nc      : '';
-    document.getElementById('f_repeat').value       = rp      != null ? rp      : '';
-    document.getElementById('f_reservations').value = (rsv != null && rsv !== '') ? rsv : (metaRes != null ? metaRes : '');
+  const setAdFields = (adspend, rsv, channel) => {
+    const adVal = (adspend != null && adspend !== '') ? adspend : (metaAd != null ? metaAd : '');
+    const rsvVal = (rsv != null && rsv !== '') ? rsv : (metaRes != null ? metaRes : '');
+    document.getElementById('f_adspend').value      = adVal !== '' ? fmtNum(adVal) : '';
+    document.getElementById('f_reservations').value = rsvVal !== '' ? fmtNum(rsvVal) : '';
     if (channel) document.getElementById('f_channel').value = channel;
   };
 
   if (agg) {
     setRevFields(agg.cash, agg.square, agg.hpb, agg.other, true);
-    setAdFields(mon && mon.adspend, mon && mon.newCustomers, mon && mon.repeatVisits, mon && mon.reservations, mon && mon.channel);
+    setAdFields(mon && mon.adspend, mon && mon.reservations, mon && mon.channel);
     if (note) {
       note.style.color = 'var(--success)';
       note.textContent = `✓ 日次売上シートから自動反映（読み取り専用）（${formatYM(month)} ${CLINICS[clinic]}）${metaAd != null ? ' / 広告費はMeta連携' : ''}`;
     }
   } else if (mon) {
     setRevFields(mon.revenueCash, mon.revenueSquare, mon.revenueHpb, mon.revenueOther, false);
-    setAdFields(mon.adspend, mon.newCustomers, mon.repeatVisits, mon.reservations, mon.channel);
+    setAdFields(mon.adspend, mon.reservations, mon.channel);
     if (note) {
       note.style.color = 'var(--warning)';
       note.textContent = `📝 手入力データを表示中（${formatYM(month)} ${CLINICS[clinic]}）${metaAd != null && !mon.adspend ? ' / 広告費はMeta連携' : ''}`;
     }
   } else {
     setRevFields('', '', '', '', false);
-    setAdFields('', '', '', '', '');
+    setAdFields('', '', '');
     if (note) {
       note.style.color = 'var(--muted)';
       note.textContent = `※ ${formatYM(month)} ${CLINICS[clinic]} のデータがまだありません。${metaAd != null ? '広告費はMeta連携済。他は手入力してください。' : '手入力してください。'}`;
@@ -2046,10 +2057,10 @@ function refreshEntryFromDaily() {
 }
 
 function updateRevenueTotal() {
-  const cash   = Number(document.getElementById('f_revCash').value) || 0;
-  const square = Number(document.getElementById('f_revSquare').value) || 0;
-  const hpb    = Number(document.getElementById('f_revHpb').value) || 0;
-  const other  = Number(document.getElementById('f_revOther').value) || 0;
+  const cash   = parseNum(document.getElementById('f_revCash').value);
+  const square = parseNum(document.getElementById('f_revSquare').value);
+  const hpb    = parseNum(document.getElementById('f_revHpb').value);
+  const other  = parseNum(document.getElementById('f_revOther').value);
   const total  = cash + square + hpb + other;
   document.getElementById('f_revTotal').textContent = yen(total);
 }
@@ -2199,33 +2210,45 @@ function pickDay(prefix, ymd) {
   input.dispatchEvent(new Event('change'));
 }
 
-function saveEntry() {
-  const month = document.getElementById('f_month').value;
-  if (!month) { alert('対象月を選択してください'); return; }
+// 月次売上入力フォームの自動保存（再描画/通知なし、フォーカス維持）
+function autoSaveRevenueEntry() {
+  const monthEl = document.getElementById('f_month');
+  if (!monthEl) return;
+  const month = monthEl.value;
+  if (!month) return;
   const clinicVal = document.getElementById('f_clinic').value;
-  const cash   = Number(document.getElementById('f_revCash').value) || 0;
-  const square = Number(document.getElementById('f_revSquare').value) || 0;
-  const hpb    = Number(document.getElementById('f_revHpb').value) || 0;
-  const other  = Number(document.getElementById('f_revOther').value) || 0;
-  // Remember last edit so the form re-opens to the same month/clinic
+  const cash   = parseNum(document.getElementById('f_revCash').value);
+  const square = parseNum(document.getElementById('f_revSquare').value);
+  const hpb    = parseNum(document.getElementById('f_revHpb').value);
+  const other  = parseNum(document.getElementById('f_revOther').value);
   state.lastEntryMonth = month;
   state.lastEntryClinic = clinicVal;
+  const existing = state.entries.find(e => e.month === month && e.clinic === clinicVal);
   upsertEntry({
     month,
-    clinic: document.getElementById('f_clinic').value,
+    clinic: clinicVal,
     revenueCash: cash,
     revenueSquare: square,
     revenueHpb: hpb,
     revenueOther: other,
     revenue: cash + square + hpb + other,
-    adspend: Number(document.getElementById('f_adspend').value) || 0,
-    newCustomers: Number(document.getElementById('f_new').value) || 0,
-    repeatVisits: Number(document.getElementById('f_repeat').value) || 0,
-    reservations: Number(document.getElementById('f_reservations').value) || 0,
+    adspend: parseNum(document.getElementById('f_adspend').value),
+    newCustomers: existing ? (existing.newCustomers || 0) : 0,
+    repeatVisits: existing ? (existing.repeatVisits || 0) : 0,
+    reservations: parseNum(document.getElementById('f_reservations').value),
     channel: document.getElementById('f_channel').value,
   });
+  // 自動保存中のフィードバック（軽め）
   const msg = document.getElementById('saveMsg');
-  if (msg) { msg.textContent = '✓ 保存しました'; setTimeout(() => msg.textContent = '', 2000); }
+  if (msg) { msg.textContent = '✓ 自動保存済み'; msg.style.opacity = '0.7'; }
+}
+
+function saveEntry() {
+  const month = document.getElementById('f_month').value;
+  if (!month) { alert('対象月を選択してください'); return; }
+  autoSaveRevenueEntry();
+  const msg = document.getElementById('saveMsg');
+  if (msg) { msg.textContent = '✓ 保存しました'; msg.style.opacity = '1'; setTimeout(() => msg.textContent = '', 2000); }
   renderView();
 }
 function editEntry(month, clinic) {
@@ -2236,14 +2259,12 @@ function editEntry(month, clinic) {
     document.getElementById('f_month').value = e.month;
     document.getElementById('f_monthTrigger').textContent = formatYM(e.month);
     document.getElementById('f_clinic').value = e.clinic;
-    document.getElementById('f_revCash').value   = e.revenueCash   != null ? e.revenueCash   : '';
-    document.getElementById('f_revSquare').value = e.revenueSquare != null ? e.revenueSquare : '';
-    document.getElementById('f_revHpb').value    = e.revenueHpb    != null ? e.revenueHpb    : '';
-    document.getElementById('f_revOther').value  = e.revenueOther  != null ? e.revenueOther  : (e.revenueCash == null && e.revenueSquare == null ? e.revenue : '');
-    document.getElementById('f_adspend').value = e.adspend;
-    document.getElementById('f_new').value = e.newCustomers;
-    document.getElementById('f_repeat').value = e.repeatVisits;
-    document.getElementById('f_reservations').value = e.reservations;
+    document.getElementById('f_revCash').value   = fmtNum(e.revenueCash);
+    document.getElementById('f_revSquare').value = fmtNum(e.revenueSquare);
+    document.getElementById('f_revHpb').value    = fmtNum(e.revenueHpb);
+    document.getElementById('f_revOther').value  = fmtNum(e.revenueOther != null ? e.revenueOther : (e.revenueCash == null && e.revenueSquare == null ? e.revenue : ''));
+    document.getElementById('f_adspend').value = fmtNum(e.adspend);
+    document.getElementById('f_reservations').value = fmtNum(e.reservations);
     document.getElementById('f_channel').value = e.channel;
     updateRevenueTotal();
   }, 50);
@@ -2389,7 +2410,7 @@ function viewDailySales() {
         const val = getCellValue(e, h);
         const display = val === 0 ? '' : (val == null ? '' : String(val));
         const enc = encodeURIComponent(h);
-        return `<td class="${isHlHeader(h) ? 'hl' : ''} daily-cell"><input type="text" value="${escapeHtml(display)}" onchange="updateDailyCellByHeader('${dateStr}','${clinic}','${enc}',this.value)" /></td>`;
+        return `<td class="${isHlHeader(h) ? 'hl' : ''} daily-cell"><input type="text" value="${escapeHtml(display)}" oninput="updateDailyCellByHeader('${dateStr}','${clinic}','${enc}',this.value)" /></td>`;
       }).join('') + `</tr>`;
   }
 
@@ -3332,12 +3353,18 @@ function viewRevenueTrend() {
             const cpaCell = `<td class="num" style="${c.manual ? '' : 'background:#eff6ff;'} color:${cpa > 0 ? 'var(--text-dark)' : 'var(--muted)'};">${cpa > 0 ? yen(cpa) : '—'}</td>`;
             if (c.manual) {
               return `
-                <td class="num"><input type="number" min="0" step="100" value="${v.budget || ''}" placeholder="0"
-                    style="width:90px; text-align:right; padding:4px 6px; border:1px solid #e5e7eb; border-radius:4px;"
-                    onchange="updateChannelEntry('${r.month}','${r.clinic}','${c.key}','budget',this.value)" /></td>
-                <td class="num"><input type="number" min="0" step="1" value="${v.customers || ''}" placeholder="0"
-                    style="width:60px; text-align:right; padding:4px 6px; border:1px solid #e5e7eb; border-radius:4px;"
-                    onchange="updateChannelEntry('${r.month}','${r.clinic}','${c.key}','customers',this.value)" />
+                <td class="num"><input type="text" inputmode="numeric" value="${fmtNum(v.budget)}" placeholder="0"
+                    style="width:100px; text-align:right; padding:4px 6px; border:1px solid #e5e7eb; border-radius:4px;"
+                    onfocus="this.value=this.value.replace(/,/g,'')"
+                    onblur="this.value=fmtNum(this.value)"
+                    oninput="saveChannelEntryQuiet('${r.month}','${r.clinic}','${c.key}','budget', parseNum(this.value))"
+                    onchange="updateChannelEntry('${r.month}','${r.clinic}','${c.key}','budget', parseNum(this.value))" /></td>
+                <td class="num"><input type="text" inputmode="numeric" value="${fmtNum(v.customers)}" placeholder="0"
+                    style="width:70px; text-align:right; padding:4px 6px; border:1px solid #e5e7eb; border-radius:4px;"
+                    onfocus="this.value=this.value.replace(/,/g,'')"
+                    onblur="this.value=fmtNum(this.value)"
+                    oninput="saveChannelEntryQuiet('${r.month}','${r.clinic}','${c.key}','customers', parseNum(this.value))"
+                    onchange="updateChannelEntry('${r.month}','${r.clinic}','${c.key}','customers', parseNum(this.value))" />
                 </td>
                 ${cpaCell}`;
             }
@@ -3426,6 +3453,10 @@ function viewRevenueTrendAfter() { /* no charts for now */ }
 function updateChannelEntry(month, clinic, channel, field, value) {
   setChannelManualEntry(month, clinic, channel, { [field]: value });
   renderView();
+}
+// oninput 時の即時保存（再描画なし - フォーカス維持）
+function saveChannelEntryQuiet(month, clinic, channel, field, value) {
+  setChannelManualEntry(month, clinic, channel, { [field]: value });
 }
 
 // 媒体別集客実績 ビューの店舗フィルタボタン
@@ -3516,39 +3547,96 @@ function viewAdCostAfter() {
 }
 
 function viewChannel() {
-  const entries = filteredEntries();
-  const counts = {};
-  entries.forEach(e => { counts[e.channel] = (counts[e.channel] || 0) + e.newCustomers; });
-  const labels = Object.keys(counts).map(k => CHANNEL_LABELS[k] || k);
-  const data = Object.values(counts);
+  const clinicFilter = document.getElementById('clinicSelect').value;
+  const { from, to } = getPeriodRange();
+  const months = listMonthsInRange(from, to);
+  const metaAgg = aggregateMetaByMonthClinic(from, to);
+  const targetClinics = clinicFilter === 'all' ? Object.keys(CLINICS) : [clinicFilter];
+
+  // 期間×店舗合算で各チャネルの 予算/予約数 を集計
+  const totals = {};
+  ACQUISITION_CHANNELS.forEach(c => totals[c.key] = { budget: 0, customers: 0 });
+  months.forEach(m => {
+    targetClinics.forEach(cl => {
+      ACQUISITION_CHANNELS.forEach(c => {
+        const v = getChannelValue(m, cl, c.key, metaAgg);
+        totals[c.key].budget += v.budget;
+        totals[c.key].customers += v.customers;
+      });
+    });
+  });
+
+  // 訴求価格（チャネル単位、手入力で保存）
+  state.channelPricing = state.channelPricing || {};
+
+  const cards = ACQUISITION_CHANNELS.map(c => {
+    const t = totals[c.key];
+    const cpa = t.customers > 0 ? Math.round(t.budget / t.customers) : 0;
+    const price = state.channelPricing[c.key] != null ? state.channelPricing[c.key] : '';
+    const isMeta = !c.manual;
+    return `
+      <div class="kpi-card" style="${isMeta ? 'background:#eff6ff;' : ''}; padding:14px 16px;">
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:10px;">
+          <span style="font-size:18px;">${c.icon}</span>
+          <strong style="font-size:14px;">${c.label}</strong>
+          ${isMeta ? '<span style="font-size:9px; color:var(--primary); background:#dbeafe; padding:1px 5px; border-radius:3px;">Meta連携</span>' : ''}
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div>
+            <div style="font-size:11px; color:var(--muted);">予算金額</div>
+            <div style="font-weight:700; font-size:15px;">${yen(t.budget)}</div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--muted);">予約数</div>
+            <div style="font-weight:700; font-size:15px;">${fmt(t.customers)} <span style="font-size:11px; color:var(--muted);">名</span></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--muted);">CPA</div>
+            <div style="font-weight:700; font-size:15px; color:${cpa > 0 ? 'var(--text-dark)' : 'var(--muted)'};">${cpa > 0 ? yen(cpa) : '—'}</div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--muted);">訴求価格</div>
+            <input type="text" inputmode="numeric" value="${fmtNum(price)}" placeholder="例: 1,000"
+              onfocus="this.value=this.value.replace(/,/g,'')"
+              onblur="this.value=fmtNum(this.value)"
+              oninput="updateChannelPricing('${c.key}', parseNum(this.value))"
+              style="width:100%; padding:5px 8px; border:1px solid #e5e7eb; border-radius:4px; font-size:14px; font-weight:700;" />
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // 合計
+  const grand = Object.values(totals).reduce((a, t) => ({ budget: a.budget + t.budget, customers: a.customers + t.customers }), { budget: 0, customers: 0 });
+  const grandCpa = grand.customers > 0 ? Math.round(grand.budget / grand.customers) : 0;
+
+  // 期間ラベル
+  const periodLabel = months.length === 0 ? '期間未選択' : months.length === 1 ? months[0] : `${months[0]} 〜 ${months[months.length - 1]}`;
+  const clinicLabel = clinicFilter === 'all' ? '全店舗合算' : CLINICS[clinicFilter];
+
   return `
-    <div class="card"><h2>📣 集客チャネル別 新規顧客数</h2><canvas id="chart_channel" height="120"></canvas></div>
-    <div class="card" style="margin-top:18px;">
-      <h2>チャネル別 内訳</h2>
-      <table>
-        <thead><tr><th>チャネル</th><th class="num">新規顧客数</th><th class="num">構成比</th></tr></thead>
-        <tbody>${labels.length === 0 ? '<tr><td colspan="3" class="empty">データなし</td></tr>' :
-          labels.map((l, i) => `<tr><td>${l}</td><td class="num">${data[i]}</td><td class="num">${data.reduce((a,b) => a+b, 0) > 0 ? ((data[i] / data.reduce((a,b) => a+b, 0)) * 100).toFixed(1) : 0}%</td></tr>`).join('')}
-        </tbody>
-      </table>
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+        <div>
+          <h2 style="margin:0;">📣 集客チャネル別 実績 (${clinicLabel})</h2>
+          <div style="font-size:12px; color:var(--muted); margin-top:4px;">期間: ${periodLabel}</div>
+        </div>
+        <div style="text-align:right; font-size:13px;">
+          <div><strong>予算合計 ${yen(grand.budget)}</strong> / <strong>予約数合計 ${fmt(grand.customers)}名</strong></div>
+          <div style="color:var(--muted);">平均CPA: ${grandCpa > 0 ? yen(grandCpa) : '—'}</div>
+        </div>
+      </div>
+      <div class="kpi-grid">${cards}</div>
+      <div class="note" style="margin-top:12px;">📡 メタ広告は Meta CSV から自動集計。チラシ・HPB・MAP・スレッズの 予算 / 予約数 は「媒体別集客実績」ページで入力できます。訴求価格はこのページで直接編集できます。</div>
     </div>
   `;
 }
-function viewChannelAfter() {
-  const entries = filteredEntries();
-  const counts = {};
-  entries.forEach(e => { if (e.newCustomers > 0) counts[e.channel] = (counts[e.channel] || 0) + e.newCustomers; });
-  if (Object.keys(counts).length === 0) { emptyChart('chart_channel', 'この期間の集客データはありません'); return; }
-  destroyChart('channel');
-  charts.channel = new Chart(document.getElementById('chart_channel'), {
-    type: 'doughnut',
-    data: { labels: Object.keys(counts).map(k => CHANNEL_LABELS[k] || k),
-      datasets: [{ data: Object.values(counts), backgroundColor: ['#2563eb','#7c3aed','#f59e0b','#10b981','#ef4444','#6b7280'] }] },
-    options: { responsive: true, plugins: {
-        legend: { position: 'bottom' },
-        tooltip: { callbacks: { label: ctx => ctx.label + ': ' + fmt(ctx.parsed) + '人' } },
-      } },
-  });
+function viewChannelAfter() { /* no chart */ }
+
+function updateChannelPricing(channelKey, value) {
+  state.channelPricing = state.channelPricing || {};
+  state.channelPricing[channelKey] = Math.max(0, Number(value) || 0);
+  save();
 }
 
 // 店舗マスタ: 詳細編集の選択状態（モジュールレベル）
@@ -4820,7 +4908,16 @@ function resetBulkShift() {
 }
 
 function viewImportCustomers() {
-  return `<div class="card"><h2>📥 顧客データ移行 (CSVインポート)</h2>
+  return `<div class="card" style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe); border-color:#7dd3fc;">
+    <h2 style="margin:0 0 8px 0;">🔄 Google Sheets「新患管理」から同期</h2>
+    <p style="font-size:13px; color:var(--muted); margin:0 0 12px 0;">スプレッドシートの最新の顧客情報を一括取り込みします。シート側を更新するだけで、ここから同期できます。</p>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <button onclick="fetchCustomersFromSheet(true)" style="background:linear-gradient(135deg,#0284c7,#0369a1);">🔄 新患管理シートから同期</button>
+      <span id="customerSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastCustomerSyncMsg || '※ シートを「リンクを知っている全員: 閲覧者」に共有してから同期してください'}</span>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px;"><h2>📥 CSVから個別取り込み（手動）</h2>
     <p style="font-size:13px; color:var(--muted);">ホットペッパー / RESERVA / Airリザーブ / LINE公式 などから書き出した CSV を取り込めます。</p>
 
     <label class="csv-drop" for="customerCsv">
@@ -4855,6 +4952,84 @@ function viewImportCustomers() {
       ${state.customers.length > 100 ? `<div class="empty">先頭100件を表示中（全 ${state.customers.length} 件）</div>` : ''}
     `}
   </div>`;
+}
+
+// Google Sheets「新患管理」から顧客データを取得
+const CUSTOMERS_SHEET_ID = '1cpAzEelyxtVRFq2s_E5YBTyZP8BZZJ1egAGqFQEic1g';
+const CUSTOMERS_SHEET_TAB = '新患管理';
+let customerSyncInFlight = false;
+
+async function fetchCustomersFromSheet(manual) {
+  if (customerSyncInFlight) return;
+  customerSyncInFlight = true;
+  const setStatus = (msg) => {
+    state.lastCustomerSyncMsg = msg;
+    const el = document.getElementById('customerSyncStatus');
+    if (el) el.textContent = msg;
+  };
+  setStatus('⏳ 新患管理シートから同期中...');
+
+  const directUrl = `https://docs.google.com/spreadsheets/d/${CUSTOMERS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(CUSTOMERS_SHEET_TAB)}`;
+  const candidates = [
+    { label: 'サーバー関数経由', url: '/api/customers' },
+    { label: '直接',           url: directUrl },
+    { label: 'corsproxy.io 経由', url: 'https://corsproxy.io/?' + encodeURIComponent(directUrl) },
+    { label: 'allorigins 経由',   url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(directUrl) },
+  ];
+
+  const errors = [];
+  let text = null;
+  let usedLabel = '';
+
+  for (const c of candidates) {
+    try {
+      const res = await fetch(c.url, { cache: 'no-store' });
+      if (!res.ok) {
+        let detail = '';
+        try { detail = (await res.text()).slice(0, 200); } catch {}
+        errors.push(`${c.label}: HTTP ${res.status}${detail ? ' / ' + detail : ''}`);
+        continue;
+      }
+      const t = await res.text();
+      if (!t || t.trim().startsWith('<') || /<!DOCTYPE/i.test(t.slice(0, 200))) {
+        errors.push(`${c.label}: HTMLが返されました（タブ存在 or 共有設定の可能性）`);
+        continue;
+      }
+      text = t;
+      usedLabel = c.label;
+      break;
+    } catch (e) {
+      errors.push(`${c.label}: ${e.message || e}`);
+    }
+  }
+
+  customerSyncInFlight = false;
+
+  if (!text) {
+    console.error('Customer sync errors:', errors);
+    const short = errors.map(e => '・' + e).join(' / ');
+    setStatus('✕ 同期失敗 - ' + short);
+    return;
+  }
+
+  try {
+    const rows = parseCsv(text);
+    if (rows.length < 2) { setStatus('✕ シートにデータがありません'); return; }
+    const headers = rows[0];
+    const mapped = rows.slice(1)
+      .map(row => mapCustomerRow(headers, row, 'Google Sheets (新患管理)'))
+      .filter(r => r && (r.name || r.kana || r.phone));
+    // 上書き同期: スプレッドシート由来分を入れ替え（手動アップロード分は残す）
+    const manualKeep = (state.customers || []).filter(c => c.source && !c.source.startsWith('Google Sheets'));
+    state.customers = manualKeep.concat(mapped);
+    save();
+    const ts = new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    setStatus(`✓ ${mapped.length} 件を取込（${usedLabel} / ${ts}）`);
+    if (manual) renderView();
+  } catch (e) {
+    console.error(e);
+    setStatus('✕ 解析失敗: ' + (e.message || e));
+  }
 }
 
 function handleCustomerCsv(ev) {
