@@ -5000,8 +5000,9 @@ function viewImportCustomers() {
   </div>`;
 }
 
-// Google Sheets「顧客情報」から顧客データを取得
+// Google Sheets「顧客情報」から顧客データを取得（gid=2085123402 のタブ）
 const CUSTOMERS_SHEET_ID = '1cpAzEelyxtVRFq2s_E5YBTyZP8BZZJ1egAGqFQEic1g';
+const CUSTOMERS_SHEET_GID = '2085123402';
 const CUSTOMERS_SHEET_TAB = '顧客情報';
 let customerSyncInFlight = false;
 
@@ -5015,7 +5016,8 @@ async function fetchCustomersFromSheet(manual) {
   };
   setStatus('⏳ 顧客情報シートから同期中...');
 
-  const directUrl = `https://docs.google.com/spreadsheets/d/${CUSTOMERS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(CUSTOMERS_SHEET_TAB)}`;
+  // gid 指定で取得（タブ名変更に強い）
+  const directUrl = `https://docs.google.com/spreadsheets/d/${CUSTOMERS_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${CUSTOMERS_SHEET_GID}`;
   const candidates = [
     { label: 'サーバー関数経由', url: '/api/customers' },
     { label: '直接',           url: directUrl },
@@ -5064,7 +5066,10 @@ async function fetchCustomersFromSheet(manual) {
     const headers = rows[0];
     const mapped = rows.slice(1)
       .map(row => mapCustomerRow(headers, row, 'Google Sheets (顧客情報)'))
-      .filter(r => r && (r.name || r.kana || r.phone));
+      .filter(r => r && (r.name || r.kana || r.phone || r.customerNumber || r.email || r.staffName));
+    // デバッグ: ヘッダー名と取得件数を残す
+    console.log('[CustomerSync] headers:', headers);
+    console.log('[CustomerSync] rows raw:', rows.length, 'mapped:', mapped.length);
     // 上書き同期: スプレッドシート由来分を入れ替え（手動アップロード分は残す）
     const manualKeep = (state.customers || []).filter(c => c.source && !c.source.startsWith('Google Sheets'));
     state.customers = manualKeep.concat(mapped);
