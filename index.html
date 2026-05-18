@@ -4947,29 +4947,68 @@ function viewImportCustomers() {
   </div>
 
   <div class="card" style="margin-top:18px;">
-    <h2>取り込み済み顧客 (${(state.customers || []).length} 件)</h2>
-    ${(state.customers || []).length === 0 ? '<div class="empty">まだ取り込んだ顧客データはありません。</div>' : `
-      <div style="overflow-x:auto;">
-      <table style="font-size:12px;">
-        <thead><tr>
-          <th class="num">#</th><th>氏名</th><th>担当者</th><th>会員</th><th>プラン</th>
-          <th>状態</th><th class="num">来院</th><th>最終</th><th class="num">金額</th><th>取込元</th>
-        </tr></thead>
-        <tbody>${state.customers.slice(0, 100).map(c => `<tr>
-          <td class="num" style="color:var(--muted);">${escapeHtml(c.customerNumber || '-')}</td>
-          <td><strong>${escapeHtml(c.name || '-')}</strong></td>
-          <td>${escapeHtml(c.staffName || '-')}</td>
-          <td>${escapeHtml(c.membership || '-')}</td>
-          <td>${escapeHtml(c.plan || '-')}</td>
-          <td>${escapeHtml(c.status || '-')}</td>
-          <td class="num">${c.visitCount > 0 ? c.visitCount + '回' : '-'}</td>
-          <td>${escapeHtml(c.lastVisit || '-')}</td>
-          <td class="num">${escapeHtml(c.totalAmount || '-')}</td>
-          <td style="font-size:10px; color:var(--muted);">${escapeHtml(c.source || '-')}</td>
-        </tr>`).join('')}</tbody>
-      </table>
-      </div>
-      ${state.customers.length > 100 ? `<div class="empty">先頭100件を表示中（全 ${state.customers.length} 件）</div>` : ''}
+    ${(() => {
+      const all = state.customers || [];
+      if (all.length === 0) return '<h2>取り込み済み顧客 (0 件)</h2><div class="empty">まだ取り込んだ顧客データはありません。</div>';
+      const q = (state.importCustomerSearch || '').toLowerCase().trim();
+      // 検索フィルタ
+      const filtered = q
+        ? all.filter(c =>
+            (c.name || '').toLowerCase().includes(q) ||
+            (c.kana || '').toLowerCase().includes(q) ||
+            (c.customerNumber || '').toString().includes(q) ||
+            (c.staffName || '').includes(q) ||
+            (c.plan || '').includes(q) ||
+            (c.membership || '').includes(q))
+        : all;
+      // 最終来院日 降順 (新しい順、空欄は最後)
+      const sorted = filtered.slice().sort((a, b) => {
+        const av = (a.lastVisit || '').replace(/\D/g, '');
+        const bv = (b.lastVisit || '').replace(/\D/g, '');
+        if (!av && !bv) return 0;
+        if (!av) return 1;
+        if (!bv) return -1;
+        return bv.localeCompare(av);
+      });
+      const pageSize = 100;
+      const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+      const page = Math.min(Math.max(1, state.importCustomerPage || 1), totalPages);
+      const start = (page - 1) * pageSize;
+      const pageRows = sorted.slice(start, start + pageSize);
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+          <h2 style="margin:0;">取り込み済み顧客 <span style="color:var(--muted); font-size:13px; font-weight:500;">(${sorted.length} / ${all.length} 件 / ${page}〜${Math.min(start + pageSize, sorted.length)} 表示)</span></h2>
+          <input type="text" placeholder="🔍 氏名・かな・番号・担当・プランで検索" value="${escapeHtml(state.importCustomerSearch || '')}"
+            oninput="searchImportCustomers(this.value)"
+            style="width:320px; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px;" />
+        </div>
+        <div style="overflow-x:auto;">
+        <table style="font-size:12px;">
+          <thead><tr>
+            <th class="num">#</th><th>氏名</th><th>担当者</th><th>会員</th><th>プラン</th>
+            <th>状態</th><th class="num">来院</th><th>最終</th><th class="num">金額</th><th>取込元</th>
+          </tr></thead>
+          <tbody>${pageRows.map(c => `<tr>
+            <td class="num" style="color:var(--muted);">${escapeHtml(c.customerNumber || '-')}</td>
+            <td><strong>${escapeHtml(c.name || '-')}</strong></td>
+            <td>${escapeHtml(c.staffName || '-')}</td>
+            <td>${escapeHtml(c.membership || '-')}</td>
+            <td>${escapeHtml(c.plan || '-')}</td>
+            <td>${escapeHtml(c.status || '-')}</td>
+            <td class="num">${c.visitCount > 0 ? c.visitCount + '回' : '-'}</td>
+            <td>${escapeHtml(c.lastVisit || '-')}</td>
+            <td class="num">${escapeHtml(c.totalAmount || '-')}</td>
+            <td style="font-size:10px; color:var(--muted);">${escapeHtml(c.source || '-')}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+        </div>
+        <div style="display:flex; gap:8px; justify-content:center; align-items:center; margin-top:14px; flex-wrap:wrap;">
+          <button class="ghost" ${page <= 1 ? 'disabled' : ''} onclick="shiftImportCustomerPage(-1)" style="padding:6px 14px;">← 前の100件</button>
+          <span style="font-size:13px; color:var(--muted);">${page} / ${totalPages} ページ</span>
+          <button class="ghost" ${page >= totalPages ? 'disabled' : ''} onclick="shiftImportCustomerPage(1)" style="padding:6px 14px;">次の100件 →</button>
+        </div>
+      `;
+    })()}
     `}
   </div>`;
 }
@@ -5050,6 +5089,24 @@ async function fetchCustomersFromSheet(manual) {
     console.error(e);
     setStatus('✕ 解析失敗: ' + (e.message || e));
   }
+}
+
+// 顧客データ移行ページの検索 / ページネーション
+function searchImportCustomers(query) {
+  state.importCustomerSearch = query;
+  state.importCustomerPage = 1;
+  renderView();
+  // 検索入力欄にフォーカスを戻す
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('input[placeholder*="氏名・かな"]');
+    const el = inputs[inputs.length - 1];
+    if (el) { el.focus(); el.setSelectionRange(query.length, query.length); }
+  }, 0);
+}
+function shiftImportCustomerPage(delta) {
+  state.importCustomerPage = (state.importCustomerPage || 1) + delta;
+  renderView();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function handleCustomerCsv(ev) {
