@@ -4916,10 +4916,10 @@ function resetBulkShift() {
 
 function viewImportCustomers() {
   return `<div class="card" style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe); border-color:#7dd3fc;">
-    <h2 style="margin:0 0 8px 0;">🔄 Google Sheets「新患管理」から同期</h2>
+    <h2 style="margin:0 0 8px 0;">🔄 Google Sheets「顧客情報」から同期</h2>
     <p style="font-size:13px; color:var(--muted); margin:0 0 12px 0;">スプレッドシートの最新の顧客情報を一括取り込みします。シート側を更新するだけで、ここから同期できます。</p>
     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-      <button onclick="fetchCustomersFromSheet(true)" style="background:linear-gradient(135deg,#0284c7,#0369a1);">🔄 新患管理シートから同期</button>
+      <button onclick="fetchCustomersFromSheet(true)" style="background:linear-gradient(135deg,#0284c7,#0369a1);">🔄 顧客情報シートから同期</button>
       <span id="customerSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastCustomerSyncMsg || '※ シートを「リンクを知っている全員: 閲覧者」に共有してから同期してください'}</span>
     </div>
   </div>
@@ -5013,9 +5013,9 @@ function viewImportCustomers() {
   </div>`;
 }
 
-// Google Sheets「新患管理」から顧客データを取得
+// Google Sheets「顧客情報」から顧客データを取得
 const CUSTOMERS_SHEET_ID = '1cpAzEelyxtVRFq2s_E5YBTyZP8BZZJ1egAGqFQEic1g';
-const CUSTOMERS_SHEET_TAB = '新患管理';
+const CUSTOMERS_SHEET_TAB = '顧客情報';
 let customerSyncInFlight = false;
 
 async function fetchCustomersFromSheet(manual) {
@@ -5026,7 +5026,7 @@ async function fetchCustomersFromSheet(manual) {
     const el = document.getElementById('customerSyncStatus');
     if (el) el.textContent = msg;
   };
-  setStatus('⏳ 新患管理シートから同期中...');
+  setStatus('⏳ 顧客情報シートから同期中...');
 
   const directUrl = `https://docs.google.com/spreadsheets/d/${CUSTOMERS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(CUSTOMERS_SHEET_TAB)}`;
   const candidates = [
@@ -5076,7 +5076,7 @@ async function fetchCustomersFromSheet(manual) {
     if (rows.length < 2) { setStatus('✕ シートにデータがありません'); return; }
     const headers = rows[0];
     const mapped = rows.slice(1)
-      .map(row => mapCustomerRow(headers, row, 'Google Sheets (新患管理)'))
+      .map(row => mapCustomerRow(headers, row, 'Google Sheets (顧客情報)'))
       .filter(r => r && (r.name || r.kana || r.phone));
     // 上書き同期: スプレッドシート由来分を入れ替え（手動アップロード分は残す）
     const manualKeep = (state.customers || []).filter(c => c.source && !c.source.startsWith('Google Sheets'));
