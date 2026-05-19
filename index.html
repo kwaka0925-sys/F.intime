@@ -4211,61 +4211,85 @@ function viewCustomers() {
         (c.name || '').toLowerCase().includes(q) ||
         (c.kana || '').toLowerCase().includes(q) ||
         (c.phone || '').includes(q) ||
-        (c.email || '').toLowerCase().includes(q))
+        (c.address || '').includes(q) ||
+        (c.interviewer || '').includes(q) ||
+        (c.diagnosis || '').includes(q))
     : customers;
+  // 最終来院日 降順
+  const sorted = filtered.slice().sort((a, b) => {
+    const av = (a.lastVisit || '').replace(/\D/g, '');
+    const bv = (b.lastVisit || '').replace(/\D/g, '');
+    if (!av && !bv) return 0;
+    if (!av) return 1;
+    if (!bv) return -1;
+    return bv.localeCompare(av);
+  });
+  const pageSize = 100;
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const page = Math.min(Math.max(1, state.customerListPage || 1), totalPages);
+  const start = (page - 1) * pageSize;
+  const pageRows = sorted.slice(start, start + pageSize);
   return `
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
-        <h2 style="margin:0;">👥 顧客一覧 <span id="customerListCount" style="color:var(--muted); font-size:13px; font-weight:500;">(${filtered.length} / ${customers.length} 件)</span></h2>
+        <h2 style="margin:0;">👥 顧客一覧 <span style="color:var(--muted); font-size:13px; font-weight:500;">(${sorted.length} / ${customers.length} 件 / ${start + 1}〜${Math.min(start + pageSize, sorted.length)} 表示)</span></h2>
       </div>
-      <input type="text" class="search-input" placeholder="名前・かな・電話・メールで検索"
+      <input type="text" class="search-input" placeholder="🔍 名前・かな・電話・住所・問診者・症状で検索"
              value="${escapeHtml(state.customerSearch || '')}"
              oninput="searchCustomers(this.value)" />
       <div style="overflow-x:auto;">
         <table id="customerListTable" style="font-size:13px;">
           <thead><tr>
-            <th class="num">#</th><th>氏名</th><th>担当者</th><th>会員</th><th>プラン</th>
-            <th>状態</th><th class="num">来院</th><th>初回</th><th>最終</th><th class="num">金額</th>
+            <th>氏名</th><th>性別</th><th class="num">年齢</th><th>電話</th>
+            <th>問診者</th><th class="num">今月</th><th class="num">前月</th><th class="num">総</th>
+            <th>初来院</th><th>最終来院</th><th>離反月</th>
           </tr></thead>
-          <tbody id="customerListBody">${renderCustomerRows(filtered)}</tbody>
+          <tbody id="customerListBody">${renderCustomerRows(pageRows)}</tbody>
         </table>
       </div>
-      ${filtered.length > 200 ? `<div class="empty">先頭200件を表示中。検索で絞り込んでください。</div>` : ''}
+      <div style="display:flex; gap:8px; justify-content:center; align-items:center; margin-top:14px; flex-wrap:wrap;">
+        <button class="ghost" ${page <= 1 ? 'disabled' : ''} onclick="shiftCustomerListPage(-1)" style="padding:6px 14px;">← 前の100件</button>
+        <span style="font-size:13px; color:var(--muted);">${page} / ${totalPages} ページ</span>
+        <button class="ghost" ${page >= totalPages ? 'disabled' : ''} onclick="shiftCustomerListPage(1)" style="padding:6px 14px;">次の100件 →</button>
+      </div>
     </div>
   `;
 }
 
 function renderCustomerRows(list) {
-  if (list.length === 0) return '<tr><td colspan="10" class="empty">該当する顧客はありません</td></tr>';
-  return list.slice(0, 200).map(c => `<tr>
-    <td class="num" style="color:var(--muted);">${escapeHtml(c.customerNumber || '-')}</td>
+  if (list.length === 0) return '<tr><td colspan="11" class="empty">該当する顧客はありません</td></tr>';
+  return list.map(c => `<tr>
     <td><strong>${escapeHtml(c.name || '-')}</strong>${c.kana ? `<div style="font-size:10px; color:var(--muted);">${escapeHtml(c.kana)}</div>` : ''}</td>
-    <td>${escapeHtml(c.staffName || '-')}</td>
-    <td>${escapeHtml(c.membership || '-')}</td>
-    <td>${escapeHtml(c.plan || '-')}</td>
-    <td>${escapeHtml(c.status || '-')}</td>
-    <td class="num">${c.visitCount > 0 ? c.visitCount + '回' : '-'}</td>
+    <td>${escapeHtml(c.gender || '-')}</td>
+    <td class="num">${escapeHtml(c.age || '-')}</td>
+    <td style="font-size:11px;">${escapeHtml(c.phone || '-')}</td>
+    <td>${escapeHtml(c.interviewer || '-')}</td>
+    <td class="num">${escapeHtml(c.visitsThisMonth || '-')}</td>
+    <td class="num">${escapeHtml(c.visitsLastMonth || '-')}</td>
+    <td class="num">${escapeHtml(c.totalVisits || '-')}</td>
     <td style="font-size:11px;">${escapeHtml(c.firstVisit || '-')}</td>
     <td style="font-size:11px;">${escapeHtml(c.lastVisit || '-')}</td>
-    <td class="num">${escapeHtml(c.totalAmount || '-')}</td>
+    <td style="font-size:11px; color:${c.churnMonth ? '#dc2626' : 'var(--muted)'};">${escapeHtml(c.churnMonth || '-')}</td>
   </tr>`).join('');
+}
+
+function shiftCustomerListPage(delta) {
+  state.customerListPage = (state.customerListPage || 1) + delta;
+  renderView();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function searchCustomers(query) {
   state.customerSearch = query;
-  const customers = state.customers || [];
-  const q = query.toLowerCase().trim();
-  const filtered = q
-    ? customers.filter(c =>
-        (c.name || '').toLowerCase().includes(q) ||
-        (c.kana || '').toLowerCase().includes(q) ||
-        (c.phone || '').includes(q) ||
-        (c.email || '').toLowerCase().includes(q))
-    : customers;
-  const tbody = document.getElementById('customerListBody');
-  if (tbody) tbody.innerHTML = renderCustomerRows(filtered);
-  const cnt = document.getElementById('customerListCount');
-  if (cnt) cnt.textContent = `(${filtered.length} / ${customers.length} 件)`;
+  state.customerListPage = 1;
+  renderView();
+  // 検索入力欄にフォーカスを戻す
+  setTimeout(() => {
+    const el = document.querySelector('#customerListTable')?.previousElementSibling?.tagName === 'INPUT'
+      ? document.querySelector('#customerListTable').previousElementSibling
+      : document.querySelector('.search-input');
+    if (el) { el.focus(); el.setSelectionRange(query.length, query.length); }
+  }, 0);
 }
 // ===== Staff scheduler helpers =====
 function shiftKey(staffId, date) { return `${staffId}__${date}`; }
@@ -4944,10 +4968,10 @@ function viewImportCustomers() {
         ? all.filter(c =>
             (c.name || '').toLowerCase().includes(q) ||
             (c.kana || '').toLowerCase().includes(q) ||
-            (c.customerNumber || '').toString().includes(q) ||
-            (c.staffName || '').includes(q) ||
-            (c.plan || '').includes(q) ||
-            (c.membership || '').includes(q))
+            (c.phone || '').includes(q) ||
+            (c.address || '').includes(q) ||
+            (c.interviewer || '').includes(q) ||
+            (c.diagnosis || '').includes(q))
         : all;
       // 最終来院日 降順 (新しい順、空欄は最後)
       const sorted = filtered.slice().sort((a, b) => {
@@ -4973,20 +4997,23 @@ function viewImportCustomers() {
         <div style="overflow-x:auto;">
         <table style="font-size:12px;">
           <thead><tr>
-            <th class="num">#</th><th>氏名</th><th>担当者</th><th>会員</th><th>プラン</th>
-            <th>状態</th><th class="num">来院</th><th>最終</th><th class="num">金額</th><th>取込元</th>
+            <th>氏名</th><th>性別</th><th class="num">年齢</th><th>電話</th><th>住所</th>
+            <th>問診者</th><th class="num">今月</th><th class="num">前月</th><th class="num">総</th>
+            <th>初来院</th><th>最終</th><th>離反月</th>
           </tr></thead>
           <tbody>${pageRows.map(c => `<tr>
-            <td class="num" style="color:var(--muted);">${escapeHtml(c.customerNumber || '-')}</td>
             <td><strong>${escapeHtml(c.name || '-')}</strong></td>
-            <td>${escapeHtml(c.staffName || '-')}</td>
-            <td>${escapeHtml(c.membership || '-')}</td>
-            <td>${escapeHtml(c.plan || '-')}</td>
-            <td>${escapeHtml(c.status || '-')}</td>
-            <td class="num">${c.visitCount > 0 ? c.visitCount + '回' : '-'}</td>
+            <td>${escapeHtml(c.gender || '-')}</td>
+            <td class="num">${escapeHtml(c.age || '-')}</td>
+            <td>${escapeHtml(c.phone || '-')}</td>
+            <td style="font-size:11px;">${escapeHtml(c.address || '-')}</td>
+            <td>${escapeHtml(c.interviewer || '-')}</td>
+            <td class="num">${escapeHtml(c.visitsThisMonth || '-')}</td>
+            <td class="num">${escapeHtml(c.visitsLastMonth || '-')}</td>
+            <td class="num">${escapeHtml(c.totalVisits || '-')}</td>
+            <td>${escapeHtml(c.firstVisit || '-')}</td>
             <td>${escapeHtml(c.lastVisit || '-')}</td>
-            <td class="num">${escapeHtml(c.totalAmount || '-')}</td>
-            <td style="font-size:10px; color:var(--muted);">${escapeHtml(c.source || '-')}</td>
+            <td style="color:${c.churnMonth ? '#dc2626' : 'var(--muted)'};">${escapeHtml(c.churnMonth || '-')}</td>
           </tr>`).join('')}</tbody>
         </table>
         </div>
@@ -5000,8 +5027,9 @@ function viewImportCustomers() {
   </div>`;
 }
 
-// Google Sheets「顧客情報」から顧客データを取得
+// Google Sheets「顧客情報」から顧客データを取得（gid=2085123402 のタブ）
 const CUSTOMERS_SHEET_ID = '1cpAzEelyxtVRFq2s_E5YBTyZP8BZZJ1egAGqFQEic1g';
+const CUSTOMERS_SHEET_GID = '2085123402';
 const CUSTOMERS_SHEET_TAB = '顧客情報';
 let customerSyncInFlight = false;
 
@@ -5015,7 +5043,8 @@ async function fetchCustomersFromSheet(manual) {
   };
   setStatus('⏳ 顧客情報シートから同期中...');
 
-  const directUrl = `https://docs.google.com/spreadsheets/d/${CUSTOMERS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(CUSTOMERS_SHEET_TAB)}`;
+  // gid 指定で取得（タブ名変更に強い）
+  const directUrl = `https://docs.google.com/spreadsheets/d/${CUSTOMERS_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${CUSTOMERS_SHEET_GID}`;
   const candidates = [
     { label: 'サーバー関数経由', url: '/api/customers' },
     { label: '直接',           url: directUrl },
@@ -5064,7 +5093,10 @@ async function fetchCustomersFromSheet(manual) {
     const headers = rows[0];
     const mapped = rows.slice(1)
       .map(row => mapCustomerRow(headers, row, 'Google Sheets (顧客情報)'))
-      .filter(r => r && (r.name || r.kana || r.phone));
+      .filter(r => r && (r.name || r.kana || r.phone || r.customerNumber || r.email || r.staffName));
+    // デバッグ: ヘッダー名と取得件数を残す
+    console.log('[CustomerSync] headers:', headers);
+    console.log('[CustomerSync] rows raw:', rows.length, 'mapped:', mapped.length);
     // 上書き同期: スプレッドシート由来分を入れ替え（手動アップロード分は残す）
     const manualKeep = (state.customers || []).filter(c => c.source && !c.source.startsWith('Google Sheets'));
     state.customers = manualKeep.concat(mapped);
@@ -5214,30 +5246,26 @@ function mapSaleRow(headers, row, sourceFile) {
 
 function mapCustomerRow(headers, row, sourceFile) {
   const name = valByNames(headers, row, '氏名', '名前', 'name', 'お名前', '顧客氏名');
-  // 1〜10回目 の日付セルを走査して最終来院日を特定
-  let lastVisit = '';
-  let visitCount = 0;
-  for (let n = 1; n <= 10; n++) {
-    const v = valByNames(headers, row, `${n}回目`);
-    if (v && /\d{2,4}[\/\-]\d{1,2}[\/\-]\d{1,2}/.test(v)) {
-      lastVisit = v;
-      visitCount = n;
-    }
-  }
   return {
-    customerNumber: valByNames(headers, row, '顧客番号', '番号', 'No', 'ID'),
     name,
     kana: valByNames(headers, row, 'かな', 'カナ', 'フリガナ', 'kana'),
-    phone: valByNames(headers, row, '電話', 'tel', 'phone', '携帯'),
+    postalCode: valByNames(headers, row, '郵便番号', '〒'),
+    address: valByNames(headers, row, '住所1', '住所', 'address'),
+    phone: valByNames(headers, row, '電話番号', '電話', 'tel', 'phone', '携帯'),
     email: valByNames(headers, row, 'メール', 'mail', 'email', 'e-mail'),
-    staffName: valByNames(headers, row, '担当者', '担当', 'staff'),
-    membership: valByNames(headers, row, '会員'),
-    plan: valByNames(headers, row, 'プラン', 'plan', 'コース'),
-    status: valByNames(headers, row, '継・離', 'ステータス', 'status', '継/離'),
-    firstVisit: valByNames(headers, row, '1回目', '初回', '初診', '登録日', 'first'),
-    lastVisit,
-    visitCount,
-    totalAmount: valByNames(headers, row, '金額', '合計', '累計', 'amount', '総額'),
+    gender: valByNames(headers, row, '性別', '男女', 'gender'),
+    birthday: valByNames(headers, row, '生年月日', '誕生日', 'birthday', 'birth'),
+    age: valByNames(headers, row, '年齢', 'age'),
+    diagnosis: valByNames(headers, row, '診断内容', '症状', 'diagnosis'),
+    interviewer: valByNames(headers, row, '問診者', '担当者', '担当', 'staff'),
+    visitsThisMonth: valByNames(headers, row, '来院回数(今月)', '来院回数（今月）', '今月来院'),
+    visitsLastMonth: valByNames(headers, row, '来院回数(前月)', '来院回数（前月）', '前月来院'),
+    totalVisits: valByNames(headers, row, '総来院回数', '総来院', '来院回数', 'total'),
+    countStart: valByNames(headers, row, '来院カウント開始', 'カウント開始'),
+    firstVisit: valByNames(headers, row, '初来院日', '初回来院', '初回', '初診', '登録日', 'first'),
+    lastVisit: valByNames(headers, row, '最終来院日', '最終来院', '最終', 'last'),
+    churnMonth: valByNames(headers, row, '離反月', '離反'),
+    visitHistory: valByNames(headers, row, '来院履歴', '履歴'),
     source: sourceFile,
   };
 }
