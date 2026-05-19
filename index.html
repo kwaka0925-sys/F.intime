@@ -4224,8 +4224,9 @@ function viewCustomers() {
       <div style="overflow-x:auto;">
         <table id="customerListTable" style="font-size:13px;">
           <thead><tr>
-            <th class="num">#</th><th>氏名</th><th>担当者</th><th>会員</th><th>プラン</th>
-            <th>状態</th><th class="num">来院</th><th>初回</th><th>最終</th><th class="num">金額</th>
+            <th>氏名</th><th>性別</th><th class="num">年齢</th><th>電話</th>
+            <th>問診者</th><th class="num">今月</th><th class="num">前月</th><th class="num">総</th>
+            <th>初来院</th><th>最終来院</th><th>離反月</th>
           </tr></thead>
           <tbody id="customerListBody">${renderCustomerRows(filtered)}</tbody>
         </table>
@@ -4236,18 +4237,19 @@ function viewCustomers() {
 }
 
 function renderCustomerRows(list) {
-  if (list.length === 0) return '<tr><td colspan="10" class="empty">該当する顧客はありません</td></tr>';
+  if (list.length === 0) return '<tr><td colspan="11" class="empty">該当する顧客はありません</td></tr>';
   return list.slice(0, 200).map(c => `<tr>
-    <td class="num" style="color:var(--muted);">${escapeHtml(c.customerNumber || '-')}</td>
     <td><strong>${escapeHtml(c.name || '-')}</strong>${c.kana ? `<div style="font-size:10px; color:var(--muted);">${escapeHtml(c.kana)}</div>` : ''}</td>
-    <td>${escapeHtml(c.staffName || '-')}</td>
-    <td>${escapeHtml(c.membership || '-')}</td>
-    <td>${escapeHtml(c.plan || '-')}</td>
-    <td>${escapeHtml(c.status || '-')}</td>
-    <td class="num">${c.visitCount > 0 ? c.visitCount + '回' : '-'}</td>
+    <td>${escapeHtml(c.gender || '-')}</td>
+    <td class="num">${escapeHtml(c.age || '-')}</td>
+    <td style="font-size:11px;">${escapeHtml(c.phone || '-')}</td>
+    <td>${escapeHtml(c.interviewer || '-')}</td>
+    <td class="num">${escapeHtml(c.visitsThisMonth || '-')}</td>
+    <td class="num">${escapeHtml(c.visitsLastMonth || '-')}</td>
+    <td class="num">${escapeHtml(c.totalVisits || '-')}</td>
     <td style="font-size:11px;">${escapeHtml(c.firstVisit || '-')}</td>
     <td style="font-size:11px;">${escapeHtml(c.lastVisit || '-')}</td>
-    <td class="num">${escapeHtml(c.totalAmount || '-')}</td>
+    <td style="font-size:11px; color:${c.churnMonth ? '#dc2626' : 'var(--muted)'};">${escapeHtml(c.churnMonth || '-')}</td>
   </tr>`).join('');
 }
 
@@ -4944,10 +4946,10 @@ function viewImportCustomers() {
         ? all.filter(c =>
             (c.name || '').toLowerCase().includes(q) ||
             (c.kana || '').toLowerCase().includes(q) ||
-            (c.customerNumber || '').toString().includes(q) ||
-            (c.staffName || '').includes(q) ||
-            (c.plan || '').includes(q) ||
-            (c.membership || '').includes(q))
+            (c.phone || '').includes(q) ||
+            (c.address || '').includes(q) ||
+            (c.interviewer || '').includes(q) ||
+            (c.diagnosis || '').includes(q))
         : all;
       // 最終来院日 降順 (新しい順、空欄は最後)
       const sorted = filtered.slice().sort((a, b) => {
@@ -4973,20 +4975,23 @@ function viewImportCustomers() {
         <div style="overflow-x:auto;">
         <table style="font-size:12px;">
           <thead><tr>
-            <th class="num">#</th><th>氏名</th><th>担当者</th><th>会員</th><th>プラン</th>
-            <th>状態</th><th class="num">来院</th><th>最終</th><th class="num">金額</th><th>取込元</th>
+            <th>氏名</th><th>性別</th><th class="num">年齢</th><th>電話</th><th>住所</th>
+            <th>問診者</th><th class="num">今月</th><th class="num">前月</th><th class="num">総</th>
+            <th>初来院</th><th>最終</th><th>離反月</th>
           </tr></thead>
           <tbody>${pageRows.map(c => `<tr>
-            <td class="num" style="color:var(--muted);">${escapeHtml(c.customerNumber || '-')}</td>
             <td><strong>${escapeHtml(c.name || '-')}</strong></td>
-            <td>${escapeHtml(c.staffName || '-')}</td>
-            <td>${escapeHtml(c.membership || '-')}</td>
-            <td>${escapeHtml(c.plan || '-')}</td>
-            <td>${escapeHtml(c.status || '-')}</td>
-            <td class="num">${c.visitCount > 0 ? c.visitCount + '回' : '-'}</td>
+            <td>${escapeHtml(c.gender || '-')}</td>
+            <td class="num">${escapeHtml(c.age || '-')}</td>
+            <td>${escapeHtml(c.phone || '-')}</td>
+            <td style="font-size:11px;">${escapeHtml(c.address || '-')}</td>
+            <td>${escapeHtml(c.interviewer || '-')}</td>
+            <td class="num">${escapeHtml(c.visitsThisMonth || '-')}</td>
+            <td class="num">${escapeHtml(c.visitsLastMonth || '-')}</td>
+            <td class="num">${escapeHtml(c.totalVisits || '-')}</td>
+            <td>${escapeHtml(c.firstVisit || '-')}</td>
             <td>${escapeHtml(c.lastVisit || '-')}</td>
-            <td class="num">${escapeHtml(c.totalAmount || '-')}</td>
-            <td style="font-size:10px; color:var(--muted);">${escapeHtml(c.source || '-')}</td>
+            <td style="color:${c.churnMonth ? '#dc2626' : 'var(--muted)'};">${escapeHtml(c.churnMonth || '-')}</td>
           </tr>`).join('')}</tbody>
         </table>
         </div>
@@ -5000,9 +5005,9 @@ function viewImportCustomers() {
   </div>`;
 }
 
-// Google Sheets「顧客情報」から顧客データを取得（gid=281288861 のタブ）
+// Google Sheets「顧客情報」から顧客データを取得（gid=2085123402 のタブ）
 const CUSTOMERS_SHEET_ID = '1cpAzEelyxtVRFq2s_E5YBTyZP8BZZJ1egAGqFQEic1g';
-const CUSTOMERS_SHEET_GID = '281288861';
+const CUSTOMERS_SHEET_GID = '2085123402';
 const CUSTOMERS_SHEET_TAB = '顧客情報';
 let customerSyncInFlight = false;
 
@@ -5219,30 +5224,26 @@ function mapSaleRow(headers, row, sourceFile) {
 
 function mapCustomerRow(headers, row, sourceFile) {
   const name = valByNames(headers, row, '氏名', '名前', 'name', 'お名前', '顧客氏名');
-  // 1〜10回目 の日付セルを走査して最終来院日を特定
-  let lastVisit = '';
-  let visitCount = 0;
-  for (let n = 1; n <= 10; n++) {
-    const v = valByNames(headers, row, `${n}回目`);
-    if (v && /\d{2,4}[\/\-]\d{1,2}[\/\-]\d{1,2}/.test(v)) {
-      lastVisit = v;
-      visitCount = n;
-    }
-  }
   return {
-    customerNumber: valByNames(headers, row, '顧客番号', '番号', 'No', 'ID'),
     name,
     kana: valByNames(headers, row, 'かな', 'カナ', 'フリガナ', 'kana'),
-    phone: valByNames(headers, row, '電話', 'tel', 'phone', '携帯'),
+    postalCode: valByNames(headers, row, '郵便番号', '〒'),
+    address: valByNames(headers, row, '住所1', '住所', 'address'),
+    phone: valByNames(headers, row, '電話番号', '電話', 'tel', 'phone', '携帯'),
     email: valByNames(headers, row, 'メール', 'mail', 'email', 'e-mail'),
-    staffName: valByNames(headers, row, '担当者', '担当', 'staff'),
-    membership: valByNames(headers, row, '会員'),
-    plan: valByNames(headers, row, 'プラン', 'plan', 'コース'),
-    status: valByNames(headers, row, '継・離', 'ステータス', 'status', '継/離'),
-    firstVisit: valByNames(headers, row, '1回目', '初回', '初診', '登録日', 'first'),
-    lastVisit,
-    visitCount,
-    totalAmount: valByNames(headers, row, '金額', '合計', '累計', 'amount', '総額'),
+    gender: valByNames(headers, row, '性別', '男女', 'gender'),
+    birthday: valByNames(headers, row, '生年月日', '誕生日', 'birthday', 'birth'),
+    age: valByNames(headers, row, '年齢', 'age'),
+    diagnosis: valByNames(headers, row, '診断内容', '症状', 'diagnosis'),
+    interviewer: valByNames(headers, row, '問診者', '担当者', '担当', 'staff'),
+    visitsThisMonth: valByNames(headers, row, '来院回数(今月)', '来院回数（今月）', '今月来院'),
+    visitsLastMonth: valByNames(headers, row, '来院回数(前月)', '来院回数（前月）', '前月来院'),
+    totalVisits: valByNames(headers, row, '総来院回数', '総来院', '来院回数', 'total'),
+    countStart: valByNames(headers, row, '来院カウント開始', 'カウント開始'),
+    firstVisit: valByNames(headers, row, '初来院日', '初回来院', '初回', '初診', '登録日', 'first'),
+    lastVisit: valByNames(headers, row, '最終来院日', '最終来院', '最終', 'last'),
+    churnMonth: valByNames(headers, row, '離反月', '離反'),
+    visitHistory: valByNames(headers, row, '来院履歴', '履歴'),
     source: sourceFile,
   };
 }
