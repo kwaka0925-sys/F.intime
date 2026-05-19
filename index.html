@@ -4211,14 +4211,30 @@ function viewCustomers() {
         (c.name || '').toLowerCase().includes(q) ||
         (c.kana || '').toLowerCase().includes(q) ||
         (c.phone || '').includes(q) ||
-        (c.email || '').toLowerCase().includes(q))
+        (c.address || '').includes(q) ||
+        (c.interviewer || '').includes(q) ||
+        (c.diagnosis || '').includes(q))
     : customers;
+  // 最終来院日 降順
+  const sorted = filtered.slice().sort((a, b) => {
+    const av = (a.lastVisit || '').replace(/\D/g, '');
+    const bv = (b.lastVisit || '').replace(/\D/g, '');
+    if (!av && !bv) return 0;
+    if (!av) return 1;
+    if (!bv) return -1;
+    return bv.localeCompare(av);
+  });
+  const pageSize = 100;
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const page = Math.min(Math.max(1, state.customerListPage || 1), totalPages);
+  const start = (page - 1) * pageSize;
+  const pageRows = sorted.slice(start, start + pageSize);
   return `
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
-        <h2 style="margin:0;">👥 顧客一覧 <span id="customerListCount" style="color:var(--muted); font-size:13px; font-weight:500;">(${filtered.length} / ${customers.length} 件)</span></h2>
+        <h2 style="margin:0;">👥 顧客一覧 <span style="color:var(--muted); font-size:13px; font-weight:500;">(${sorted.length} / ${customers.length} 件 / ${start + 1}〜${Math.min(start + pageSize, sorted.length)} 表示)</span></h2>
       </div>
-      <input type="text" class="search-input" placeholder="名前・かな・電話・メールで検索"
+      <input type="text" class="search-input" placeholder="🔍 名前・かな・電話・住所・問診者・症状で検索"
              value="${escapeHtml(state.customerSearch || '')}"
              oninput="searchCustomers(this.value)" />
       <div style="overflow-x:auto;">
@@ -4228,17 +4244,21 @@ function viewCustomers() {
             <th>問診者</th><th class="num">今月</th><th class="num">前月</th><th class="num">総</th>
             <th>初来院</th><th>最終来院</th><th>離反月</th>
           </tr></thead>
-          <tbody id="customerListBody">${renderCustomerRows(filtered)}</tbody>
+          <tbody id="customerListBody">${renderCustomerRows(pageRows)}</tbody>
         </table>
       </div>
-      ${filtered.length > 200 ? `<div class="empty">先頭200件を表示中。検索で絞り込んでください。</div>` : ''}
+      <div style="display:flex; gap:8px; justify-content:center; align-items:center; margin-top:14px; flex-wrap:wrap;">
+        <button class="ghost" ${page <= 1 ? 'disabled' : ''} onclick="shiftCustomerListPage(-1)" style="padding:6px 14px;">← 前の100件</button>
+        <span style="font-size:13px; color:var(--muted);">${page} / ${totalPages} ページ</span>
+        <button class="ghost" ${page >= totalPages ? 'disabled' : ''} onclick="shiftCustomerListPage(1)" style="padding:6px 14px;">次の100件 →</button>
+      </div>
     </div>
   `;
 }
 
 function renderCustomerRows(list) {
   if (list.length === 0) return '<tr><td colspan="11" class="empty">該当する顧客はありません</td></tr>';
-  return list.slice(0, 200).map(c => `<tr>
+  return list.map(c => `<tr>
     <td><strong>${escapeHtml(c.name || '-')}</strong>${c.kana ? `<div style="font-size:10px; color:var(--muted);">${escapeHtml(c.kana)}</div>` : ''}</td>
     <td>${escapeHtml(c.gender || '-')}</td>
     <td class="num">${escapeHtml(c.age || '-')}</td>
@@ -4253,21 +4273,23 @@ function renderCustomerRows(list) {
   </tr>`).join('');
 }
 
+function shiftCustomerListPage(delta) {
+  state.customerListPage = (state.customerListPage || 1) + delta;
+  renderView();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function searchCustomers(query) {
   state.customerSearch = query;
-  const customers = state.customers || [];
-  const q = query.toLowerCase().trim();
-  const filtered = q
-    ? customers.filter(c =>
-        (c.name || '').toLowerCase().includes(q) ||
-        (c.kana || '').toLowerCase().includes(q) ||
-        (c.phone || '').includes(q) ||
-        (c.email || '').toLowerCase().includes(q))
-    : customers;
-  const tbody = document.getElementById('customerListBody');
-  if (tbody) tbody.innerHTML = renderCustomerRows(filtered);
-  const cnt = document.getElementById('customerListCount');
-  if (cnt) cnt.textContent = `(${filtered.length} / ${customers.length} 件)`;
+  state.customerListPage = 1;
+  renderView();
+  // 検索入力欄にフォーカスを戻す
+  setTimeout(() => {
+    const el = document.querySelector('#customerListTable')?.previousElementSibling?.tagName === 'INPUT'
+      ? document.querySelector('#customerListTable').previousElementSibling
+      : document.querySelector('.search-input');
+    if (el) { el.focus(); el.setSelectionRange(query.length, query.length); }
+  }, 0);
 }
 // ===== Staff scheduler helpers =====
 function shiftKey(staffId, date) { return `${staffId}__${date}`; }
