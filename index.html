@@ -1166,7 +1166,6 @@
       <div class="nav-group-title" onclick="toggleNavGroup('ads')">広告・集客<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="revenue-trend"><span class="icon">📊</span>媒体別集客実績</div>
       <div class="nav-item" data-view="meta-ads"><span class="icon">📣</span>Meta広告</div>
-      <div class="nav-item" data-view="ad-cost"><span class="icon">💰</span>広告費管理</div>
       <div class="nav-item" data-view="channel"><span class="icon">📊</span>集客チャネル</div>
     </div>
 
@@ -1299,7 +1298,6 @@ const VIEWS = {
   'square-management':    { title: 'スクエア管理',     crumb: '売上管理 / スクエア管理',                filters: false },
   'revenue-trend':        { title: '媒体別集客実績',   crumb: '広告・集客 / 媒体別集客実績',            filters: false },
   'meta-ads':             { title: 'Meta広告',         crumb: '広告・集客 / Meta広告',                  filters: true },
-  'ad-cost':              { title: '広告費管理',       crumb: '広告・集客 / 広告費管理',                filters: true },
   'channel':              { title: '集客チャネル',     crumb: '広告・集客 / 集客チャネル',              filters: true },
   'reservation-calendar': { title: 'カレンダー',       crumb: '予約管理 / カレンダー',                  filters: false },
   'customers':            { title: '顧客一覧',         crumb: '顧客管理 / 顧客一覧',                    filters: false },
@@ -3508,34 +3506,6 @@ function shiftRevenueTrendYear(delta) {
   }
 }
 
-function viewAdCost() {
-  const entries = filteredEntries();
-  const t = aggregate(entries);
-  const cpa = t.newCustomers > 0 ? t.adspend / t.newCustomers : 0;
-  return `
-    <div class="kpi-grid">
-      <div class="kpi-card"><div class="kpi-label">広告費合計</div><div class="kpi-value">${yen(t.adspend)}</div></div>
-      <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(t.newCustomers)} 人</div></div>
-      <div class="kpi-card"><div class="kpi-label">CPA</div><div class="kpi-value">${yen(cpa)}</div></div>
-    </div>
-    <div class="card"><h2>💰 月次広告費推移</h2><canvas id="chart_adcost" height="120"></canvas></div>
-  `;
-}
-function viewAdCostAfter() {
-  const entries = filteredEntries();
-  if (!entries.length || !entries.some(e => e.adspend > 0)) { emptyChart('chart_adcost', 'この期間の広告費データはありません'); return; }
-  const months = [...new Set(entries.map(e => e.month))].sort();
-  destroyChart('adcost');
-  charts.adcost = new Chart(document.getElementById('chart_adcost'), {
-    type: 'bar',
-    data: { labels: months, datasets: [{ label: '広告費', data: months.map(m => entries.filter(e => e.month === m).reduce((s,e) => s + e.adspend, 0)), backgroundColor: '#f59e0b' }] },
-    options: { responsive: true, plugins: {
-        legend: { position: 'bottom' },
-        tooltip: { callbacks: { label: ctx => '広告費: ' + yen(ctx.parsed.y) } },
-      }, scales: { y: { beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } } } },
-  });
-}
-
 function viewChannel() {
   const clinicFilter = document.getElementById('clinicSelect').value;
   const { from, to } = getPeriodRange();
@@ -5591,7 +5561,6 @@ const VIEW_RENDER = {
   'square-management':    { html: viewSquareManagement },
   'revenue-trend':        { html: viewRevenueTrend, after: viewRevenueTrendAfter },
   'meta-ads':             { html: viewMetaAds, after: viewMetaAdsAfter },
-  'ad-cost':              { html: viewAdCost, after: viewAdCostAfter },
   'channel':              { html: viewChannel, after: viewChannelAfter },
   'reservation-calendar': { html: viewReservationCalendar },
   'customers':            { html: viewCustomers },
