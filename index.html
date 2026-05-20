@@ -1159,13 +1159,13 @@
       <div class="nav-item" data-view="revenue-entry"><span class="icon">📝</span>月次売上入力</div>
       <div class="nav-item" data-view="daily-sales"><span class="icon">📅</span>日次売上</div>
       <div class="nav-item" data-view="revenue-list"><span class="icon">📋</span>売上一覧</div>
+      <div class="nav-item" data-view="square-management"><span class="icon">🟧</span>スクエア管理</div>
     </div>
 
     <div class="nav-group collapsible" id="grp-ads">
       <div class="nav-group-title" onclick="toggleNavGroup('ads')">広告・集客<span class="chevron">▾</span></div>
       <div class="nav-item" data-view="revenue-trend"><span class="icon">📊</span>媒体別集客実績</div>
       <div class="nav-item" data-view="meta-ads"><span class="icon">📣</span>Meta広告</div>
-      <div class="nav-item" data-view="ad-cost"><span class="icon">💰</span>広告費管理</div>
       <div class="nav-item" data-view="channel"><span class="icon">📊</span>集客チャネル</div>
     </div>
 
@@ -1295,9 +1295,9 @@ const VIEWS = {
   'revenue-entry':        { title: '月次売上入力',     crumb: '売上管理 / 月次売上入力',                filters: false },
   'daily-sales':          { title: '日次売上',         crumb: '売上管理 / 日次売上',                    filters: false },
   'revenue-list':         { title: '売上一覧',         crumb: '売上管理 / 売上一覧',                    filters: true },
+  'square-management':    { title: 'スクエア管理',     crumb: '売上管理 / スクエア管理',                filters: false },
   'revenue-trend':        { title: '媒体別集客実績',   crumb: '広告・集客 / 媒体別集客実績',            filters: false },
   'meta-ads':             { title: 'Meta広告',         crumb: '広告・集客 / Meta広告',                  filters: true },
-  'ad-cost':              { title: '広告費管理',       crumb: '広告・集客 / 広告費管理',                filters: true },
   'channel':              { title: '集客チャネル',     crumb: '広告・集客 / 集客チャネル',              filters: true },
   'reservation-calendar': { title: 'カレンダー',       crumb: '予約管理 / カレンダー',                  filters: false },
   'customers':            { title: '顧客一覧',         crumb: '顧客管理 / 顧客一覧',                    filters: false },
@@ -2263,7 +2263,7 @@ function editEntry(month, clinic) {
 // 天満天六院 用の URL が設定されると同期できるようになります。
 const DAILY_REPORT_SHEET_URLS = {
   nakamozu:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2129032732&single=true&output=csv',
-  tenrokuten: '', // 天満天六院 のスプレッドシートURLを設定したらここに貼ります
+  tenrokuten: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7VDPUBlJ1En2sEFnA1QOyW7WzPl9fikJVOo2B6QoRR8cSzpBfTvMfMLEgRCDVz4IJVvwS7v7gCZz9/pub?output=csv',
 };
 function getDailyReportSheetUrl(clinic) {
   return DAILY_REPORT_SHEET_URLS[clinic] || '';
@@ -3504,34 +3504,6 @@ function shiftRevenueTrendYear(delta) {
     _revenueTrendYearOverride = newYear;
     renderView();
   }
-}
-
-function viewAdCost() {
-  const entries = filteredEntries();
-  const t = aggregate(entries);
-  const cpa = t.newCustomers > 0 ? t.adspend / t.newCustomers : 0;
-  return `
-    <div class="kpi-grid">
-      <div class="kpi-card"><div class="kpi-label">広告費合計</div><div class="kpi-value">${yen(t.adspend)}</div></div>
-      <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(t.newCustomers)} 人</div></div>
-      <div class="kpi-card"><div class="kpi-label">CPA</div><div class="kpi-value">${yen(cpa)}</div></div>
-    </div>
-    <div class="card"><h2>💰 月次広告費推移</h2><canvas id="chart_adcost" height="120"></canvas></div>
-  `;
-}
-function viewAdCostAfter() {
-  const entries = filteredEntries();
-  if (!entries.length || !entries.some(e => e.adspend > 0)) { emptyChart('chart_adcost', 'この期間の広告費データはありません'); return; }
-  const months = [...new Set(entries.map(e => e.month))].sort();
-  destroyChart('adcost');
-  charts.adcost = new Chart(document.getElementById('chart_adcost'), {
-    type: 'bar',
-    data: { labels: months, datasets: [{ label: '広告費', data: months.map(m => entries.filter(e => e.month === m).reduce((s,e) => s + e.adspend, 0)), backgroundColor: '#f59e0b' }] },
-    options: { responsive: true, plugins: {
-        legend: { position: 'bottom' },
-        tooltip: { callbacks: { label: ctx => '広告費: ' + yen(ctx.parsed.y) } },
-      }, scales: { y: { beginAtZero: true, ticks: { precision: 0, callback: v => yenAxis(v) } } } },
-  });
 }
 
 function viewChannel() {
@@ -5363,6 +5335,148 @@ function viewImportReservations() {
   </div>`;
 }
 
+function viewSquareManagement() {
+  const sales = state.sales || [];
+  const total = sales.reduce((s, x) => s + (x.amount || 0), 0);
+  const totalFee = sales.reduce((s, x) => s + (x.fee || 0), 0);
+  const unassigned = sales.filter(s => !s.clinic).length;
+  const byClinic = Object.keys(CLINICS).map(c => ({
+    key: c, name: CLINICS[c],
+    count: sales.filter(s => s.clinic === c).length,
+    total: sales.filter(s => s.clinic === c).reduce((s2, x) => s2 + (x.amount || 0), 0),
+    fee:   sales.filter(s => s.clinic === c).reduce((s2, x) => s2 + (x.fee    || 0), 0),
+  }));
+  const cfg = state.squareConfig || {};
+  const connected = !!cfg.accessTokenSaved;
+  const lastSync = cfg.lastSyncAt ? new Date(cfg.lastSyncAt).toLocaleString('ja-JP') : '—';
+
+  return `<div class="card">
+    <h2>🟧 スクエア管理</h2>
+    <p style="font-size:13px; color:var(--muted);">Squareアプリと連携し、取引データの取り込み・店舗別集計・手数料の可視化を行います。</p>
+
+    <div class="kpi-grid" style="margin-top:12px;">
+      <div class="kpi-card"><div class="kpi-label">連携状態</div><div class="kpi-value ${connected ? 'up' : 'down'}">${connected ? '✓ 接続済' : '未接続'}</div><div class="kpi-sub">${connected ? '最終同期: ' + lastSync : 'CSV取込のみ利用可能'}</div></div>
+      <div class="kpi-card"><div class="kpi-label">取引件数</div><div class="kpi-value">${fmt(sales.length)} 件</div></div>
+      <div class="kpi-card"><div class="kpi-label">合計売上</div><div class="kpi-value">${yen(total)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Square手数料</div><div class="kpi-value">${yen(totalFee)}</div><div class="kpi-sub">参考: 着金額 = 売上 - 手数料</div></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px;">
+    <h2>店舗別サマリー</h2>
+    <table>
+      <thead><tr><th>店舗</th><th class="num">取引件数</th><th class="num">売上合計</th><th class="num">手数料合計</th><th class="num">差引</th></tr></thead>
+      <tbody>${byClinic.map(b => `<tr>
+        <td>${b.name}</td>
+        <td class="num">${fmt(b.count)} 件</td>
+        <td class="num">${yen(b.total)}</td>
+        <td class="num">${yen(b.fee)}</td>
+        <td class="num">${yen(b.total - b.fee)}</td>
+      </tr>`).join('')}
+        ${unassigned > 0 ? `<tr><td style="color:var(--danger)">未判定</td><td class="num">${fmt(unassigned)} 件</td><td class="num" colspan="3">Location名に「中百舌鳥」または「天満/天六」を含めてください</td></tr>` : ''}
+      </tbody>
+    </table>
+    <div style="margin-top:14px;">
+      <button onclick="switchView('import-sales')">📥 取引CSVを取り込む</button>
+      <button class="ghost" onclick="aggregateSalesToMonthly()">📊 月次売上に集計反映</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px;">
+    <h2>🔌 Squareアプリ連携 (API)</h2>
+    <p style="font-size:13px; color:var(--muted);">Square APIを使うとCSV書き出しなしで取引データを自動取得できます。アクセストークンはサーバーサイドに保管し、ブラウザに露出させない設計が必要です。</p>
+
+    <div style="margin-top:12px;">
+      <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:4px;">環境</label>
+      <select id="sqEnv" style="margin-right:8px;">
+        <option value="production" ${cfg.env === 'production' ? 'selected' : ''}>本番 (production)</option>
+        <option value="sandbox" ${cfg.env === 'sandbox' ? 'selected' : ''}>サンドボックス (sandbox)</option>
+      </select>
+      <label style="display:inline-block; font-size:12px; color:var(--muted); margin:0 4px 0 12px;">アクセストークン</label>
+      <input type="password" id="sqToken" placeholder="EAAAE... (Square Developer Dashboard で発行)" style="width:320px;" />
+      <button onclick="saveSquareConfig()">💾 保存</button>
+      <button class="ghost" onclick="syncSquareNow()">🔄 今すぐ同期</button>
+    </div>
+    <div id="sqResult" style="margin-top:10px; font-size:12px; color:var(--muted);">
+      ${connected ? '✓ トークン保存済 (' + (cfg.env || 'production') + ') / 最終同期: ' + lastSync : '※ 「保存」を押すと localStorage に暗号化なしで保管されます。本番運用ではサーバー側 (api/square.js) 経由での保管を推奨。'}
+    </div>
+
+    <div class="note" style="margin-top:18px;">
+      <strong>📖 Square API 連携の手順</strong><br />
+      <ol style="margin:6px 0 0 18px; padding:0; font-size:13px; line-height:1.7;">
+        <li><a href="https://developer.squareup.com/apps" target="_blank" rel="noopener">Square Developer Dashboard</a> にログインし、アプリを作成</li>
+        <li>「Credentials」から <code>Access Token</code> (本番 or サンドボックス) を取得</li>
+        <li>「Locations API」で各店舗の Location ID を確認（中百舌鳥 / 天満天六）</li>
+        <li>サーバー側 (例: <code>/api/square.js</code>) にトークンを環境変数として保管:
+          <ul style="margin:4px 0 0 16px;">
+            <li><code>SQUARE_ACCESS_TOKEN</code></li>
+            <li><code>SQUARE_ENV</code> = production / sandbox</li>
+          </ul>
+        </li>
+        <li>サーバーから Square <code>Orders API</code> / <code>Payments API</code> を呼び出して取引を取得し、本アプリの <code>state.sales</code> 形式に変換</li>
+        <li>定期同期は Vercel Cron か手動の「今すぐ同期」ボタンから実行</li>
+      </ol>
+      <br />
+      <strong>🔐 推奨される連携アーキテクチャ</strong><br />
+      <span style="font-size:13px;">
+        ブラウザ → <code>/api/square?action=sync&amp;from=YYYY-MM-DD</code> → サーバーが <code>SQUARE_ACCESS_TOKEN</code> で Square API 呼出 → JSON で返却 → クライアントが <code>state.sales</code> にマージ・重複排除 (Transaction ID)。
+      </span><br /><br />
+      <strong>📡 利用する主なエンドポイント</strong><br />
+      <ul style="margin:4px 0 0 18px; font-size:13px; line-height:1.7;">
+        <li><code>POST /v2/orders/search</code> — 注文一覧 (期間・Location指定)</li>
+        <li><code>GET  /v2/payments</code> — 決済一覧 (手数料 processing_fee を含む)</li>
+        <li><code>GET  /v2/locations</code> — 店舗マスタ</li>
+      </ul>
+      <br />
+      <strong>⚠️ 注意点</strong><br />
+      <ul style="margin:4px 0 0 18px; font-size:13px; line-height:1.7;">
+        <li>アクセストークンを直接フロントエンドに埋め込まないでください（漏洩リスク）</li>
+        <li>本番環境では Square OAuth フローを使い、refresh token をサーバー保管するのが理想</li>
+        <li>取引が大量になる場合は cursor ベースのページングが必要</li>
+      </ul>
+    </div>
+  </div>`;
+}
+
+function saveSquareConfig() {
+  const env = document.getElementById('sqEnv').value;
+  const token = document.getElementById('sqToken').value.trim();
+  if (!token) { alert('アクセストークンを入力してください'); return; }
+  state.squareConfig = {
+    env,
+    accessTokenSaved: true,
+    // NOTE: 本番運用ではサーバー側 (api/square.js) に環境変数として保管してください
+    accessTokenLocal: token,
+    lastSyncAt: state.squareConfig?.lastSyncAt || null,
+  };
+  save();
+  renderView();
+  alert('保存しました。サーバー側 (api/square.js) の実装後、「今すぐ同期」で連携できます。');
+}
+
+async function syncSquareNow() {
+  const cfg = state.squareConfig || {};
+  if (!cfg.accessTokenSaved) { alert('先にアクセストークンを保存してください'); return; }
+  const res = document.getElementById('sqResult');
+  res.textContent = '⏳ 同期中... (api/square.js が必要です)';
+  try {
+    const r = await fetch(`/api/square?action=sync&env=${encodeURIComponent(cfg.env || 'production')}`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    const incoming = Array.isArray(data.sales) ? data.sales : [];
+    const existing = state.sales || [];
+    const seen = new Set(existing.map(s => s.transactionId).filter(Boolean));
+    const merged = existing.concat(incoming.filter(s => s.transactionId && !seen.has(s.transactionId)));
+    state.sales = merged;
+    state.squareConfig.lastSyncAt = new Date().toISOString();
+    save();
+    renderView();
+    alert(`${incoming.length} 件取得 / ${merged.length - existing.length} 件を新規追加しました`);
+  } catch (e) {
+    res.textContent = `❌ 同期失敗: ${e.message} (api/square.js を実装してください)`;
+  }
+}
+
 function viewImportSales() {
   const sales = state.sales || [];
   const total = sales.reduce((s, x) => s + (x.amount || 0), 0);
@@ -5444,9 +5558,9 @@ const VIEW_RENDER = {
   'revenue-entry':        { html: viewRevenueEntry },
   'daily-sales':          { html: viewDailySales, after: maybeAutoFetchDailyReport },
   'revenue-list':         { html: viewRevenueList },
+  'square-management':    { html: viewSquareManagement },
   'revenue-trend':        { html: viewRevenueTrend, after: viewRevenueTrendAfter },
   'meta-ads':             { html: viewMetaAds, after: viewMetaAdsAfter },
-  'ad-cost':              { html: viewAdCost, after: viewAdCostAfter },
   'channel':              { html: viewChannel, after: viewChannelAfter },
   'reservation-calendar': { html: viewReservationCalendar },
   'customers':            { html: viewCustomers },
