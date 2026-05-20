@@ -4201,10 +4201,19 @@ function viewCustomers() {
         (c.phone || '').includes(q) ||
         (c.email || '').toLowerCase().includes(q))
     : customers;
+  // 最終来院日 降順 (新しい順、空欄は最後)
+  const sorted = filtered.slice().sort((a, b) => {
+    const av = (a.lastVisit || '').replace(/\D/g, '');
+    const bv = (b.lastVisit || '').replace(/\D/g, '');
+    if (!av && !bv) return 0;
+    if (!av) return 1;
+    if (!bv) return -1;
+    return bv.localeCompare(av);
+  });
   return `
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
-        <h2 style="margin:0;">👥 顧客一覧 <span id="customerListCount" style="color:var(--muted); font-size:13px; font-weight:500;">(${filtered.length} / ${customers.length} 件)</span></h2>
+        <h2 style="margin:0;">👥 顧客一覧 <span id="customerListCount" style="color:var(--muted); font-size:13px; font-weight:500;">(${sorted.length} / ${customers.length} 件)</span></h2>
       </div>
       <input type="text" class="search-input" placeholder="名前・かな・電話・メールで検索"
              value="${escapeHtml(state.customerSearch || '')}"
@@ -4215,10 +4224,10 @@ function viewCustomers() {
             <th class="num">#</th><th>氏名</th><th>担当者</th><th>会員</th><th>プラン</th>
             <th>状態</th><th class="num">来院</th><th>初回</th><th>最終</th><th class="num">金額</th>
           </tr></thead>
-          <tbody id="customerListBody">${renderCustomerRows(filtered)}</tbody>
+          <tbody id="customerListBody">${renderCustomerRows(sorted)}</tbody>
         </table>
       </div>
-      ${filtered.length > 200 ? `<div class="empty">先頭200件を表示中。検索で絞り込んでください。</div>` : ''}
+      ${sorted.length > 200 ? `<div class="empty">先頭200件を表示中。検索で絞り込んでください。</div>` : ''}
     </div>
   `;
 }
