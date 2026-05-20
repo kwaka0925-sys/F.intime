@@ -4973,8 +4973,7 @@ function viewImportCustomers() {
 }
 
 // Google Sheets「顧客情報」から顧客データを取得
-const CUSTOMERS_SHEET_ID = '1cpAzEelyxtVRFq2s_E5YBTyZP8BZZJ1egAGqFQEic1g';
-const CUSTOMERS_SHEET_TAB = '顧客情報';
+const CUSTOMERS_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2085123402&single=true&output=csv';
 let customerSyncInFlight = false;
 
 async function fetchCustomersFromSheet(manual) {
@@ -4987,7 +4986,7 @@ async function fetchCustomersFromSheet(manual) {
   };
   setStatus('⏳ 顧客情報シートから同期中...');
 
-  const directUrl = `https://docs.google.com/spreadsheets/d/${CUSTOMERS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(CUSTOMERS_SHEET_TAB)}`;
+  const directUrl = CUSTOMERS_SHEET_URL;
   const candidates = [
     { label: 'サーバー関数経由', url: '/api/customers' },
     { label: '直接',           url: directUrl },
