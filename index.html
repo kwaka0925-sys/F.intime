@@ -2263,7 +2263,7 @@ function editEntry(month, clinic) {
 // 天満天六院 用の URL が設定されると同期できるようになります。
 const DAILY_REPORT_SHEET_URLS = {
   nakamozu:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2129032732&single=true&output=csv',
-  tenrokuten: '', // 天満天六院 のスプレッドシートURLを設定したらここに貼ります
+  tenrokuten: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7VDPUBlJ1En2sEFnA1QOyW7WzPl9fikJVOo2B6QoRR8cSzpBfTvMfMLEgRCDVz4IJVvwS7v7gCZz9/pub?output=csv',
 };
 function getDailyReportSheetUrl(clinic) {
   return DAILY_REPORT_SHEET_URLS[clinic] || '';
