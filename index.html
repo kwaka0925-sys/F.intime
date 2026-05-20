@@ -1298,7 +1298,7 @@ const VIEWS = {
   'square-management':    { title: 'スクエア管理',     crumb: '売上管理 / スクエア管理',                filters: false },
   'revenue-trend':        { title: '媒体別集客実績',   crumb: '広告・集客 / 媒体別集客実績',            filters: false },
   'meta-ads':             { title: 'Meta広告',         crumb: '広告・集客 / Meta広告',                  filters: true },
-  'channel':              { title: '集客チャネル',     crumb: '広告・集客 / 集客チャネル',              filters: true },
+  'channel':              { title: '集客チャネル',     crumb: '広告・集客 / 集客チャネル',              filters: false },
   'reservation-calendar': { title: 'カレンダー',       crumb: '予約管理 / カレンダー',                  filters: false },
   'customers':            { title: '顧客一覧',         crumb: '顧客管理 / 顧客一覧',                    filters: false },
   'clinics':              { title: '店舗マスタ',       crumb: 'マスタ管理 / 店舗',                      filters: false },
@@ -3506,27 +3506,34 @@ function shiftRevenueTrendYear(delta) {
   }
 }
 
-function viewChannel() {
-  const clinicFilter = document.getElementById('clinicSelect').value;
-  const { from, to } = getPeriodRange();
-  const months = listMonthsInRange(from, to);
-  const metaAgg = aggregateMetaByMonthClinic(from, to);
-  const targetClinics = clinicFilter === 'all' ? Object.keys(CLINICS) : [clinicFilter];
+function setChannelMonth(month) {
+  state.channelMonth = month;
+  save();
+  renderView();
+}
+function shiftChannelMonth(delta) {
+  const cur = state.channelMonth || ymOf(new Date());
+  const [y, m] = cur.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  setChannelMonth(ymOf(d));
+}
 
-  // 期間×店舗合算で各チャネルの 予算/予約数 を集計
+function renderChannelSection(month, clinicKey, label) {
+  const from = startOfMonthYMD(month);
+  const to   = endOfMonthYMD(month);
+  const metaAgg = aggregateMetaByMonthClinic(from, to);
+  const targetClinics = clinicKey === 'all' ? Object.keys(CLINICS) : [clinicKey];
+
   const totals = {};
   ACQUISITION_CHANNELS.forEach(c => totals[c.key] = { budget: 0, customers: 0 });
-  months.forEach(m => {
-    targetClinics.forEach(cl => {
-      ACQUISITION_CHANNELS.forEach(c => {
-        const v = getChannelValue(m, cl, c.key, metaAgg);
-        totals[c.key].budget += v.budget;
-        totals[c.key].customers += v.customers;
-      });
+  targetClinics.forEach(cl => {
+    ACQUISITION_CHANNELS.forEach(c => {
+      const v = getChannelValue(month, cl, c.key, metaAgg);
+      totals[c.key].budget += v.budget;
+      totals[c.key].customers += v.customers;
     });
   });
 
-  // 訴求価格（チャネル単位、手入力で保存）
   state.channelPricing = state.channelPricing || {};
 
   const cards = ACQUISITION_CHANNELS.map(c => {
@@ -3566,20 +3573,15 @@ function viewChannel() {
       </div>`;
   }).join('');
 
-  // 合計
   const grand = Object.values(totals).reduce((a, t) => ({ budget: a.budget + t.budget, customers: a.customers + t.customers }), { budget: 0, customers: 0 });
   const grandCpa = grand.customers > 0 ? Math.round(grand.budget / grand.customers) : 0;
 
-  // 期間ラベル
-  const periodLabel = months.length === 0 ? '期間未選択' : months.length === 1 ? months[0] : `${months[0]} 〜 ${months[months.length - 1]}`;
-  const clinicLabel = clinicFilter === 'all' ? '全店舗合算' : CLINICS[clinicFilter];
-
   return `
-    <div class="card">
+    <div class="card" style="margin-top:14px;">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
         <div>
-          <h2 style="margin:0;">📣 集客チャネル別 実績 (${clinicLabel})</h2>
-          <div style="font-size:12px; color:var(--muted); margin-top:4px;">期間: ${periodLabel}</div>
+          <h2 style="margin:0;">📣 ${label}</h2>
+          <div style="font-size:12px; color:var(--muted); margin-top:4px;">対象月: ${month}</div>
         </div>
         <div style="text-align:right; font-size:13px;">
           <div><strong>予算合計 ${yen(grand.budget)}</strong> / <strong>予約数合計 ${fmt(grand.customers)}名</strong></div>
@@ -3587,8 +3589,32 @@ function viewChannel() {
         </div>
       </div>
       <div class="kpi-grid">${cards}</div>
-      <div class="note" style="margin-top:12px;">📡 メタ広告は Meta CSV から自動集計。チラシ・HPB・MAP・スレッズの 予算 / 予約数 は「媒体別集客実績」ページで入力できます。訴求価格はこのページで直接編集できます。</div>
     </div>
+  `;
+}
+
+function viewChannel() {
+  const month = state.channelMonth || ymOf(new Date());
+  const [y, m] = month.split('-').map(Number);
+  const monthLabel = `${y}年${m}月`;
+
+  return `
+    <div class="card" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+      <div>
+        <h2 style="margin:0;">📣 集客チャネル別 実績</h2>
+        <div style="font-size:12px; color:var(--muted); margin-top:4px;">月別に 両院合算 / 中百舌鳥 / 天満天六院 の実績を表示します。</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="ghost" onclick="shiftChannelMonth(-1)">← 前月</button>
+        <strong style="min-width:110px; text-align:center;">${monthLabel}</strong>
+        <button class="ghost" onclick="shiftChannelMonth(1)">翌月 →</button>
+        <button class="ghost" onclick="setChannelMonth('${ymOf(new Date())}')">今月</button>
+      </div>
+    </div>
+    ${renderChannelSection(month, 'all',        '両院合算')}
+    ${renderChannelSection(month, 'nakamozu',   'NAORU整体 中百舌鳥院')}
+    ${renderChannelSection(month, 'tenrokuten', 'NAORU整体 天満天六院')}
+    <div class="note" style="margin-top:12px;">📡 メタ広告は Meta CSV から自動集計。チラシ・HPB・MAP・スレッズの 予算 / 予約数 は「媒体別集客実績」ページで入力できます。訴求価格はチャネル単位で共通保存されます。</div>
   `;
 }
 function viewChannelAfter() { /* no chart */ }
