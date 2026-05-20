@@ -3397,16 +3397,6 @@ function viewRevenueTrend() {
         ${clinicBtn('nakamozu', 'NAORU整体 中百舌鳥院')}
         ${clinicBtn('tenrokuten', 'NAORU整体 天満天六院')}
       </div>
-      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
-        ${(() => {
-          const cur = selectedSingleMonth === todayYM;
-          return `<button type="button" onclick="setRevenueTrendMonth('${todayYM}')" style="padding:6px 14px; border-radius:6px; border:1px solid ${cur ? 'var(--primary)' : '#e5e7eb'}; background:${cur ? 'var(--primary)' : '#fff'}; color:${cur ? '#fff' : 'var(--text-dark)'}; font-size:13px; font-weight:${cur ? '600' : '500'}; cursor:pointer;">📅 当月</button>`;
-        })()}
-        ${(() => {
-          const cur = selectedSingleMonth === lastMonthYM;
-          return `<button type="button" onclick="setRevenueTrendMonth('${lastMonthYM}')" style="padding:6px 14px; border-radius:6px; border:1px solid ${cur ? 'var(--primary)' : '#e5e7eb'}; background:${cur ? 'var(--primary)' : '#fff'}; color:${cur ? '#fff' : 'var(--text-dark)'}; font-size:13px; font-weight:${cur ? '600' : '500'}; cursor:pointer;">⏮ 先月</button>`;
-        })()}
-      </div>
       <div style="display:flex; align-items:center; gap:6px; margin-bottom:14px; flex-wrap:wrap;">
         <button type="button" onclick="shiftRevenueTrendYear(-1)" style="padding:6px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-size:14px; color:var(--text-dark);" title="前年">◁</button>
         <div style="min-width:60px; text-align:center; font-weight:700; font-size:14px;">${displayYear}年</div>
@@ -3611,9 +3601,9 @@ function viewChannel() {
         <button class="ghost" onclick="setChannelMonth('${ymOf(new Date())}')">今月</button>
       </div>
     </div>
-    ${renderChannelSection(month, 'all',        '両院合算')}
     ${renderChannelSection(month, 'nakamozu',   'NAORU整体 中百舌鳥院')}
     ${renderChannelSection(month, 'tenrokuten', 'NAORU整体 天満天六院')}
+    ${renderChannelSection(month, 'all',        '両院合算')}
     <div class="note" style="margin-top:12px;">📡 メタ広告は Meta CSV から自動集計。チラシ・HPB・MAP・スレッズの 予算 / 予約数 は「媒体別集客実績」ページで入力できます。訴求価格はチャネル単位で共通保存されます。</div>
   `;
 }
@@ -3775,7 +3765,7 @@ function viewClinics() {
 
 const CLINIC_CRED_SERVICES = [
   { key: 'hpb',    label: 'HPB',     icon: '💅' },
-  { key: 'sattou', label: 'SATTOU',  icon: '🛠' },
+  { key: 'sattou', label: 'スクエア', icon: '🟧' },
   { key: 'camera', label: '店内カメラ', icon: '📷' },
 ];
 
@@ -4211,10 +4201,19 @@ function viewCustomers() {
         (c.phone || '').includes(q) ||
         (c.email || '').toLowerCase().includes(q))
     : customers;
+  // 最終来院日 降順 (新しい順、空欄は最後)
+  const sorted = filtered.slice().sort((a, b) => {
+    const av = (a.lastVisit || '').replace(/\D/g, '');
+    const bv = (b.lastVisit || '').replace(/\D/g, '');
+    if (!av && !bv) return 0;
+    if (!av) return 1;
+    if (!bv) return -1;
+    return bv.localeCompare(av);
+  });
   return `
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
-        <h2 style="margin:0;">👥 顧客一覧 <span id="customerListCount" style="color:var(--muted); font-size:13px; font-weight:500;">(${filtered.length} / ${customers.length} 件)</span></h2>
+        <h2 style="margin:0;">👥 顧客一覧 <span id="customerListCount" style="color:var(--muted); font-size:13px; font-weight:500;">(${sorted.length} / ${customers.length} 件)</span></h2>
       </div>
       <input type="text" class="search-input" placeholder="名前・かな・電話・メールで検索"
              value="${escapeHtml(state.customerSearch || '')}"
@@ -4222,13 +4221,13 @@ function viewCustomers() {
       <div style="overflow-x:auto;">
         <table id="customerListTable" style="font-size:13px;">
           <thead><tr>
-            <th class="num">#</th><th>氏名</th><th>担当者</th><th>会員</th><th>プラン</th>
-            <th>状態</th><th class="num">来院</th><th>初回</th><th>最終</th><th class="num">金額</th>
+            <th>氏名</th><th>電話</th><th>住所</th><th>性別</th><th class="num">年齢</th>
+            <th>診断内容</th><th>問診者</th><th class="num">来院</th><th>初回来院</th><th>最終来院</th>
           </tr></thead>
-          <tbody id="customerListBody">${renderCustomerRows(filtered)}</tbody>
+          <tbody id="customerListBody">${renderCustomerRows(sorted)}</tbody>
         </table>
       </div>
-      ${filtered.length > 200 ? `<div class="empty">先頭200件を表示中。検索で絞り込んでください。</div>` : ''}
+      ${sorted.length > 200 ? `<div class="empty">先頭200件を表示中。検索で絞り込んでください。</div>` : ''}
     </div>
   `;
 }
@@ -4236,16 +4235,16 @@ function viewCustomers() {
 function renderCustomerRows(list) {
   if (list.length === 0) return '<tr><td colspan="10" class="empty">該当する顧客はありません</td></tr>';
   return list.slice(0, 200).map(c => `<tr>
-    <td class="num" style="color:var(--muted);">${escapeHtml(c.customerNumber || '-')}</td>
     <td><strong>${escapeHtml(c.name || '-')}</strong>${c.kana ? `<div style="font-size:10px; color:var(--muted);">${escapeHtml(c.kana)}</div>` : ''}</td>
+    <td style="font-size:12px;">${escapeHtml(c.phone || '-')}</td>
+    <td style="font-size:11px;">${escapeHtml(c.address || '-')}</td>
+    <td>${escapeHtml(c.gender || '-')}</td>
+    <td class="num">${escapeHtml(c.age || '-')}</td>
+    <td style="font-size:11px;">${escapeHtml(c.diagnosis || '-')}</td>
     <td>${escapeHtml(c.staffName || '-')}</td>
-    <td>${escapeHtml(c.membership || '-')}</td>
-    <td>${escapeHtml(c.plan || '-')}</td>
-    <td>${escapeHtml(c.status || '-')}</td>
     <td class="num">${c.visitCount > 0 ? c.visitCount + '回' : '-'}</td>
     <td style="font-size:11px;">${escapeHtml(c.firstVisit || '-')}</td>
     <td style="font-size:11px;">${escapeHtml(c.lastVisit || '-')}</td>
-    <td class="num">${escapeHtml(c.totalAmount || '-')}</td>
   </tr>`).join('');
 }
 
@@ -5219,29 +5218,47 @@ function mapSaleRow(headers, row, sourceFile) {
 
 function mapCustomerRow(headers, row, sourceFile) {
   const name = valByNames(headers, row, '氏名', '名前', 'name', 'お名前', '顧客氏名');
-  // 1〜10回目 の日付セルを走査して最終来院日を特定
-  let lastVisit = '';
-  let visitCount = 0;
-  for (let n = 1; n <= 10; n++) {
-    const v = valByNames(headers, row, `${n}回目`);
-    if (v && /\d{2,4}[\/\-]\d{1,2}[\/\-]\d{1,2}/.test(v)) {
-      lastVisit = v;
-      visitCount = n;
+  // 総来院回数 / 最終来院日 / 初来院日 は新シートの専用列を優先採用
+  const totalVisits = valByNames(headers, row, '総来院回数');
+  const lastVisitExplicit = valByNames(headers, row, '最終来院日');
+  const firstVisitExplicit = valByNames(headers, row, '初来院日');
+
+  // 旧シート互換: 1〜10回目 の日付セルから最終来院を推定
+  let lastVisit = lastVisitExplicit;
+  let visitCount = Number(totalVisits) || 0;
+  if (!lastVisit) {
+    for (let n = 1; n <= 10; n++) {
+      const v = valByNames(headers, row, `${n}回目`);
+      if (v && /\d{2,4}[\/\-]\d{1,2}[\/\-]\d{1,2}/.test(v)) {
+        lastVisit = v;
+        if (!visitCount) visitCount = n;
+      }
     }
   }
+
   return {
-    customerNumber: valByNames(headers, row, '顧客番号', '番号', 'No', 'ID'),
+    // 顧客番号は厳密一致のみ (旧 '番号' 部分一致だと 郵便番号 を誤拾い)
+    customerNumber: valByNames(headers, row, '顧客番号', '顧客No', '顧客ID'),
     name,
     kana: valByNames(headers, row, 'かな', 'カナ', 'フリガナ', 'kana'),
-    phone: valByNames(headers, row, '電話', 'tel', 'phone', '携帯'),
+    phone: valByNames(headers, row, '電話番号', '電話', 'tel', 'phone', '携帯'),
     email: valByNames(headers, row, 'メール', 'mail', 'email', 'e-mail'),
-    staffName: valByNames(headers, row, '担当者', '担当', 'staff'),
+    postalCode: valByNames(headers, row, '郵便番号', 'zip'),
+    address: valByNames(headers, row, '住所1', '住所'),
+    gender: valByNames(headers, row, '性別'),
+    birthDate: valByNames(headers, row, '生年月日'),
+    age: valByNames(headers, row, '年齢'),
+    diagnosis: valByNames(headers, row, '診断内容', '症状'),
+    staffName: valByNames(headers, row, '問診者', '担当者', '担当', 'staff'),
     membership: valByNames(headers, row, '会員'),
     plan: valByNames(headers, row, 'プラン', 'plan', 'コース'),
-    status: valByNames(headers, row, '継・離', 'ステータス', 'status', '継/離'),
-    firstVisit: valByNames(headers, row, '1回目', '初回', '初診', '登録日', 'first'),
+    status: valByNames(headers, row, '離反月', '継・離', 'ステータス', 'status', '継/離'),
+    firstVisit: firstVisitExplicit || valByNames(headers, row, '1回目', '初回', '初診', '登録日', 'first'),
     lastVisit,
     visitCount,
+    visitsThisMonth: valByNames(headers, row, '来院回数(今月)', '来院回数（今月）'),
+    visitsLastMonth: valByNames(headers, row, '来院回数(前月)', '来院回数（前月）'),
+    visitHistory: valByNames(headers, row, '来院履歴'),
     totalAmount: valByNames(headers, row, '金額', '合計', '累計', 'amount', '総額'),
     source: sourceFile,
   };
