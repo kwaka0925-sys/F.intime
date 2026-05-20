@@ -3611,9 +3611,9 @@ function viewChannel() {
         <button class="ghost" onclick="setChannelMonth('${ymOf(new Date())}')">今月</button>
       </div>
     </div>
-    ${renderChannelSection(month, 'all',        '両院合算')}
     ${renderChannelSection(month, 'nakamozu',   'NAORU整体 中百舌鳥院')}
     ${renderChannelSection(month, 'tenrokuten', 'NAORU整体 天満天六院')}
+    ${renderChannelSection(month, 'all',        '両院合算')}
     <div class="note" style="margin-top:12px;">📡 メタ広告は Meta CSV から自動集計。チラシ・HPB・MAP・スレッズの 予算 / 予約数 は「媒体別集客実績」ページで入力できます。訴求価格はチャネル単位で共通保存されます。</div>
   `;
 }
