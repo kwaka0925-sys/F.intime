@@ -4979,7 +4979,7 @@ function viewImportCustomers() {
 // Google Sheets「顧客情報」から顧客データを取得 (店舗別)
 const CUSTOMERS_SHEET_URLS = {
   nakamozu:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2085123402&single=true&output=csv',
-  tenrokuten: '', // 天満天六院 の顧客情報シートURLを設定したらここに貼ります
+  tenrokuten: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7VDPUBlJ1En2sEFnA1QOyW7WzPl9fikJVOo2B6QoRR8cSzpBfTvMfMLEgRCDVz4IJVvwS7v7gCZz9/pub?gid=2085123402&single=true&output=csv',
 };
 function getCustomersSheetUrl(clinic) { return CUSTOMERS_SHEET_URLS[clinic] || ''; }
 let customerSyncInFlight = false;
