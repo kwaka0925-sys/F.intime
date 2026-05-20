@@ -4222,7 +4222,7 @@ function viewCustomers() {
         <table id="customerListTable" style="font-size:13px;">
           <thead><tr>
             <th>氏名</th><th>電話</th><th>住所</th><th>性別</th><th class="num">年齢</th>
-            <th>診断内容</th><th>問診者</th><th class="num">来院</th><th>初回来院</th><th>最終来院</th>
+            <th>診断内容</th><th>問診者</th><th class="num">来院</th><th>初回来院</th><th>最終来院</th><th>来院履歴</th>
           </tr></thead>
           <tbody id="customerListBody">${renderCustomerRows(sorted)}</tbody>
         </table>
@@ -4233,19 +4233,26 @@ function viewCustomers() {
 }
 
 function renderCustomerRows(list) {
-  if (list.length === 0) return '<tr><td colspan="10" class="empty">該当する顧客はありません</td></tr>';
-  return list.slice(0, 200).map(c => `<tr>
-    <td><strong>${escapeHtml(c.name || '-')}</strong>${c.kana ? `<div style="font-size:10px; color:var(--muted);">${escapeHtml(c.kana)}</div>` : ''}</td>
-    <td style="font-size:12px;">${escapeHtml(c.phone || '-')}</td>
-    <td style="font-size:11px;">${escapeHtml(c.address || '-')}</td>
-    <td>${escapeHtml(c.gender || '-')}</td>
-    <td class="num">${escapeHtml(c.age || '-')}</td>
-    <td style="font-size:11px;">${escapeHtml(c.diagnosis || '-')}</td>
-    <td>${escapeHtml(c.staffName || '-')}</td>
-    <td class="num">${c.visitCount > 0 ? c.visitCount + '回' : '-'}</td>
-    <td style="font-size:11px;">${escapeHtml(c.firstVisit || '-')}</td>
-    <td style="font-size:11px;">${escapeHtml(c.lastVisit || '-')}</td>
-  </tr>`).join('');
+  if (list.length === 0) return '<tr><td colspan="11" class="empty">該当する顧客はありません</td></tr>';
+  return list.slice(0, 200).map(c => {
+    const hist = (c.visitHistory || '').trim();
+    const histCell = /^https?:\/\//i.test(hist)
+      ? `<a href="${escapeHtml(hist)}" target="_blank" rel="noopener" style="color:var(--primary); text-decoration:none;">📋 開く</a>`
+      : (hist ? `<span style="font-size:11px;">${escapeHtml(hist)}</span>` : '-');
+    return `<tr>
+      <td><strong>${escapeHtml(c.name || '-')}</strong>${c.kana ? `<div style="font-size:10px; color:var(--muted);">${escapeHtml(c.kana)}</div>` : ''}</td>
+      <td style="font-size:12px;">${escapeHtml(c.phone || '-')}</td>
+      <td style="font-size:11px;">${escapeHtml(c.address || '-')}</td>
+      <td>${escapeHtml(c.gender || '-')}</td>
+      <td class="num">${escapeHtml(c.age || '-')}</td>
+      <td style="font-size:11px;">${escapeHtml(c.diagnosis || '-')}</td>
+      <td>${escapeHtml(c.staffName || '-')}</td>
+      <td class="num">${c.visitCount > 0 ? c.visitCount + '回' : '-'}</td>
+      <td style="font-size:11px;">${escapeHtml(c.firstVisit || '-')}</td>
+      <td style="font-size:11px;">${escapeHtml(c.lastVisit || '-')}</td>
+      <td>${histCell}</td>
+    </tr>`;
+  }).join('');
 }
 
 function searchCustomers(query) {
