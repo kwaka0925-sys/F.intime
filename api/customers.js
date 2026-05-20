@@ -1,11 +1,33 @@
 // Vercel serverless function: proxy for Google Sheets customer list (published CSV).
-// The sheet must be published to web as CSV (file → 共有 → ウェブに公開).
+// Supports per-clinic sheets via ?clinic=nakamozu|tenrokuten
 
-const CUSTOMERS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2085123402&single=true&output=csv';
+const CUSTOMERS_CSV_URLS = {
+  nakamozu:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2085123402&single=true&output=csv',
+  tenrokuten: '',
+};
 
 module.exports = async function handler(req, res) {
+  let clinic = 'nakamozu';
+  if (req.query && typeof req.query.clinic === 'string' && req.query.clinic) {
+    clinic = req.query.clinic;
+  } else if (req.url) {
+    try {
+      const u = new URL(req.url, 'http://localhost');
+      const c = u.searchParams.get('clinic');
+      if (c) clinic = c;
+    } catch (_) {}
+  }
+
+  const targetUrl = CUSTOMERS_CSV_URLS[clinic];
+  if (!targetUrl) {
+    res.statusCode = 404;
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.end(`No customer sheet configured for clinic: ${clinic}`);
+    return;
+  }
+
   try {
-    const response = await fetch(CUSTOMERS_CSV_URL, {
+    const response = await fetch(targetUrl, {
       redirect: 'follow',
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; NAORUDashboard/1.0)',

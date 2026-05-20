@@ -1410,6 +1410,14 @@ function load() {
     state.tenrokutenDailyCleared = true;
     save();
   }
+  // 既存の顧客データ (clinic 未設定 / Google Sheets 由来) は 中百舌鳥 とみなす
+  if (!state.customersClinicMigrated) {
+    (state.customers || []).forEach(c => {
+      if (!c.clinic && c.source && c.source.startsWith('Google Sheets')) c.clinic = 'nakamozu';
+    });
+    state.customersClinicMigrated = true;
+    save();
+  }
 }
 
 function toggleNavGroup(name) {
@@ -4184,14 +4192,25 @@ function renderWeekCalendar(staffList, today) {
     </div>`;
   return html;
 }
+function switchCustomerClinic(clinic) {
+  state.customerClinic = clinic;
+  save();
+  renderView();
+}
+
 function viewCustomers() {
-  const customers = state.customers || [];
+  if (!state.customerClinic) state.customerClinic = 'nakamozu';
+  const selectedClinic = state.customerClinic;
+  const customers = (state.customers || []).filter(c => c.clinic === selectedClinic);
+  const clinicTabs = `
+    <div class="clinic-tabs">
+      ${Object.entries(CLINICS).map(([k, name]) =>
+        `<div class="clinic-tab ${selectedClinic === k ? 'active' : ''}" onclick="switchCustomerClinic('${k}')">${name}</div>`
+      ).join('')}
+    </div>`;
+
   if (customers.length === 0) {
-    return placeholder('顧客一覧', '👥', [
-      '「設定 → 顧客データ移行」からCSVをアップロード',
-      'ホットペッパー / RESERVA / Airリザーブ のCSVに対応',
-      'UTF-8 / Shift-JIS 自動判定',
-    ], '顧客データを取り込むとここに一覧表示されます。');
+    return `${clinicTabs}<div class="card"><div class="empty">${CLINICS[selectedClinic]} の顧客データはまだありません。<br /><span style="font-size:11px;">「設定 → 顧客データ移行」から ${CLINICS[selectedClinic]} のシート同期を実行してください。</span></div></div>`;
   }
   const q = (state.customerSearch || '').toLowerCase().trim();
   const filtered = q
@@ -4211,9 +4230,10 @@ function viewCustomers() {
     return bv.localeCompare(av);
   });
   return `
+    ${clinicTabs}
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
-        <h2 style="margin:0;">👥 顧客一覧 <span id="customerListCount" style="color:var(--muted); font-size:13px; font-weight:500;">(${sorted.length} / ${customers.length} 件)</span></h2>
+        <h2 style="margin:0;">👥 顧客一覧 (${CLINICS[selectedClinic]}) <span id="customerListCount" style="color:var(--muted); font-size:13px; font-weight:500;">(${sorted.length} / ${customers.length} 件)</span></h2>
       </div>
       <input type="text" class="search-input" placeholder="名前・かな・電話・メールで検索"
              value="${escapeHtml(state.customerSearch || '')}"
@@ -4907,17 +4927,34 @@ function resetBulkShift() {
 }
 
 function viewImportCustomers() {
+  const all = state.customers || [];
+  const syncMsgs = (state.lastCustomerSyncMsg && typeof state.lastCustomerSyncMsg === 'object') ? state.lastCustomerSyncMsg : {};
+
+  const clinicCards = Object.entries(CLINICS).map(([k, name]) => {
+    const url = getCustomersSheetUrl(k);
+    const count = all.filter(c => c.clinic === k && c.source && c.source.startsWith('Google Sheets')).length;
+    const status = syncMsgs[k] || (url ? '※ 「同期」を押すと取り込みを実行します' : '※ シートURLが未設定です');
+    return `
+      <div class="card" style="margin-top:14px;">
+        <h2 style="margin:0 0 6px 0;">🏥 ${name}</h2>
+        <div style="font-size:12px; color:var(--muted); margin-bottom:10px;">取り込み済み: <strong>${fmt(count)}</strong> 件</div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <button onclick="fetchCustomersFromSheet(true, '${k}')" ${!url ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''} style="background:linear-gradient(135deg,#0284c7,#0369a1);">🔄 ${name} のシートから同期</button>
+          <span id="customerSyncStatus_${k}" style="font-size:12px; color:var(--muted);">${escapeHtml(status)}</span>
+        </div>
+        ${!url ? `<div class="note" style="margin-top:10px; font-size:12px;">${name} の顧客情報シート (Google スプレッドシート) のCSV公開URLを教えてもらえれば設定します。</div>` : ''}
+      </div>`;
+  }).join('');
+
   return `<div class="card" style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe); border-color:#7dd3fc;">
-    <h2 style="margin:0 0 8px 0;">🔄 Google Sheets「顧客情報」から同期</h2>
-    <p style="font-size:13px; color:var(--muted); margin:0 0 12px 0;">スプレッドシートの最新の顧客情報を一括取り込みします。シート側を更新するだけで、ここから同期できます。</p>
-    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-      <button onclick="fetchCustomersFromSheet(true)" style="background:linear-gradient(135deg,#0284c7,#0369a1);">🔄 顧客情報シートから同期</button>
-      <span id="customerSyncStatus" style="font-size:12px; color:var(--muted);">${state.lastCustomerSyncMsg || '※ シートを「リンクを知っている全員: 閲覧者」に共有してから同期してください'}</span>
-    </div>
+    <h2 style="margin:0 0 8px 0;">🔄 顧客情報シートから店舗別に同期</h2>
+    <p style="font-size:13px; color:var(--muted); margin:0;">店舗ごとに用意した Google Sheets「顧客情報」から取り込みます。ページを開いた時にも自動で同期されます。</p>
   </div>
 
+  ${clinicCards}
+
   <div class="card" style="margin-top:18px;"><h2>📥 CSVから個別取り込み（手動）</h2>
-    <p style="font-size:13px; color:var(--muted);">ホットペッパー / RESERVA / Airリザーブ / LINE公式 などから書き出した CSV を取り込めます。</p>
+    <p style="font-size:13px; color:var(--muted);">ホットペッパー / RESERVA / Airリザーブ / LINE公式 などから書き出した CSV を取り込めます (店舗指定なし)。</p>
 
     <label class="csv-drop" for="customerCsv">
       <div style="font-size:24px;">📄</div>
@@ -4936,99 +4973,55 @@ function viewImportCustomers() {
       • <strong>LINE公式</strong>: 友だち一覧 → CSVダウンロード（基本属性のみ）<br />
       • <strong>Googleカレンダー</strong>: 設定 → インポート / エクスポート → ICS書き出し（予約として活用可）
     </div>
-  </div>
-
-  <div class="card" style="margin-top:18px;">
-    ${(() => {
-      const all = state.customers || [];
-      if (all.length === 0) return '<h2>取り込み済み顧客 (0 件)</h2><div class="empty">まだ取り込んだ顧客データはありません。</div>';
-      const q = (state.importCustomerSearch || '').toLowerCase().trim();
-      // 検索フィルタ
-      const filtered = q
-        ? all.filter(c =>
-            (c.name || '').toLowerCase().includes(q) ||
-            (c.kana || '').toLowerCase().includes(q) ||
-            (c.customerNumber || '').toString().includes(q) ||
-            (c.staffName || '').includes(q) ||
-            (c.plan || '').includes(q) ||
-            (c.membership || '').includes(q))
-        : all;
-      // 最終来院日 降順 (新しい順、空欄は最後)
-      const sorted = filtered.slice().sort((a, b) => {
-        const av = (a.lastVisit || '').replace(/\D/g, '');
-        const bv = (b.lastVisit || '').replace(/\D/g, '');
-        if (!av && !bv) return 0;
-        if (!av) return 1;
-        if (!bv) return -1;
-        return bv.localeCompare(av);
-      });
-      const pageSize = 100;
-      const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
-      const page = Math.min(Math.max(1, state.importCustomerPage || 1), totalPages);
-      const start = (page - 1) * pageSize;
-      const pageRows = sorted.slice(start, start + pageSize);
-      return `
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
-          <h2 style="margin:0;">取り込み済み顧客 <span style="color:var(--muted); font-size:13px; font-weight:500;">(${sorted.length} / ${all.length} 件 / ${page}〜${Math.min(start + pageSize, sorted.length)} 表示)</span></h2>
-          <input type="text" placeholder="🔍 氏名・かな・番号・担当・プランで検索" value="${escapeHtml(state.importCustomerSearch || '')}"
-            oninput="searchImportCustomers(this.value)"
-            style="width:320px; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px;" />
-        </div>
-        <div style="overflow-x:auto;">
-        <table style="font-size:12px;">
-          <thead><tr>
-            <th class="num">#</th><th>氏名</th><th>担当者</th><th>会員</th><th>プラン</th>
-            <th>状態</th><th class="num">来院</th><th>最終</th><th class="num">金額</th><th>取込元</th>
-          </tr></thead>
-          <tbody>${pageRows.map(c => `<tr>
-            <td class="num" style="color:var(--muted);">${escapeHtml(c.customerNumber || '-')}</td>
-            <td><strong>${escapeHtml(c.name || '-')}</strong></td>
-            <td>${escapeHtml(c.staffName || '-')}</td>
-            <td>${escapeHtml(c.membership || '-')}</td>
-            <td>${escapeHtml(c.plan || '-')}</td>
-            <td>${escapeHtml(c.status || '-')}</td>
-            <td class="num">${c.visitCount > 0 ? c.visitCount + '回' : '-'}</td>
-            <td>${escapeHtml(c.lastVisit || '-')}</td>
-            <td class="num">${escapeHtml(c.totalAmount || '-')}</td>
-            <td style="font-size:10px; color:var(--muted);">${escapeHtml(c.source || '-')}</td>
-          </tr>`).join('')}</tbody>
-        </table>
-        </div>
-        <div style="display:flex; gap:8px; justify-content:center; align-items:center; margin-top:14px; flex-wrap:wrap;">
-          <button class="ghost" ${page <= 1 ? 'disabled' : ''} onclick="shiftImportCustomerPage(-1)" style="padding:6px 14px;">← 前の100件</button>
-          <span style="font-size:13px; color:var(--muted);">${page} / ${totalPages} ページ</span>
-          <button class="ghost" ${page >= totalPages ? 'disabled' : ''} onclick="shiftImportCustomerPage(1)" style="padding:6px 14px;">次の100件 →</button>
-        </div>
-      `;
-    })()}
   </div>`;
 }
 
-// Google Sheets「顧客情報」から顧客データを取得
-const CUSTOMERS_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2085123402&single=true&output=csv';
+// Google Sheets「顧客情報」から顧客データを取得 (店舗別)
+const CUSTOMERS_SHEET_URLS = {
+  nakamozu:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2085123402&single=true&output=csv',
+  tenrokuten: '', // 天満天六院 の顧客情報シートURLを設定したらここに貼ります
+};
+function getCustomersSheetUrl(clinic) { return CUSTOMERS_SHEET_URLS[clinic] || ''; }
 let customerSyncInFlight = false;
 let lastCustomerFetchTime = 0;
 
 function maybeAutoFetchCustomers() {
   if (customerSyncInFlight) return;
   if (Date.now() - lastCustomerFetchTime < 60000) return; // throttle to 60s
-  fetchCustomersFromSheet(false);
+  // 全店舗のうちURLが設定されている分を順次同期
+  (async () => {
+    for (const clinic of Object.keys(CLINICS)) {
+      if (!getCustomersSheetUrl(clinic)) continue;
+      await fetchCustomersFromSheet(false, clinic);
+    }
+  })();
 }
 
-async function fetchCustomersFromSheet(manual) {
+async function fetchCustomersFromSheet(manual, clinic) {
+  clinic = clinic || 'nakamozu';
   if (customerSyncInFlight) return;
+  const directUrl = getCustomersSheetUrl(clinic);
+  if (!directUrl) {
+    const m = `※ ${CLINICS[clinic]} の顧客情報シートURLが未設定です`;
+    state.lastCustomerSyncMsg = state.lastCustomerSyncMsg || {};
+    if (typeof state.lastCustomerSyncMsg === 'string') state.lastCustomerSyncMsg = {};
+    state.lastCustomerSyncMsg[clinic] = m;
+    const el = document.getElementById('customerSyncStatus_' + clinic);
+    if (el) el.textContent = m;
+    return;
+  }
   customerSyncInFlight = true;
   lastCustomerFetchTime = Date.now();
+  if (typeof state.lastCustomerSyncMsg === 'string' || state.lastCustomerSyncMsg == null) state.lastCustomerSyncMsg = {};
   const setStatus = (msg) => {
-    state.lastCustomerSyncMsg = msg;
-    const el = document.getElementById('customerSyncStatus');
+    state.lastCustomerSyncMsg[clinic] = msg;
+    const el = document.getElementById('customerSyncStatus_' + clinic);
     if (el) el.textContent = msg;
   };
-  setStatus('⏳ 顧客情報シートから同期中...');
+  setStatus(`⏳ ${CLINICS[clinic]} の顧客情報シートから同期中...`);
 
-  const directUrl = CUSTOMERS_SHEET_URL;
   const candidates = [
-    { label: 'サーバー関数経由', url: '/api/customers' },
+    { label: 'サーバー関数経由', url: '/api/customers?clinic=' + encodeURIComponent(clinic) },
     { label: '直接',           url: directUrl },
     { label: 'corsproxy.io 経由', url: 'https://corsproxy.io/?' + encodeURIComponent(directUrl) },
     { label: 'allorigins 経由',   url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(directUrl) },
@@ -5074,11 +5067,15 @@ async function fetchCustomersFromSheet(manual) {
     if (rows.length < 2) { setStatus('✕ シートにデータがありません'); return; }
     const headers = rows[0];
     const mapped = rows.slice(1)
-      .map(row => mapCustomerRow(headers, row, 'Google Sheets (顧客情報)'))
+      .map(row => mapCustomerRow(headers, row, 'Google Sheets (顧客情報)', clinic))
       .filter(r => r && (r.name || r.kana || r.phone));
-    // 上書き同期: スプレッドシート由来分を入れ替え（手動アップロード分は残す）
-    const manualKeep = (state.customers || []).filter(c => c.source && !c.source.startsWith('Google Sheets'));
-    state.customers = manualKeep.concat(mapped);
+    // 上書き同期: 同じ店舗のシート由来分のみ入れ替え（他店舗・手動アップロード分は残す）
+    const keep = (state.customers || []).filter(c => {
+      const isFromSheet = c.source && c.source.startsWith('Google Sheets');
+      const sameClinic = c.clinic === clinic;
+      return !(isFromSheet && sameClinic);
+    });
+    state.customers = keep.concat(mapped);
     save();
     const ts = new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' });
     setStatus(`✓ ${mapped.length} 件を取込（${usedLabel} / ${ts}）`);
@@ -5223,7 +5220,7 @@ function mapSaleRow(headers, row, sourceFile) {
   };
 }
 
-function mapCustomerRow(headers, row, sourceFile) {
+function mapCustomerRow(headers, row, sourceFile, clinic) {
   const name = valByNames(headers, row, '氏名', '名前', 'name', 'お名前', '顧客氏名');
   // 総来院回数 / 最終来院日 / 初来院日 は新シートの専用列を優先採用
   const totalVisits = valByNames(headers, row, '総来院回数');
@@ -5268,6 +5265,7 @@ function mapCustomerRow(headers, row, sourceFile) {
     visitHistory: valByNames(headers, row, '来院履歴'),
     totalAmount: valByNames(headers, row, '金額', '合計', '累計', 'amount', '総額'),
     source: sourceFile,
+    clinic: clinic || '',
   };
 }
 
