@@ -3397,16 +3397,6 @@ function viewRevenueTrend() {
         ${clinicBtn('nakamozu', 'NAORU整体 中百舌鳥院')}
         ${clinicBtn('tenrokuten', 'NAORU整体 天満天六院')}
       </div>
-      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
-        ${(() => {
-          const cur = selectedSingleMonth === todayYM;
-          return `<button type="button" onclick="setRevenueTrendMonth('${todayYM}')" style="padding:6px 14px; border-radius:6px; border:1px solid ${cur ? 'var(--primary)' : '#e5e7eb'}; background:${cur ? 'var(--primary)' : '#fff'}; color:${cur ? '#fff' : 'var(--text-dark)'}; font-size:13px; font-weight:${cur ? '600' : '500'}; cursor:pointer;">📅 当月</button>`;
-        })()}
-        ${(() => {
-          const cur = selectedSingleMonth === lastMonthYM;
-          return `<button type="button" onclick="setRevenueTrendMonth('${lastMonthYM}')" style="padding:6px 14px; border-radius:6px; border:1px solid ${cur ? 'var(--primary)' : '#e5e7eb'}; background:${cur ? 'var(--primary)' : '#fff'}; color:${cur ? '#fff' : 'var(--text-dark)'}; font-size:13px; font-weight:${cur ? '600' : '500'}; cursor:pointer;">⏮ 先月</button>`;
-        })()}
-      </div>
       <div style="display:flex; align-items:center; gap:6px; margin-bottom:14px; flex-wrap:wrap;">
         <button type="button" onclick="shiftRevenueTrendYear(-1)" style="padding:6px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-size:14px; color:var(--text-dark);" title="前年">◁</button>
         <div style="min-width:60px; text-align:center; font-weight:700; font-size:14px;">${displayYear}年</div>
