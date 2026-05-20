@@ -4976,10 +4976,18 @@ function viewImportCustomers() {
 const CUSTOMERS_SHEET_ID = '1cpAzEelyxtVRFq2s_E5YBTyZP8BZZJ1egAGqFQEic1g';
 const CUSTOMERS_SHEET_TAB = '顧客情報';
 let customerSyncInFlight = false;
+let lastCustomerFetchTime = 0;
+
+function maybeAutoFetchCustomers() {
+  if (customerSyncInFlight) return;
+  if (Date.now() - lastCustomerFetchTime < 60000) return; // throttle to 60s
+  fetchCustomersFromSheet(false);
+}
 
 async function fetchCustomersFromSheet(manual) {
   if (customerSyncInFlight) return;
   customerSyncInFlight = true;
+  lastCustomerFetchTime = Date.now();
   const setStatus = (msg) => {
     state.lastCustomerSyncMsg = msg;
     const el = document.getElementById('customerSyncStatus');
@@ -5043,7 +5051,7 @@ async function fetchCustomersFromSheet(manual) {
     save();
     const ts = new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' });
     setStatus(`✓ ${mapped.length} 件を取込（${usedLabel} / ${ts}）`);
-    if (manual) renderView();
+    if (manual || currentView === 'customers' || currentView === 'import-customers') renderView();
   } catch (e) {
     console.error(e);
     setStatus('✕ 解析失敗: ' + (e.message || e));
@@ -5563,12 +5571,12 @@ const VIEW_RENDER = {
   'meta-ads':             { html: viewMetaAds, after: viewMetaAdsAfter },
   'channel':              { html: viewChannel, after: viewChannelAfter },
   'reservation-calendar': { html: viewReservationCalendar },
-  'customers':            { html: viewCustomers },
+  'customers':            { html: viewCustomers, after: maybeAutoFetchCustomers },
   'clinics':              { html: viewClinics },
   'staff':                { html: viewStaff },
   'staff-attendance':     { html: viewStaffAttendance },
   'data':                 { html: viewData },
-  'import-customers':     { html: viewImportCustomers },
+  'import-customers':     { html: viewImportCustomers, after: maybeAutoFetchCustomers },
   'import-reservations':  { html: viewImportReservations },
   'import-sales':         { html: viewImportSales },
 };
