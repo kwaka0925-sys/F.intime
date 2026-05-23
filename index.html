@@ -1156,10 +1156,10 @@
 
     <div class="nav-group collapsible" id="grp-sales">
       <div class="nav-group-title" onclick="toggleNavGroup('sales')">売上管理<span class="chevron">▾</span></div>
-      <div class="nav-item" data-view="revenue-entry"><span class="icon">📝</span>月次売上入力</div>
       <div class="nav-item" data-view="daily-sales"><span class="icon">📅</span>日次売上</div>
-      <div class="nav-item" data-view="revenue-list"><span class="icon">📋</span>売上一覧</div>
       <div class="nav-item" data-view="square-management"><span class="icon">🟧</span>スクエア管理</div>
+      <div class="nav-item" data-view="revenue-list"><span class="icon">📋</span>売上一覧</div>
+      <div class="nav-item" data-view="revenue-entry"><span class="icon">📝</span>月次売上入力</div>
     </div>
 
     <div class="nav-group collapsible" id="grp-ads">
@@ -3161,11 +3161,11 @@ function jumpToDailySales(month, clinic) {
 }
 
 function aggregateSquareApiByMonthClinic(clinicFilter, from, to) {
+  // 返金後の純額で集計 (sales[].amount - refunds[].amount を返金日基準で減算)
   const map = {};
-  const sales = state.sales || [];
   const fromYM = from ? from.slice(0, 7) : '';
   const toYM   = to   ? to.slice(0, 7)   : '';
-  sales.forEach(s => {
+  (state.sales || []).forEach(s => {
     if (!s.date || !s.clinic) return;
     if (clinicFilter !== 'all' && s.clinic !== clinicFilter) return;
     const month = s.date.slice(0, 7);
@@ -3173,6 +3173,15 @@ function aggregateSquareApiByMonthClinic(clinicFilter, from, to) {
     if (toYM   && month > toYM)   return;
     const key = month + '__' + s.clinic;
     map[key] = (map[key] || 0) + (s.amount || 0);
+  });
+  (state.refunds || []).forEach(r => {
+    if (!r.date || !r.clinic) return;
+    if (clinicFilter !== 'all' && r.clinic !== clinicFilter) return;
+    const month = r.date.slice(0, 7);
+    if (fromYM && month < fromYM) return;
+    if (toYM   && month > toYM)   return;
+    const key = month + '__' + r.clinic;
+    map[key] = (map[key] || 0) - (r.amount || 0);
   });
   return map;
 }
@@ -3303,12 +3312,21 @@ function viewRevenueList() {
     if (clinicFilter !== 'all' && s.clinic !== clinicFilter) return;
     apiSqByClinic[s.clinic] = (apiSqByClinic[s.clinic] || 0) + (s.amount || 0);
   });
+  const refundsByClinic = {};
+  (state.refunds || []).forEach(r => {
+    if (!r.date || !r.clinic) return;
+    if (r.date < checkRange.from || r.date > checkRange.to) return;
+    if (clinicFilter !== 'all' && r.clinic !== clinicFilter) return;
+    refundsByClinic[r.clinic] = (refundsByClinic[r.clinic] || 0) + (r.amount || 0);
+  });
   const squareChecks = checkClinics.map(c => {
     const entered = dailySqEntered[c] || 0;
-    const api     = apiSqByClinic[c] || 0;
+    const gross   = apiSqByClinic[c] || 0;
+    const refund  = refundsByClinic[c] || 0;
+    const api     = gross - refund; // 返金後の純額
     const diff    = entered - api;
     const matched = Math.abs(diff) <= SQ_TOLERANCE;
-    return { clinic: c, name: CLINICS[c], entered, api, diff, matched };
+    return { clinic: c, name: CLINICS[c], entered, api, gross, refund, diff, matched };
   });
   const checkRangeLabel = checkRange.from === checkRange.to
     ? formatYMD(checkRange.from)
@@ -3323,7 +3341,7 @@ function viewRevenueList() {
 
   const squareCheckCard = `<div class="card">
       <h2>💳 Square 連携チェック <span style="font-size:12px; color:var(--muted); font-weight:normal;">（${checkRangeLabel}）</span></h2>
-      <p style="font-size:12px; color:var(--muted); margin:-4px 0 10px;">日報入力のスクエア金額と Square API 取得金額を店舗別・日付範囲で突合します。日報は都度更新ではないため、対象期間を「昨日まで」などで揃えると一致しやすくなります。差額 ${SQ_TOLERANCE} 円超で <span style="color:var(--danger); font-weight:600;">⚠️ 不一致</span> 表示。</p>
+      <p style="font-size:12px; color:var(--muted); margin:-4px 0 10px;">日報入力のスクエア金額と Square API 取得金額 (<strong>返金後の純額</strong>) を店舗別・日付範囲で突合します。日報は都度更新ではないため、対象期間を「昨日まで」などで揃えると一致しやすくなります。差額 ${SQ_TOLERANCE} 円超で <span style="color:var(--danger); font-weight:600;">⚠️ 不一致</span> 表示。</p>
       <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:12px; padding:8px 10px; background:#f8fafc; border:1px solid var(--border); border-radius:8px;">
         <label style="font-size:12px; font-weight:600; color:var(--muted);">期間</label>
         <input type="date" id="sqCheckFromInput" value="${checkRange.from}" max="${today}" onchange="setSquareCheckRange(this.value, document.getElementById('sqCheckToInput').value)" style="padding:4px 8px; border-radius:6px; border:1px solid var(--border); font-size:13px;" />
