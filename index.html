@@ -3160,12 +3160,30 @@ function jumpToDailySales(month, clinic) {
   switchView('daily-sales');
 }
 
+function aggregateSquareApiByMonthClinic(clinicFilter, from, to) {
+  const map = {};
+  const sales = state.sales || [];
+  sales.forEach(s => {
+    if (!s.date || !s.clinic) return;
+    if (clinicFilter !== 'all' && s.clinic !== clinicFilter) return;
+    const month = s.date.slice(0, 7);
+    if (from && month < from) return;
+    if (to && month > to) return;
+    const key = month + '__' + s.clinic;
+    map[key] = (map[key] || 0) + (s.amount || 0);
+  });
+  return map;
+}
+
 function viewRevenueList() {
   const clinicFilter = document.getElementById('clinicSelect').value;
   const { from, to } = getPeriodRange();
 
   // Daily-sales rollup
   const dailyAgg = aggregateDailyForRevenueList(clinicFilter, from, to);
+
+  // Square API rollup
+  const apiAgg = aggregateSquareApiByMonthClinic(clinicFilter, from, to);
 
   // Monthly manual entries (for adspend / customer counts)
   const monthlyMap = {};
@@ -3176,17 +3194,21 @@ function viewRevenueList() {
     return true;
   }).forEach(e => { monthlyMap[e.month + '__' + e.clinic] = e; });
 
-  // Union of (month, clinic) keys from both sources
-  const allKeys = new Set([...Object.keys(dailyAgg), ...Object.keys(monthlyMap)]);
+  // Union of (month, clinic) keys from all sources
+  const allKeys = new Set([...Object.keys(dailyAgg), ...Object.keys(monthlyMap), ...Object.keys(apiAgg)]);
   const rows = [...allKeys].map(key => {
     const [month, clinic] = key.split('__');
     const agg = dailyAgg[key];
     const mon = monthlyMap[key];
     const hasDaily = !!agg;
+    const square = hasDaily ? agg.square : (mon && mon.revenueSquare != null ? mon.revenueSquare : 0);
+    const squareApi = apiAgg[key] || 0;
     return {
       month, clinic,
       cash:   hasDaily ? agg.cash   : (mon && mon.revenueCash   != null ? mon.revenueCash   : 0),
-      square: hasDaily ? agg.square : (mon && mon.revenueSquare != null ? mon.revenueSquare : 0),
+      square,
+      squareApi,
+      squareDiff: square - squareApi,
       hpb:    hasDaily ? agg.hpb    : (mon && mon.revenueHpb    != null ? mon.revenueHpb    : 0),
       other:  hasDaily ? agg.other  : (mon && mon.revenueOther  != null ? mon.revenueOther  : 0),
       total:  hasDaily ? agg.total  : (mon && mon.revenue       != null ? mon.revenue       : 0),
@@ -3202,6 +3224,45 @@ function viewRevenueList() {
     other: a.other + r.other, total: a.total + r.total,
   }), { cash: 0, square: 0, hpb: 0, other: 0, total: 0 });
 
+  // Per-clinic Square check (期間内合計)
+  const SQ_TOLERANCE = 1; // 1 円以内の差は許容
+  const checkClinics = clinicFilter === 'all'
+    ? Object.keys(CLINICS)
+    : (CLINICS[clinicFilter] ? [clinicFilter] : []);
+  const squareChecks = checkClinics.map(c => {
+    const entered = rows.filter(r => r.clinic === c).reduce((s, r) => s + r.square, 0);
+    const api     = rows.filter(r => r.clinic === c).reduce((s, r) => s + r.squareApi, 0);
+    const diff    = entered - api;
+    const matched = Math.abs(diff) <= SQ_TOLERANCE;
+    return { clinic: c, name: CLINICS[c], entered, api, diff, matched };
+  });
+  const periodLabel = from && to
+    ? (from === to ? formatYM(from) : `${formatYM(from)} 〜 ${formatYM(to)}`)
+    : '全期間';
+
+  const squareCheckCard = `<div class="card">
+      <h2>💳 Square 連携チェック <span style="font-size:12px; color:var(--muted); font-weight:normal;">（${periodLabel}）</span></h2>
+      <p style="font-size:12px; color:var(--muted); margin:-4px 0 12px;">日報入力のスクエア金額と Square API 取得金額を店舗別に突合します。差額が ${SQ_TOLERANCE} 円超で <span style="color:var(--danger); font-weight:600;">⚠️ 不一致</span> 表示。</p>
+      <table>
+        <thead><tr>
+          <th>店舗</th>
+          <th class="num">日報スクエア入力</th>
+          <th class="num">Square API実績</th>
+          <th class="num">差額</th>
+          <th>判定</th>
+        </tr></thead>
+        <tbody>${squareChecks.map(c => `<tr>
+          <td>${c.name}</td>
+          <td class="num">${yen(c.entered)}</td>
+          <td class="num">${yen(c.api)}</td>
+          <td class="num" style="${c.matched ? '' : 'color:var(--danger); font-weight:700;'}">${c.diff > 0 ? '+' : ''}${yen(c.diff)}</td>
+          <td>${c.matched
+            ? '<span class="pill" style="background:#d1fae5; color:#065f46;">✓ 一致</span>'
+            : '<span class="pill" style="background:#fee2e2; color:#991b1b; font-weight:700;">⚠️ 不一致</span>'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+
   return `
     <div class="kpi-grid">
       <div class="kpi-card"><div class="kpi-label">💵 現金売上</div><div class="kpi-value">${yen(sum.cash)}</div></div>
@@ -3210,21 +3271,29 @@ function viewRevenueList() {
       <div class="kpi-card"><div class="kpi-label">🔖 その他決済</div><div class="kpi-value">${yen(sum.other)}</div></div>
       <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:var(--primary);">${yen(sum.total)}</div></div>
     </div>
+    ${squareCheckCard}
     <div class="card"><h2>📋 売上明細 (日次売上の月次集計)</h2>
-      <p style="font-size:12px; color:var(--muted); margin:-6px 0 12px;">💡 各行をクリックすると、その月の日次売上画面に移動します。日次売上で入力した「現金売上 / スクエア / ホットポイント / PayPay / 総売上」を月別に集計しています。</p>
+      <p style="font-size:12px; color:var(--muted); margin:-6px 0 12px;">💡 各行をクリックすると、その月の日次売上画面に移動します。「💳 Square」列と「📡 API」列の差額が ${SQ_TOLERANCE} 円超で赤字表示。</p>
       <table>
         <thead><tr>
           <th>年月</th><th>店舗</th>
-          <th class="num">💵 現金</th><th class="num">💳 Square</th><th class="num">🎫 HPB</th><th class="num">🔖 その他</th>
+          <th class="num">💵 現金</th>
+          <th class="num">💳 Square</th>
+          <th class="num">📡 API</th>
+          <th class="num">差額</th>
+          <th class="num">🎫 HPB</th><th class="num">🔖 その他</th>
           <th class="num">合計</th><th class="num">広告費</th><th class="num">新規</th><th class="num">リピート</th><th class="num">CPA</th><th>ソース</th>
         </tr></thead>
-        <tbody>${rows.length === 0 ? '<tr><td colspan="12" class="empty">該当データがありません。<br /><span style="font-size:11px;">「日次売上」で日報シートを同期するか、「月次売上入力」から手入力してください。</span></td></tr>' :
+        <tbody>${rows.length === 0 ? '<tr><td colspan="14" class="empty">該当データがありません。<br /><span style="font-size:11px;">「日次売上」で日報シートを同期するか、「月次売上入力」から手入力してください。</span></td></tr>' :
           rows.map(r => {
             const cpa = r.newCustomers > 0 ? r.adspend / r.newCustomers : 0;
+            const sqMatched = Math.abs(r.squareDiff) <= SQ_TOLERANCE;
             return `<tr style="cursor:pointer;" onclick="jumpToDailySales('${r.month}','${r.clinic}')">
               <td>${formatYM(r.month)}</td><td>${CLINICS[r.clinic]}</td>
               <td class="num">${yen(r.cash)}</td>
               <td class="num">${yen(r.square)}</td>
+              <td class="num">${yen(r.squareApi)}</td>
+              <td class="num" style="${sqMatched ? 'color:var(--muted);' : 'color:var(--danger); font-weight:700;'}">${sqMatched ? '✓' : `${r.squareDiff > 0 ? '+' : ''}${yen(r.squareDiff)} ⚠️`}</td>
               <td class="num">${yen(r.hpb)}</td>
               <td class="num">${yen(r.other)}</td>
               <td class="num"><strong>${yen(r.total)}</strong></td>
