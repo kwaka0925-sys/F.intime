@@ -124,6 +124,26 @@ async function fetchPayments(token, locationId, beginRfc, endRfc) {
   return payments;
 }
 
+async function fetchRefunds(token, locationId, beginRfc, endRfc) {
+  const refunds = [];
+  let cursor = undefined;
+  for (let i = 0; i < 50; i++) {
+    const params = new URLSearchParams({
+      begin_time: beginRfc,
+      end_time: endRfc,
+      location_id: locationId,
+      limit: '100',
+      sort_order: 'ASC',
+    });
+    if (cursor) params.set('cursor', cursor);
+    const data = await squareFetch(`/v2/refunds?${params.toString()}`, token);
+    if (Array.isArray(data.refunds)) refunds.push(...data.refunds);
+    cursor = data.cursor;
+    if (!cursor) break;
+  }
+  return refunds;
+}
+
 function formatJstDateTime(rfc) {
   if (!rfc) return { date: '', time: '' };
   const d = new Date(rfc);
@@ -216,6 +236,33 @@ function buildSalesForClinic(clinic, orders, payments) {
   return sales;
 }
 
+function buildRefundsForClinic(clinic, refundsRaw, payments) {
+  const paymentsById = new Map();
+  for (const p of payments) paymentsById.set(p.id, p);
+
+  const refunds = [];
+  for (const r of refundsRaw) {
+    const status = r.status || 'COMPLETED';
+    // Skip non-actionable states; PENDING/FAILED/REJECTED are kept for visibility.
+    const { date, time } = formatJstDateTime(r.created_at);
+    const orig = r.payment_id ? paymentsById.get(r.payment_id) : null;
+    const originalPaymentDate = orig ? formatJstDateTime(orig.created_at).date : '';
+    refunds.push({
+      refundId: r.id,
+      paymentId: r.payment_id || '',
+      clinic,
+      date,
+      time,
+      amount: moneyToYen(r.amount_money),
+      reason: r.reason || '',
+      status,
+      originalPaymentDate,
+      source: 'Square API',
+    });
+  }
+  return refunds;
+}
+
 async function handleStatus(res) {
   const clinics = resolveClinics();
   const connected = clinics.filter(c => c.configured).map(c => c.clinic);
@@ -243,18 +290,26 @@ async function handleSync(req, res) {
 
   const results = await Promise.all(configured.map(async c => {
     try {
-      const [orders, payments] = await Promise.all([
+      const [orders, payments, refundsRaw] = await Promise.all([
         fetchOrders(c.token, c.locationId, beginRfc, endRfc),
         fetchPayments(c.token, c.locationId, beginRfc, endRfc),
+        fetchRefunds(c.token, c.locationId, beginRfc, endRfc),
       ]);
       const sales = buildSalesForClinic(c.clinic, orders, payments);
-      return { clinic: c.clinic, sales, ordersCount: orders.length, paymentsCount: payments.length };
+      const refunds = buildRefundsForClinic(c.clinic, refundsRaw, payments);
+      return {
+        clinic: c.clinic, sales, refunds,
+        ordersCount: orders.length,
+        paymentsCount: payments.length,
+        refundsCount: refunds.length,
+      };
     } catch (e) {
       return { clinic: c.clinic, error: e && e.message ? e.message : String(e) };
     }
   }));
 
   const sales = [];
+  const refunds = [];
   const errors = [];
   const perClinic = {};
   for (const r of results) {
@@ -263,7 +318,14 @@ async function handleSync(req, res) {
       perClinic[r.clinic] = { ok: false, error: r.error };
     } else {
       sales.push(...r.sales);
-      perClinic[r.clinic] = { ok: true, count: r.sales.length, orders: r.ordersCount, payments: r.paymentsCount };
+      refunds.push(...r.refunds);
+      perClinic[r.clinic] = {
+        ok: true,
+        count: r.sales.length,
+        refundsCount: r.refundsCount,
+        orders: r.ordersCount,
+        payments: r.paymentsCount,
+      };
     }
   }
 
@@ -272,6 +334,7 @@ async function handleSync(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   res.end(JSON.stringify({
     sales,
+    refunds,
     connectedClinics: configured.map(c => c.clinic),
     missingClinics: clinics.filter(c => !c.configured).map(c => c.clinic),
     perClinic,
