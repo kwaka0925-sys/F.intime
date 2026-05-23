@@ -1156,10 +1156,9 @@
 
     <div class="nav-group collapsible" id="grp-sales">
       <div class="nav-group-title" onclick="toggleNavGroup('sales')">売上管理<span class="chevron">▾</span></div>
-      <div class="nav-item" data-view="revenue-entry"><span class="icon">📝</span>月次売上入力</div>
       <div class="nav-item" data-view="daily-sales"><span class="icon">📅</span>日次売上</div>
-      <div class="nav-item" data-view="revenue-list"><span class="icon">📋</span>売上一覧</div>
       <div class="nav-item" data-view="square-management"><span class="icon">🟧</span>スクエア管理</div>
+      <div class="nav-item" data-view="revenue-list"><span class="icon">📋</span>売上一覧</div>
     </div>
 
     <div class="nav-group collapsible" id="grp-ads">
@@ -1887,7 +1886,6 @@ function viewSummary() {
           <div class="kpi-card" style="background:${cardBg};"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:${accent};">${yen(kpi.revenue)}</div></div>
           <div class="kpi-card"><div class="kpi-label">広告費${metaTag}</div><div class="kpi-value">${yen(kpi.adspend)}</div></div>
           <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(kpi.newCustomers)} <span style="font-size:12px; color:var(--muted);">人</span></div></div>
-          <div class="kpi-card"><div class="kpi-label">リピート来院</div><div class="kpi-value">${fmt(kpi.repeatVisits)} <span style="font-size:12px; color:var(--muted);">人</span></div></div>
           <div class="kpi-card"><div class="kpi-label">CPA${metaTag}</div><div class="kpi-value">${cpaText}</div><div class="kpi-sub">${cpaText !== '—' ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
           <div class="kpi-card"><div class="kpi-label">予約数${metaTag}</div><div class="kpi-value">${fmt(kpi.reservations)}</div></div>
         </div>
@@ -3160,12 +3158,98 @@ function jumpToDailySales(month, clinic) {
   switchView('daily-sales');
 }
 
+function aggregateSquareApiByMonthClinic(clinicFilter, from, to) {
+  // 返金後の純額で集計 (sales[].amount - refunds[].amount を返金日基準で減算)
+  const map = {};
+  const fromYM = from ? from.slice(0, 7) : '';
+  const toYM   = to   ? to.slice(0, 7)   : '';
+  (state.sales || []).forEach(s => {
+    if (!s.date || !s.clinic) return;
+    if (clinicFilter !== 'all' && s.clinic !== clinicFilter) return;
+    const month = s.date.slice(0, 7);
+    if (fromYM && month < fromYM) return;
+    if (toYM   && month > toYM)   return;
+    const key = month + '__' + s.clinic;
+    map[key] = (map[key] || 0) + (s.amount || 0);
+  });
+  (state.refunds || []).forEach(r => {
+    if (!r.date || !r.clinic) return;
+    if (clinicFilter !== 'all' && r.clinic !== clinicFilter) return;
+    const month = r.date.slice(0, 7);
+    if (fromYM && month < fromYM) return;
+    if (toYM   && month > toYM)   return;
+    const key = month + '__' + r.clinic;
+    map[key] = (map[key] || 0) - (r.amount || 0);
+  });
+  return map;
+}
+
+function todayYMDJst() {
+  const now = new Date();
+  const jst = new Date(now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000);
+  const pad = n => String(n).padStart(2, '0');
+  return `${jst.getFullYear()}-${pad(jst.getMonth() + 1)}-${pad(jst.getDate())}`;
+}
+
+function shiftDateYMD(ymd, deltaDays) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
+  const pad = n => String(n).padStart(2, '0');
+  return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+}
+
+function getSquareCheckRange() {
+  const today = todayYMDJst();
+  const yesterday = shiftDateYMD(today, -1);
+  const defaultFrom = `${today.slice(0, 7)}-01`;
+  const defaultTo = yesterday;
+  return {
+    from: state.squareCheckFrom || defaultFrom,
+    to:   state.squareCheckTo   || defaultTo,
+  };
+}
+
+function setSquareCheckRange(from, to) {
+  if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) state.squareCheckFrom = from;
+  if (to   && /^\d{4}-\d{2}-\d{2}$/.test(to))   state.squareCheckTo   = to;
+  // 反転していたら入れ替え
+  if (state.squareCheckFrom && state.squareCheckTo && state.squareCheckFrom > state.squareCheckTo) {
+    const t = state.squareCheckFrom; state.squareCheckFrom = state.squareCheckTo; state.squareCheckTo = t;
+  }
+  save();
+  renderView();
+}
+
+function squareCheckPreset(preset) {
+  const today = todayYMDJst();
+  const yesterday = shiftDateYMD(today, -1);
+  const monthStart = `${today.slice(0, 7)}-01`;
+  let from, to;
+  if (preset === 'yesterday')              { from = yesterday; to = yesterday; }
+  else if (preset === 'thisMonthToYday')   { from = monthStart; to = yesterday; }
+  else if (preset === 'thisMonth')         { from = monthStart; to = today; }
+  else if (preset === 'last7')             { from = shiftDateYMD(today, -6); to = today; }
+  else if (preset === 'lastMonth') {
+    const [y, m] = today.split('-').map(Number);
+    const lastY = m === 1 ? y - 1 : y;
+    const lastM = m === 1 ? 12 : m - 1;
+    const lastDay = new Date(lastY, lastM, 0).getDate();
+    const pad = n => String(n).padStart(2, '0');
+    from = `${lastY}-${pad(lastM)}-01`;
+    to   = `${lastY}-${pad(lastM)}-${pad(lastDay)}`;
+  }
+  if (from && to) setSquareCheckRange(from, to);
+}
+
 function viewRevenueList() {
   const clinicFilter = document.getElementById('clinicSelect').value;
   const { from, to } = getPeriodRange();
 
   // Daily-sales rollup
   const dailyAgg = aggregateDailyForRevenueList(clinicFilter, from, to);
+
+  // Square API rollup
+  const apiAgg = aggregateSquareApiByMonthClinic(clinicFilter, from, to);
 
   // Monthly manual entries (for adspend / customer counts)
   const monthlyMap = {};
@@ -3176,17 +3260,21 @@ function viewRevenueList() {
     return true;
   }).forEach(e => { monthlyMap[e.month + '__' + e.clinic] = e; });
 
-  // Union of (month, clinic) keys from both sources
-  const allKeys = new Set([...Object.keys(dailyAgg), ...Object.keys(monthlyMap)]);
+  // Union of (month, clinic) keys from all sources
+  const allKeys = new Set([...Object.keys(dailyAgg), ...Object.keys(monthlyMap), ...Object.keys(apiAgg)]);
   const rows = [...allKeys].map(key => {
     const [month, clinic] = key.split('__');
     const agg = dailyAgg[key];
     const mon = monthlyMap[key];
     const hasDaily = !!agg;
+    const square = hasDaily ? agg.square : (mon && mon.revenueSquare != null ? mon.revenueSquare : 0);
+    const squareApi = apiAgg[key] || 0;
     return {
       month, clinic,
       cash:   hasDaily ? agg.cash   : (mon && mon.revenueCash   != null ? mon.revenueCash   : 0),
-      square: hasDaily ? agg.square : (mon && mon.revenueSquare != null ? mon.revenueSquare : 0),
+      square,
+      squareApi,
+      squareDiff: square - squareApi,
       hpb:    hasDaily ? agg.hpb    : (mon && mon.revenueHpb    != null ? mon.revenueHpb    : 0),
       other:  hasDaily ? agg.other  : (mon && mon.revenueOther  != null ? mon.revenueOther  : 0),
       total:  hasDaily ? agg.total  : (mon && mon.revenue       != null ? mon.revenue       : 0),
@@ -3202,6 +3290,88 @@ function viewRevenueList() {
     other: a.other + r.other, total: a.total + r.total,
   }), { cash: 0, square: 0, hpb: 0, other: 0, total: 0 });
 
+  // Per-clinic Square check (日付範囲ベース、専用フィルタ)
+  const SQ_TOLERANCE = 1; // 1 円以内の差は許容
+  const checkClinics = clinicFilter === 'all'
+    ? Object.keys(CLINICS)
+    : (CLINICS[clinicFilter] ? [clinicFilter] : []);
+  const checkRange = getSquareCheckRange();
+  const dailySqEntered = {};
+  state.dailyEntries.forEach(e => {
+    if (!e.date || !e.clinic) return;
+    if (e.date < checkRange.from || e.date > checkRange.to) return;
+    if (clinicFilter !== 'all' && e.clinic !== clinicFilter) return;
+    dailySqEntered[e.clinic] = (dailySqEntered[e.clinic] || 0) + parseSheetNum((e.cells || {})['スクエア']);
+  });
+  const apiSqByClinic = {};
+  (state.sales || []).forEach(s => {
+    if (!s.date || !s.clinic) return;
+    if (s.date < checkRange.from || s.date > checkRange.to) return;
+    if (clinicFilter !== 'all' && s.clinic !== clinicFilter) return;
+    apiSqByClinic[s.clinic] = (apiSqByClinic[s.clinic] || 0) + (s.amount || 0);
+  });
+  const refundsByClinic = {};
+  (state.refunds || []).forEach(r => {
+    if (!r.date || !r.clinic) return;
+    if (r.date < checkRange.from || r.date > checkRange.to) return;
+    if (clinicFilter !== 'all' && r.clinic !== clinicFilter) return;
+    refundsByClinic[r.clinic] = (refundsByClinic[r.clinic] || 0) + (r.amount || 0);
+  });
+  const squareChecks = checkClinics.map(c => {
+    const entered = dailySqEntered[c] || 0;
+    const gross   = apiSqByClinic[c] || 0;
+    const refund  = refundsByClinic[c] || 0;
+    const api     = gross - refund; // 返金後の純額
+    const diff    = entered - api;
+    const matched = Math.abs(diff) <= SQ_TOLERANCE;
+    return { clinic: c, name: CLINICS[c], entered, api, gross, refund, diff, matched };
+  });
+  const checkRangeLabel = checkRange.from === checkRange.to
+    ? formatYMD(checkRange.from)
+    : `${formatYMD(checkRange.from)} 〜 ${formatYMD(checkRange.to)}`;
+  const today = todayYMDJst();
+  const yesterday = shiftDateYMD(today, -1);
+  const isThisMonthToYday = checkRange.from === `${today.slice(0,7)}-01` && checkRange.to === yesterday;
+  const isYesterday       = checkRange.from === yesterday && checkRange.to === yesterday;
+  const isThisMonth       = checkRange.from === `${today.slice(0,7)}-01` && checkRange.to === today;
+  const presetBtn = (key, label, active) =>
+    `<button class="ghost" onclick="squareCheckPreset('${key}')" style="${active ? 'background:#dbeafe; border-color:#93c5fd; color:#1e40af; font-weight:600;' : ''}">${label}</button>`;
+
+  const squareCheckCard = `<div class="card">
+      <h2>💳 Square 連携チェック <span style="font-size:12px; color:var(--muted); font-weight:normal;">（${checkRangeLabel}）</span></h2>
+      <p style="font-size:12px; color:var(--muted); margin:-4px 0 10px;">日報入力のスクエア金額と Square API 取得金額 (<strong>返金後の純額</strong>) を店舗別・日付範囲で突合します。日報は都度更新ではないため、対象期間を「昨日まで」などで揃えると一致しやすくなります。差額 ${SQ_TOLERANCE} 円超で <span style="color:var(--danger); font-weight:600;">⚠️ 不一致</span> 表示。</p>
+      <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:12px; padding:8px 10px; background:#f8fafc; border:1px solid var(--border); border-radius:8px;">
+        <label style="font-size:12px; font-weight:600; color:var(--muted);">期間</label>
+        <input type="date" id="sqCheckFromInput" value="${checkRange.from}" max="${today}" onchange="setSquareCheckRange(this.value, document.getElementById('sqCheckToInput').value)" style="padding:4px 8px; border-radius:6px; border:1px solid var(--border); font-size:13px;" />
+        <span>〜</span>
+        <input type="date" id="sqCheckToInput" value="${checkRange.to}" max="${today}" onchange="setSquareCheckRange(document.getElementById('sqCheckFromInput').value, this.value)" style="padding:4px 8px; border-radius:6px; border:1px solid var(--border); font-size:13px;" />
+        <span style="margin:0 6px; color:var(--muted);">|</span>
+        ${presetBtn('thisMonthToYday', '今月初〜昨日', isThisMonthToYday)}
+        ${presetBtn('yesterday',       '昨日のみ',     isYesterday)}
+        ${presetBtn('thisMonth',       '今月（〜今日）', isThisMonth)}
+        ${presetBtn('last7',           '過去7日',     false)}
+        ${presetBtn('lastMonth',       '先月',         false)}
+      </div>
+      <table>
+        <thead><tr>
+          <th>店舗</th>
+          <th class="num">日報スクエア入力</th>
+          <th class="num">Square API実績</th>
+          <th class="num">差額</th>
+          <th>判定</th>
+        </tr></thead>
+        <tbody>${squareChecks.map(c => `<tr>
+          <td>${c.name}</td>
+          <td class="num">${yen(c.entered)}</td>
+          <td class="num">${yen(c.api)}</td>
+          <td class="num" style="${c.matched ? '' : 'color:var(--danger); font-weight:700;'}">${c.diff > 0 ? '+' : ''}${yen(c.diff)}</td>
+          <td>${c.matched
+            ? '<span class="pill" style="background:#d1fae5; color:#065f46;">✓ 一致</span>'
+            : '<span class="pill" style="background:#fee2e2; color:#991b1b; font-weight:700;">⚠️ 不一致</span>'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+
   return `
     <div class="kpi-grid">
       <div class="kpi-card"><div class="kpi-label">💵 現金売上</div><div class="kpi-value">${yen(sum.cash)}</div></div>
@@ -3210,21 +3380,29 @@ function viewRevenueList() {
       <div class="kpi-card"><div class="kpi-label">🔖 その他決済</div><div class="kpi-value">${yen(sum.other)}</div></div>
       <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:var(--primary);">${yen(sum.total)}</div></div>
     </div>
+    ${squareCheckCard}
     <div class="card"><h2>📋 売上明細 (日次売上の月次集計)</h2>
-      <p style="font-size:12px; color:var(--muted); margin:-6px 0 12px;">💡 各行をクリックすると、その月の日次売上画面に移動します。日次売上で入力した「現金売上 / スクエア / ホットポイント / PayPay / 総売上」を月別に集計しています。</p>
+      <p style="font-size:12px; color:var(--muted); margin:-6px 0 12px;">💡 各行をクリックすると、その月の日次売上画面に移動します。「💳 Square」列と「📡 API」列の差額が ${SQ_TOLERANCE} 円超で赤字表示。</p>
       <table>
         <thead><tr>
           <th>年月</th><th>店舗</th>
-          <th class="num">💵 現金</th><th class="num">💳 Square</th><th class="num">🎫 HPB</th><th class="num">🔖 その他</th>
+          <th class="num">💵 現金</th>
+          <th class="num">💳 Square</th>
+          <th class="num">📡 API</th>
+          <th class="num">差額</th>
+          <th class="num">🎫 HPB</th><th class="num">🔖 その他</th>
           <th class="num">合計</th><th class="num">広告費</th><th class="num">新規</th><th class="num">リピート</th><th class="num">CPA</th><th>ソース</th>
         </tr></thead>
-        <tbody>${rows.length === 0 ? '<tr><td colspan="12" class="empty">該当データがありません。<br /><span style="font-size:11px;">「日次売上」で日報シートを同期するか、「月次売上入力」から手入力してください。</span></td></tr>' :
+        <tbody>${rows.length === 0 ? '<tr><td colspan="14" class="empty">該当データがありません。<br /><span style="font-size:11px;">「日次売上」で日報シートを同期するか、「月次売上入力」から手入力してください。</span></td></tr>' :
           rows.map(r => {
             const cpa = r.newCustomers > 0 ? r.adspend / r.newCustomers : 0;
+            const sqMatched = Math.abs(r.squareDiff) <= SQ_TOLERANCE;
             return `<tr style="cursor:pointer;" onclick="jumpToDailySales('${r.month}','${r.clinic}')">
               <td>${formatYM(r.month)}</td><td>${CLINICS[r.clinic]}</td>
               <td class="num">${yen(r.cash)}</td>
               <td class="num">${yen(r.square)}</td>
+              <td class="num">${yen(r.squareApi)}</td>
+              <td class="num" style="${sqMatched ? 'color:var(--muted);' : 'color:var(--danger); font-weight:700;'}">${sqMatched ? '✓' : `${r.squareDiff > 0 ? '+' : ''}${yen(r.squareDiff)} ⚠️`}</td>
               <td class="num">${yen(r.hpb)}</td>
               <td class="num">${yen(r.other)}</td>
               <td class="num"><strong>${yen(r.total)}</strong></td>
@@ -3911,6 +4089,10 @@ function toggleAllClinicPasswords(btn) {
 }
 
 function viewData() {
+  const cfg = state.squareConfig || {};
+  const status = state.squareStatus || null;
+  const connectedCount = status && Array.isArray(status.connectedClinics) ? status.connectedClinics.length : 0;
+  const lastSync = cfg.lastSyncAt ? new Date(cfg.lastSyncAt).toLocaleString('ja-JP') : '—';
   return `<div class="card"><h2>⚙️ データ管理</h2>
     <p style="font-size:13px; color:var(--muted);">データはブラウザの <code>localStorage</code> に保存されます。バックアップや別端末への移行はエクスポート/インポートをご利用ください。</p>
     <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
@@ -3922,6 +4104,37 @@ function viewData() {
       <button class="danger" onclick="if(confirm('全データを削除します。元に戻せません。よろしいですか？')) { localStorage.removeItem(STORAGE_KEY); state = { entries: [] }; renderView(); }">🗑 全データ削除</button>
     </div>
     <div class="note">現在 ${state.entries.length} 件のデータが保存されています。</div>
+  </div>
+
+  <div class="card" style="margin-top:18px;">
+    <h2>🔌 Square API 同期</h2>
+    <p style="font-size:13px; color:var(--muted);">中百舌鳥院・天満天六院それぞれのアクセストークンは Vercel の環境変数で管理しています。ブラウザ側にトークンは保持しません。</p>
+
+    <div style="margin-top:12px;">
+      <button onclick="syncSquareNow()">🔄 今すぐ同期（両店舗・当月）</button>
+      <span style="font-size:12px; color:var(--muted); margin-left:8px;">スクエア管理画面の表示月でも自動同期されます。</span>
+    </div>
+    <div style="margin-top:10px; font-size:12px; color:var(--muted);">
+      ${connectedCount > 0 ? `✓ ${connectedCount}店舗 接続済 / 最終同期: ${lastSync}` : '※ サーバー側の環境変数 (SQUARE_TOKEN_NAKAMOZU / SQUARE_LOCATION_NAKAMOZU / SQUARE_TOKEN_TENROKU / SQUARE_LOCATION_TENROKU) を設定してください。'}
+    </div>
+
+    <div class="note" style="margin-top:18px;">
+      <strong>📖 環境変数（Vercel）</strong>
+      <ul style="margin:6px 0 0 18px; font-size:13px; line-height:1.7;">
+        <li><code>SQUARE_TOKEN_NAKAMOZU</code> / <code>SQUARE_LOCATION_NAKAMOZU</code> — NAORU整体 中百舌鳥院</li>
+        <li><code>SQUARE_TOKEN_TENROKU</code> / <code>SQUARE_LOCATION_TENROKU</code> — NAORU整体 天満天六院</li>
+      </ul>
+      <br />
+      <strong>📡 サーバー処理</strong><br />
+      <span style="font-size:13px;">
+        ブラウザ → <code>/api/square?action=sync</code> → サーバーが店舗ごとに <code>POST /v2/orders/search</code> と <code>GET /v2/payments</code> を並列実行 → Payment ID で突合 → JSON で返却 → クライアントが <code>state.sales</code> にマージ・重複排除（Transaction ID）。
+      </span><br /><br />
+      <strong>⚠️ 補足</strong>
+      <ul style="margin:4px 0 0 18px; font-size:13px; line-height:1.7;">
+        <li>環境はすべて Production（<code>https://connect.squareup.com</code>）</li>
+        <li>取得期間はスクエア管理画面の月セレクタで切り替えられます（当月は1日〜今日、過去月は1日〜末日）。</li>
+      </ul>
+    </div>
   </div>`;
 }
 
@@ -5622,7 +5835,7 @@ function viewSquareManagement() {
       <div class="kpi-card"><div class="kpi-label">連携状態</div><div class="kpi-value ${connClass}">${connLabel}</div><div class="kpi-sub">${connSub}</div></div>
       <div class="kpi-card"><div class="kpi-label">取引件数</div><div class="kpi-value">${fmt(sales.length)} 件</div><div class="kpi-sub">返金 ${fmt(refunds.length)} 件</div></div>
       <div class="kpi-card"><div class="kpi-label">総売上</div><div class="kpi-value">${yen(totalGross)}</div><div class="kpi-sub">${monthLabel}の決済合計</div></div>
-      <div class="kpi-card"><div class="kpi-label">返金金額</div><div class="kpi-value ${totalRefund > 0 ? 'down' : ''}">${totalRefund > 0 ? '−' : ''}${yen(totalRefund)}</div><div class="kpi-sub">${fmt(refunds.length)} 件</div></div>
+      <div class="kpi-card"><div class="kpi-label">返金金額</div><div class="kpi-value" style="color:var(--danger);">${totalRefund > 0 ? '−' : ''}${yen(totalRefund)}</div><div class="kpi-sub">${fmt(refunds.length)} 件</div></div>
       <div class="kpi-card" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5); border-color:#a7f3d0;"><div class="kpi-label">純売上</div><div class="kpi-value up">${yen(totalNet)}</div><div class="kpi-sub">総売上 − 返金</div></div>
       <div class="kpi-card"><div class="kpi-label">Square手数料</div><div class="kpi-value">${yen(totalFee)}</div><div class="kpi-sub">着金額: ${yen(totalNet - totalFee)}</div></div>
     </div>
@@ -5665,37 +5878,6 @@ function viewSquareManagement() {
   <div class="card" style="margin-top:18px;">
     <h2>↩️ 返金履歴 <span style="font-size:12px; color:var(--muted); font-weight:normal;">（${monthLabel} / 返金日の新しい順）</span></h2>
     ${refundsTable}
-  </div>
-
-  <div class="card" style="margin-top:18px;">
-    <h2>🔌 Square API 同期</h2>
-    <p style="font-size:13px; color:var(--muted);">中百舌鳥院・天満天六院それぞれのアクセストークンは Vercel の環境変数で管理しています。ブラウザ側にトークンは保持しません。</p>
-
-    <div style="margin-top:12px;">
-      <button onclick="syncSquareNow()">🔄 今すぐ同期（両店舗・${monthLabel}）</button>
-      <span style="font-size:12px; color:var(--muted); margin-left:8px;">表示月のデータを再取得します。ページを開いた時にも自動同期します。</span>
-    </div>
-    <div id="sqResult" style="margin-top:10px; font-size:12px; color:var(--muted);">
-      ${connectedCount > 0 ? `✓ ${connectedCount}店舗 接続済 / 最終同期: ${lastSync}` : '※ サーバー側の環境変数 (SQUARE_TOKEN_NAKAMOZU / SQUARE_LOCATION_NAKAMOZU / SQUARE_TOKEN_TENROKU / SQUARE_LOCATION_TENROKU) を設定してください。'}
-    </div>
-
-    <div class="note" style="margin-top:18px;">
-      <strong>📖 環境変数（Vercel）</strong>
-      <ul style="margin:6px 0 0 18px; font-size:13px; line-height:1.7;">
-        <li><code>SQUARE_TOKEN_NAKAMOZU</code> / <code>SQUARE_LOCATION_NAKAMOZU</code> — NAORU整体 中百舌鳥院</li>
-        <li><code>SQUARE_TOKEN_TENROKU</code> / <code>SQUARE_LOCATION_TENROKU</code> — NAORU整体 天満天六院</li>
-      </ul>
-      <br />
-      <strong>📡 サーバー処理</strong><br />
-      <span style="font-size:13px;">
-        ブラウザ → <code>/api/square?action=sync</code> → サーバーが店舗ごとに <code>POST /v2/orders/search</code> と <code>GET /v2/payments</code> を並列実行 → Payment ID で突合 → JSON で返却 → クライアントが <code>state.sales</code> にマージ・重複排除（Transaction ID）。
-      </span><br /><br />
-      <strong>⚠️ 補足</strong>
-      <ul style="margin:4px 0 0 18px; font-size:13px; line-height:1.7;">
-        <li>環境はすべて Production（<code>https://connect.squareup.com</code>）</li>
-        <li>取得期間は画面上部の月セレクタで切り替えられます（当月は1日〜今日、過去月は1日〜末日）。</li>
-      </ul>
-    </div>
   </div>`;
 }
 
