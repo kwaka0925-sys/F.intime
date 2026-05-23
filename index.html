@@ -3163,12 +3163,14 @@ function jumpToDailySales(month, clinic) {
 function aggregateSquareApiByMonthClinic(clinicFilter, from, to) {
   const map = {};
   const sales = state.sales || [];
+  const fromYM = from ? from.slice(0, 7) : '';
+  const toYM   = to   ? to.slice(0, 7)   : '';
   sales.forEach(s => {
     if (!s.date || !s.clinic) return;
     if (clinicFilter !== 'all' && s.clinic !== clinicFilter) return;
     const month = s.date.slice(0, 7);
-    if (from && month < from) return;
-    if (to && month > to) return;
+    if (fromYM && month < fromYM) return;
+    if (toYM   && month > toYM)   return;
     const key = month + '__' + s.clinic;
     map[key] = (map[key] || 0) + (s.amount || 0);
   });
