@@ -5464,7 +5464,8 @@ function squareMonthRange(ym) {
 }
 
 let squareSelectedYm = null;
-let squareSyncInFlight = false;
+let squareSyncInFlightCount = 0;
+let squareSyncSeq = 0;
 
 function getSquareSelectedYm() {
   if (!squareSelectedYm) squareSelectedYm = currentJstYearMonth();
@@ -5476,7 +5477,8 @@ function setSquareYm(ym) {
   if (ym > currentJstYearMonth()) return; // 未来月は不可
   squareSelectedYm = ym;
   renderView();
-  squareAutoSync();
+  // 月を変えたら必ずその月を取得（自動同期中でも並走させる）
+  syncSquareNow({ silent: true, ym });
 }
 
 function shiftSquareYm(delta) {
@@ -5488,7 +5490,6 @@ function resetSquareYm() {
 }
 
 function squareAutoSync() {
-  if (squareSyncInFlight) return;
   syncSquareNow({ silent: true });
 }
 
@@ -5704,15 +5705,15 @@ async function refreshSquareStatus() {
 }
 
 async function syncSquareNow(opts = {}) {
-  if (squareSyncInFlight) return;
-  squareSyncInFlight = true;
   const ym = opts.ym || getSquareSelectedYm();
   const silent = !!opts.silent;
   const { from, to } = squareMonthRange(ym);
+  const mySeq = ++squareSyncSeq;
+  squareSyncInFlightCount++;
   const res = document.getElementById('sqResult');
   const indicator = document.getElementById('sqAutoSyncIndicator');
   if (res) res.textContent = `⏳ 同期中… (${ym} の Square API を呼び出し中)`;
-  if (indicator) indicator.textContent = '⏳ 自動同期中…';
+  if (indicator) indicator.textContent = `⏳ 同期中… (${ym})`;
   try {
     const r = await fetch(`/api/square?action=sync&from=${from}&to=${to}`, { cache: 'no-store' });
     const data = await r.json().catch(() => ({}));
@@ -5751,12 +5752,18 @@ async function syncSquareNow(opts = {}) {
       alert(`同期完了 (${ym})\n取引: 取得 ${incomingSales.length} 件 / 新規 ${addedSales.length} 件\n返金: 取得 ${incomingRefunds.length} 件 / 新規 ${addedRefunds.length} 件\n\n${breakdown}${errMsg}`);
     }
   } catch (e) {
-    if (res) res.textContent = `❌ 同期失敗: ${e.message}`;
-    const ind2 = document.getElementById('sqAutoSyncIndicator');
-    if (ind2) ind2.textContent = `❌ 自動同期失敗: ${e.message}`;
+    if (mySeq === squareSyncSeq) {
+      if (res) res.textContent = `❌ 同期失敗: ${e.message}`;
+      const ind2 = document.getElementById('sqAutoSyncIndicator');
+      if (ind2) ind2.textContent = `❌ 同期失敗: ${e.message}`;
+    }
     if (!silent) alert(`同期失敗: ${e.message}`);
   } finally {
-    squareSyncInFlight = false;
+    squareSyncInFlightCount = Math.max(0, squareSyncInFlightCount - 1);
+    if (squareSyncInFlightCount === 0) {
+      const ind3 = document.getElementById('sqAutoSyncIndicator');
+      if (ind3 && ind3.textContent.startsWith('⏳')) ind3.textContent = '';
+    }
   }
 }
 
