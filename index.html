@@ -1427,6 +1427,15 @@ function load() {
     state.refunds = [];
     save();
   }
+  // Square API 取込ロジック修正に伴うクリーンアップ (Payment 主体集計へ移行)
+  if (!state.squareApiSalesV2Migrated) {
+    if (Array.isArray(state.sales)) {
+      state.sales = state.sales.filter(s => s.source !== 'Square API');
+    }
+    state.refunds = [];
+    state.squareApiSalesV2Migrated = true;
+    save();
+  }
 }
 
 function toggleNavGroup(name) {

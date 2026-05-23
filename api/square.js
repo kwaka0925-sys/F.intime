@@ -173,20 +173,17 @@ function buildSalesForClinic(clinic, orders, payments) {
 
   const sales = [];
 
-  // Prefer iterating payments — they always carry processing_fee and a stable transactionId.
-  const seenOrderIds = new Set();
+  // Payment 主体で取引明細を生成。Square ダッシュボードの「取引一覧 / 受取合計額」と
+  // 件数・金額が一致する。Payment.amount_money が顧客から受領した実額。
   for (const p of payments) {
     if (p.status && p.status !== 'COMPLETED' && p.status !== 'APPROVED') continue;
-    const order = p.order_id ? ordersById.get(p.order_id) : null;
-    if (order) seenOrderIds.add(order.id);
 
+    const order = p.order_id ? ordersById.get(p.order_id) : null;
     const created = p.created_at || (order && order.closed_at) || (order && order.created_at);
     const { date, time } = formatJstDateTime(created);
 
-    const netFromOrder = order ? moneyToYen(order.net_amount_due_money || order.total_money) : null;
-    const grossFromOrder = order ? moneyToYen(order.total_money) : null;
-    const amount = netFromOrder != null ? netFromOrder : moneyToYen(p.amount_money);
-    const grossAmount = grossFromOrder != null ? grossFromOrder : moneyToYen(p.total_money || p.amount_money);
+    const amount = moneyToYen(p.amount_money);
+    const grossAmount = moneyToYen(p.total_money || p.amount_money);
     const tax = order ? moneyToYen(order.total_tax_money) : 0;
 
     const itemNames = order && Array.isArray(order.line_items)
@@ -207,28 +204,6 @@ function buildSalesForClinic(clinic, orders, payments) {
       clinic,
       transactionId: p.id,
       paymentMethod: (p.card_details && p.card_details.card && p.card_details.card.card_brand) || p.source_type || '',
-      source: 'Square API',
-    });
-  }
-
-  // Edge case: orders without a payment record (cash-only via Square POS, etc.)
-  for (const o of orders) {
-    if (seenOrderIds.has(o.id)) continue;
-    const { date, time } = formatJstDateTime(o.closed_at || o.created_at);
-    sales.push({
-      date,
-      time,
-      amount: moneyToYen(o.net_amount_due_money || o.total_money),
-      grossAmount: moneyToYen(o.total_money),
-      fee: 0,
-      tax: moneyToYen(o.total_tax_money),
-      menu: Array.isArray(o.line_items) ? o.line_items.map(li => li.name).filter(Boolean).join(' / ') : '',
-      staff: '',
-      customer: '',
-      location: '',
-      clinic,
-      transactionId: `order:${o.id}`,
-      paymentMethod: '',
       source: 'Square API',
     });
   }
