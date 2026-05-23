@@ -3177,6 +3177,63 @@ function aggregateSquareApiByMonthClinic(clinicFilter, from, to) {
   return map;
 }
 
+function todayYMDJst() {
+  const now = new Date();
+  const jst = new Date(now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000);
+  const pad = n => String(n).padStart(2, '0');
+  return `${jst.getFullYear()}-${pad(jst.getMonth() + 1)}-${pad(jst.getDate())}`;
+}
+
+function shiftDateYMD(ymd, deltaDays) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
+  const pad = n => String(n).padStart(2, '0');
+  return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+}
+
+function getSquareCheckRange() {
+  const today = todayYMDJst();
+  const yesterday = shiftDateYMD(today, -1);
+  const defaultFrom = `${today.slice(0, 7)}-01`;
+  const defaultTo = yesterday;
+  return {
+    from: state.squareCheckFrom || defaultFrom,
+    to:   state.squareCheckTo   || defaultTo,
+  };
+}
+
+function setSquareCheckRange(from, to) {
+  if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) state.squareCheckFrom = from;
+  if (to   && /^\d{4}-\d{2}-\d{2}$/.test(to))   state.squareCheckTo   = to;
+  // 反転していたら入れ替え
+  if (state.squareCheckFrom && state.squareCheckTo && state.squareCheckFrom > state.squareCheckTo) {
+    const t = state.squareCheckFrom; state.squareCheckFrom = state.squareCheckTo; state.squareCheckTo = t;
+  }
+  save();
+  renderView();
+}
+
+function squareCheckPreset(preset) {
+  const today = todayYMDJst();
+  const yesterday = shiftDateYMD(today, -1);
+  const monthStart = `${today.slice(0, 7)}-01`;
+  let from, to;
+  if (preset === 'yesterday')              { from = yesterday; to = yesterday; }
+  else if (preset === 'thisMonthToYday')   { from = monthStart; to = yesterday; }
+  else if (preset === 'thisMonth')         { from = monthStart; to = today; }
+  else if (preset === 'last7')             { from = shiftDateYMD(today, -6); to = today; }
+  else if (preset === 'lastMonth') {
+    const [y, m] = today.split('-').map(Number);
+    const lastY = m === 1 ? y - 1 : y;
+    const lastM = m === 1 ? 12 : m - 1;
+    const lastDay = new Date(lastY, lastM, 0).getDate();
+    const pad = n => String(n).padStart(2, '0');
+    from = `${lastY}-${pad(lastM)}-01`;
+    to   = `${lastY}-${pad(lastM)}-${pad(lastDay)}`;
+  }
+  if (from && to) setSquareCheckRange(from, to);
+}
+
 function viewRevenueList() {
   const clinicFilter = document.getElementById('clinicSelect').value;
   const { from, to } = getPeriodRange();
@@ -3226,25 +3283,59 @@ function viewRevenueList() {
     other: a.other + r.other, total: a.total + r.total,
   }), { cash: 0, square: 0, hpb: 0, other: 0, total: 0 });
 
-  // Per-clinic Square check (期間内合計)
+  // Per-clinic Square check (日付範囲ベース、専用フィルタ)
   const SQ_TOLERANCE = 1; // 1 円以内の差は許容
   const checkClinics = clinicFilter === 'all'
     ? Object.keys(CLINICS)
     : (CLINICS[clinicFilter] ? [clinicFilter] : []);
+  const checkRange = getSquareCheckRange();
+  const dailySqEntered = {};
+  state.dailyEntries.forEach(e => {
+    if (!e.date || !e.clinic) return;
+    if (e.date < checkRange.from || e.date > checkRange.to) return;
+    if (clinicFilter !== 'all' && e.clinic !== clinicFilter) return;
+    dailySqEntered[e.clinic] = (dailySqEntered[e.clinic] || 0) + parseSheetNum((e.cells || {})['スクエア']);
+  });
+  const apiSqByClinic = {};
+  (state.sales || []).forEach(s => {
+    if (!s.date || !s.clinic) return;
+    if (s.date < checkRange.from || s.date > checkRange.to) return;
+    if (clinicFilter !== 'all' && s.clinic !== clinicFilter) return;
+    apiSqByClinic[s.clinic] = (apiSqByClinic[s.clinic] || 0) + (s.amount || 0);
+  });
   const squareChecks = checkClinics.map(c => {
-    const entered = rows.filter(r => r.clinic === c).reduce((s, r) => s + r.square, 0);
-    const api     = rows.filter(r => r.clinic === c).reduce((s, r) => s + r.squareApi, 0);
+    const entered = dailySqEntered[c] || 0;
+    const api     = apiSqByClinic[c] || 0;
     const diff    = entered - api;
     const matched = Math.abs(diff) <= SQ_TOLERANCE;
     return { clinic: c, name: CLINICS[c], entered, api, diff, matched };
   });
-  const periodLabel = from && to
-    ? (from === to ? formatYM(from) : `${formatYM(from)} 〜 ${formatYM(to)}`)
-    : '全期間';
+  const checkRangeLabel = checkRange.from === checkRange.to
+    ? formatYMD(checkRange.from)
+    : `${formatYMD(checkRange.from)} 〜 ${formatYMD(checkRange.to)}`;
+  const today = todayYMDJst();
+  const yesterday = shiftDateYMD(today, -1);
+  const isThisMonthToYday = checkRange.from === `${today.slice(0,7)}-01` && checkRange.to === yesterday;
+  const isYesterday       = checkRange.from === yesterday && checkRange.to === yesterday;
+  const isThisMonth       = checkRange.from === `${today.slice(0,7)}-01` && checkRange.to === today;
+  const presetBtn = (key, label, active) =>
+    `<button class="ghost" onclick="squareCheckPreset('${key}')" style="${active ? 'background:#dbeafe; border-color:#93c5fd; color:#1e40af; font-weight:600;' : ''}">${label}</button>`;
 
   const squareCheckCard = `<div class="card">
-      <h2>💳 Square 連携チェック <span style="font-size:12px; color:var(--muted); font-weight:normal;">（${periodLabel}）</span></h2>
-      <p style="font-size:12px; color:var(--muted); margin:-4px 0 12px;">日報入力のスクエア金額と Square API 取得金額を店舗別に突合します。差額が ${SQ_TOLERANCE} 円超で <span style="color:var(--danger); font-weight:600;">⚠️ 不一致</span> 表示。</p>
+      <h2>💳 Square 連携チェック <span style="font-size:12px; color:var(--muted); font-weight:normal;">（${checkRangeLabel}）</span></h2>
+      <p style="font-size:12px; color:var(--muted); margin:-4px 0 10px;">日報入力のスクエア金額と Square API 取得金額を店舗別・日付範囲で突合します。日報は都度更新ではないため、対象期間を「昨日まで」などで揃えると一致しやすくなります。差額 ${SQ_TOLERANCE} 円超で <span style="color:var(--danger); font-weight:600;">⚠️ 不一致</span> 表示。</p>
+      <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:12px; padding:8px 10px; background:#f8fafc; border:1px solid var(--border); border-radius:8px;">
+        <label style="font-size:12px; font-weight:600; color:var(--muted);">期間</label>
+        <input type="date" id="sqCheckFromInput" value="${checkRange.from}" max="${today}" onchange="setSquareCheckRange(this.value, document.getElementById('sqCheckToInput').value)" style="padding:4px 8px; border-radius:6px; border:1px solid var(--border); font-size:13px;" />
+        <span>〜</span>
+        <input type="date" id="sqCheckToInput" value="${checkRange.to}" max="${today}" onchange="setSquareCheckRange(document.getElementById('sqCheckFromInput').value, this.value)" style="padding:4px 8px; border-radius:6px; border:1px solid var(--border); font-size:13px;" />
+        <span style="margin:0 6px; color:var(--muted);">|</span>
+        ${presetBtn('thisMonthToYday', '今月初〜昨日', isThisMonthToYday)}
+        ${presetBtn('yesterday',       '昨日のみ',     isYesterday)}
+        ${presetBtn('thisMonth',       '今月（〜今日）', isThisMonth)}
+        ${presetBtn('last7',           '過去7日',     false)}
+        ${presetBtn('lastMonth',       '先月',         false)}
+      </div>
       <table>
         <thead><tr>
           <th>店舗</th>
