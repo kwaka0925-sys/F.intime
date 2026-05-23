@@ -5466,6 +5466,7 @@ function squareMonthRange(ym) {
 let squareSelectedYm = null;
 let squareSyncInFlightCount = 0;
 let squareSyncSeq = 0;
+let squareRerenderingFromAsync = false;
 
 function getSquareSelectedYm() {
   if (!squareSelectedYm) squareSelectedYm = currentJstYearMonth();
@@ -5476,9 +5477,8 @@ function setSquareYm(ym) {
   if (!/^\d{4}-\d{2}$/.test(ym)) return;
   if (ym > currentJstYearMonth()) return; // 未来月は不可
   squareSelectedYm = ym;
+  // renderView() の after フックで squareAutoSync が走るので明示呼び出しは不要
   renderView();
-  // 月を変えたら必ずその月を取得（自動同期中でも並走させる）
-  syncSquareNow({ silent: true, ym });
 }
 
 function shiftSquareYm(delta) {
@@ -5712,7 +5712,10 @@ async function refreshSquareStatus() {
   } catch (_) {
     state.squareStatus = { connectedClinics: [], missing: [] };
   }
-  if (typeof renderView === 'function' && currentView === 'square-management') renderView();
+  if (typeof renderView === 'function' && currentView === 'square-management') {
+    squareRerenderingFromAsync = true;
+    try { renderView(); } finally { squareRerenderingFromAsync = false; }
+  }
 }
 
 async function syncSquareNow(opts = {}) {
@@ -5748,7 +5751,8 @@ async function syncSquareNow(opts = {}) {
       missing: (data.missingClinics || []).map(c => ({ clinic: c })),
     };
     save();
-    renderView();
+    squareRerenderingFromAsync = true;
+    try { renderView(); } finally { squareRerenderingFromAsync = false; }
 
     const perClinic = data.perClinic || {};
     const breakdown = Object.keys(perClinic).map(c => {
@@ -5859,7 +5863,13 @@ const VIEW_RENDER = {
   'revenue-entry':        { html: viewRevenueEntry },
   'daily-sales':          { html: viewDailySales, after: maybeAutoFetchDailyReport },
   'revenue-list':         { html: viewRevenueList },
-  'square-management':    { html: viewSquareManagement, after: () => { bindSquareControls(); refreshSquareStatus(); squareAutoSync(); } },
+  'square-management':    { html: viewSquareManagement, after: () => {
+      bindSquareControls();
+      // 非同期完了に伴う再描画では再帰ループを避けるため初期化処理を走らせない
+      if (squareRerenderingFromAsync) return;
+      refreshSquareStatus();
+      squareAutoSync();
+    } },
   'revenue-trend':        { html: viewRevenueTrend, after: viewRevenueTrendAfter },
   'meta-ads':             { html: viewMetaAds, after: viewMetaAdsAfter },
   'channel':              { html: viewChannel, after: viewChannelAfter },
