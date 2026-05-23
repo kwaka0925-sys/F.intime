@@ -124,6 +124,26 @@ async function fetchPayments(token, locationId, beginRfc, endRfc) {
   return payments;
 }
 
+async function fetchRefunds(token, locationId, beginRfc, endRfc) {
+  const refunds = [];
+  let cursor = undefined;
+  for (let i = 0; i < 50; i++) {
+    const params = new URLSearchParams({
+      begin_time: beginRfc,
+      end_time: endRfc,
+      location_id: locationId,
+      limit: '100',
+      sort_order: 'ASC',
+    });
+    if (cursor) params.set('cursor', cursor);
+    const data = await squareFetch(`/v2/refunds?${params.toString()}`, token);
+    if (Array.isArray(data.refunds)) refunds.push(...data.refunds);
+    cursor = data.cursor;
+    if (!cursor) break;
+  }
+  return refunds;
+}
+
 function formatJstDateTime(rfc) {
   if (!rfc) return { date: '', time: '' };
   const d = new Date(rfc);
@@ -153,20 +173,17 @@ function buildSalesForClinic(clinic, orders, payments) {
 
   const sales = [];
 
-  // Prefer iterating payments — they always carry processing_fee and a stable transactionId.
-  const seenOrderIds = new Set();
+  // Payment 主体で取引明細を生成。Square ダッシュボードの「取引一覧 / 受取合計額」と
+  // 件数・金額が一致する。Payment.amount_money が顧客から受領した実額。
   for (const p of payments) {
     if (p.status && p.status !== 'COMPLETED' && p.status !== 'APPROVED') continue;
-    const order = p.order_id ? ordersById.get(p.order_id) : null;
-    if (order) seenOrderIds.add(order.id);
 
+    const order = p.order_id ? ordersById.get(p.order_id) : null;
     const created = p.created_at || (order && order.closed_at) || (order && order.created_at);
     const { date, time } = formatJstDateTime(created);
 
-    const netFromOrder = order ? moneyToYen(order.net_amount_due_money || order.total_money) : null;
-    const grossFromOrder = order ? moneyToYen(order.total_money) : null;
-    const amount = netFromOrder != null ? netFromOrder : moneyToYen(p.amount_money);
-    const grossAmount = grossFromOrder != null ? grossFromOrder : moneyToYen(p.total_money || p.amount_money);
+    const amount = moneyToYen(p.amount_money);
+    const grossAmount = moneyToYen(p.total_money || p.amount_money);
     const tax = order ? moneyToYen(order.total_tax_money) : 0;
 
     const itemNames = order && Array.isArray(order.line_items)
@@ -191,29 +208,34 @@ function buildSalesForClinic(clinic, orders, payments) {
     });
   }
 
-  // Edge case: orders without a payment record (cash-only via Square POS, etc.)
-  for (const o of orders) {
-    if (seenOrderIds.has(o.id)) continue;
-    const { date, time } = formatJstDateTime(o.closed_at || o.created_at);
-    sales.push({
+  return sales;
+}
+
+function buildRefundsForClinic(clinic, refundsRaw, payments) {
+  const paymentsById = new Map();
+  for (const p of payments) paymentsById.set(p.id, p);
+
+  const refunds = [];
+  for (const r of refundsRaw) {
+    const status = r.status || 'COMPLETED';
+    // Skip non-actionable states; PENDING/FAILED/REJECTED are kept for visibility.
+    const { date, time } = formatJstDateTime(r.created_at);
+    const orig = r.payment_id ? paymentsById.get(r.payment_id) : null;
+    const originalPaymentDate = orig ? formatJstDateTime(orig.created_at).date : '';
+    refunds.push({
+      refundId: r.id,
+      paymentId: r.payment_id || '',
+      clinic,
       date,
       time,
-      amount: moneyToYen(o.net_amount_due_money || o.total_money),
-      grossAmount: moneyToYen(o.total_money),
-      fee: 0,
-      tax: moneyToYen(o.total_tax_money),
-      menu: Array.isArray(o.line_items) ? o.line_items.map(li => li.name).filter(Boolean).join(' / ') : '',
-      staff: '',
-      customer: '',
-      location: '',
-      clinic,
-      transactionId: `order:${o.id}`,
-      paymentMethod: '',
+      amount: moneyToYen(r.amount_money),
+      reason: r.reason || '',
+      status,
+      originalPaymentDate,
       source: 'Square API',
     });
   }
-
-  return sales;
+  return refunds;
 }
 
 async function handleStatus(res) {
@@ -243,18 +265,26 @@ async function handleSync(req, res) {
 
   const results = await Promise.all(configured.map(async c => {
     try {
-      const [orders, payments] = await Promise.all([
+      const [orders, payments, refundsRaw] = await Promise.all([
         fetchOrders(c.token, c.locationId, beginRfc, endRfc),
         fetchPayments(c.token, c.locationId, beginRfc, endRfc),
+        fetchRefunds(c.token, c.locationId, beginRfc, endRfc),
       ]);
       const sales = buildSalesForClinic(c.clinic, orders, payments);
-      return { clinic: c.clinic, sales, ordersCount: orders.length, paymentsCount: payments.length };
+      const refunds = buildRefundsForClinic(c.clinic, refundsRaw, payments);
+      return {
+        clinic: c.clinic, sales, refunds,
+        ordersCount: orders.length,
+        paymentsCount: payments.length,
+        refundsCount: refunds.length,
+      };
     } catch (e) {
       return { clinic: c.clinic, error: e && e.message ? e.message : String(e) };
     }
   }));
 
   const sales = [];
+  const refunds = [];
   const errors = [];
   const perClinic = {};
   for (const r of results) {
@@ -263,7 +293,14 @@ async function handleSync(req, res) {
       perClinic[r.clinic] = { ok: false, error: r.error };
     } else {
       sales.push(...r.sales);
-      perClinic[r.clinic] = { ok: true, count: r.sales.length, orders: r.ordersCount, payments: r.paymentsCount };
+      refunds.push(...r.refunds);
+      perClinic[r.clinic] = {
+        ok: true,
+        count: r.sales.length,
+        refundsCount: r.refundsCount,
+        orders: r.ordersCount,
+        payments: r.paymentsCount,
+      };
     }
   }
 
@@ -272,6 +309,7 @@ async function handleSync(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   res.end(JSON.stringify({
     sales,
+    refunds,
     connectedClinics: configured.map(c => c.clinic),
     missingClinics: clinics.filter(c => !c.configured).map(c => c.clinic),
     perClinic,

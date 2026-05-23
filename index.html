@@ -1423,6 +1423,19 @@ function load() {
     state.squareConfig = { lastSyncAt: state.squareConfig.lastSyncAt || null };
     save();
   }
+  if (!Array.isArray(state.refunds)) {
+    state.refunds = [];
+    save();
+  }
+  // Square API 取込ロジック修正に伴うクリーンアップ (Payment 主体集計へ移行)
+  if (!state.squareApiSalesV2Migrated) {
+    if (Array.isArray(state.sales)) {
+      state.sales = state.sales.filter(s => s.source !== 'Square API');
+    }
+    state.refunds = [];
+    state.squareApiSalesV2Migrated = true;
+    save();
+  }
 }
 
 function toggleNavGroup(name) {
@@ -5417,17 +5430,108 @@ function viewImportReservations() {
 
 const SQUARE_CLINIC_LABELS = { nakamozu: 'NAORU整体 中百舌鳥院', tenrokuten: 'NAORU整体 天満天六院' };
 
+function currentJstYearMonth() {
+  const now = new Date();
+  const jst = new Date(now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000);
+  const pad = n => String(n).padStart(2, '0');
+  return `${jst.getFullYear()}-${pad(jst.getMonth() + 1)}`;
+}
+
+function inCurrentMonth(dateStr) {
+  if (!dateStr) return false;
+  return String(dateStr).slice(0, 7) === currentJstYearMonth();
+}
+
+function shiftYearMonth(ym, delta) {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(Date.UTC(y, (m - 1) + delta, 1));
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`;
+}
+
+function squareMonthRange(ym) {
+  const pad = n => String(n).padStart(2, '0');
+  const [y, m] = ym.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const from = `${ym}-01`;
+  let to = `${ym}-${pad(lastDay)}`;
+  if (ym === currentJstYearMonth()) {
+    const now = new Date();
+    const jst = new Date(now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000);
+    to = `${ym}-${pad(jst.getDate())}`;
+  }
+  return { from, to };
+}
+
+let squareSelectedYm = null;
+let squareSyncInFlightCount = 0;
+let squareSyncSeq = 0;
+
+function getSquareSelectedYm() {
+  if (!squareSelectedYm) squareSelectedYm = currentJstYearMonth();
+  return squareSelectedYm;
+}
+
+function setSquareYm(ym) {
+  if (!/^\d{4}-\d{2}$/.test(ym)) return;
+  if (ym > currentJstYearMonth()) return; // 未来月は不可
+  squareSelectedYm = ym;
+  renderView();
+  // 月を変えたら必ずその月を取得（自動同期中でも並走させる）
+  syncSquareNow({ silent: true, ym });
+}
+
+function shiftSquareYm(delta) {
+  setSquareYm(shiftYearMonth(getSquareSelectedYm(), delta));
+}
+
+function resetSquareYm() {
+  setSquareYm(currentJstYearMonth());
+}
+
+function squareAutoSync() {
+  syncSquareNow({ silent: true });
+}
+
+const REFUND_STATUS_LABEL = {
+  COMPLETED: '完了', PENDING: '処理中', REJECTED: '却下', FAILED: '失敗',
+};
+
 function viewSquareManagement() {
-  const sales = state.sales || [];
-  const total = sales.reduce((s, x) => s + (x.amount || 0), 0);
+  const ym = getSquareSelectedYm();
+  const currentYm = currentJstYearMonth();
+  const isCurrent = ym === currentYm;
+  const ymInMonth = (s) => s && String(s).slice(0, 7) === ym;
+  const allSales = state.sales || [];
+  const allRefunds = state.refunds || [];
+  const sales = allSales.filter(s => ymInMonth(s.date));
+  const refunds = allRefunds.filter(r => ymInMonth(r.date));
+
+  const totalGross = sales.reduce((s, x) => s + (x.amount || 0), 0);
   const totalFee = sales.reduce((s, x) => s + (x.fee || 0), 0);
+  const totalRefund = refunds.reduce((s, r) => s + (r.amount || 0), 0);
+  const totalNet = totalGross - totalRefund;
   const unassigned = sales.filter(s => !s.clinic).length;
-  const byClinic = Object.keys(CLINICS).map(c => ({
-    key: c, name: CLINICS[c],
-    count: sales.filter(s => s.clinic === c).length,
-    total: sales.filter(s => s.clinic === c).reduce((s2, x) => s2 + (x.amount || 0), 0),
-    fee:   sales.filter(s => s.clinic === c).reduce((s2, x) => s2 + (x.fee    || 0), 0),
-  }));
+
+  const byClinic = Object.keys(CLINICS).map(c => {
+    const cs = sales.filter(s => s.clinic === c);
+    const cr = refunds.filter(r => r.clinic === c);
+    const gross = cs.reduce((s, x) => s + (x.amount || 0), 0);
+    const fee   = cs.reduce((s, x) => s + (x.fee    || 0), 0);
+    const refundAmt = cr.reduce((s, r) => s + (r.amount || 0), 0);
+    const net = gross - refundAmt;
+    return {
+      key: c, name: CLINICS[c],
+      count: cs.length,
+      gross,
+      refundCount: cr.length,
+      refundAmt,
+      net,
+      fee,
+      payout: net - fee,
+    };
+  });
+
   const cfg = state.squareConfig || {};
   const status = state.squareStatus || null;
   const connectedCount = status && Array.isArray(status.connectedClinics) ? status.connectedClinics.length : null;
@@ -5455,33 +5559,92 @@ function viewSquareManagement() {
        </div>`
     : '';
 
+  // 返金履歴 (新しい順)
+  const refundsSorted = refunds.slice().sort((a, b) => {
+    const ka = `${a.date || ''} ${a.time || ''}`;
+    const kb = `${b.date || ''} ${b.time || ''}`;
+    return kb.localeCompare(ka);
+  });
+  const REFUND_PREVIEW = 20;
+  const expanded = !!state.squareRefundsExpanded;
+  const refundsToShow = expanded ? refundsSorted : refundsSorted.slice(0, REFUND_PREVIEW);
+  const refundMore = refundsSorted.length - refundsToShow.length;
+
+  const refundsTable = refundsSorted.length === 0
+    ? `<div class="empty">当月の返金はありません</div>`
+    : `<table>
+        <thead><tr><th>返金日</th><th>店舗</th><th>元の決済日</th><th class="num">返金額</th><th>理由</th><th>ステータス</th></tr></thead>
+        <tbody>${refundsToShow.map(r => `<tr>
+          <td>${r.date || '—'}${r.time ? ` <span style="color:var(--muted); font-size:11px;">${r.time}</span>` : ''}</td>
+          <td>${SQUARE_CLINIC_LABELS[r.clinic] || r.clinic || '—'}</td>
+          <td>${r.originalPaymentDate || '—'}</td>
+          <td class="num" style="color:var(--danger);">−${yen(r.amount || 0).replace(/^¥/, '¥')}</td>
+          <td>${r.reason ? escapeHtml(r.reason) : '—'}</td>
+          <td><span class="pill">${REFUND_STATUS_LABEL[r.status] || r.status || '—'}</span></td>
+        </tr>`).join('')}</tbody>
+      </table>
+      ${refundMore > 0
+        ? `<div style="margin-top:10px;"><button class="ghost" onclick="toggleSquareRefundsExpanded()">▼ もっと見る (+${fmt(refundMore)} 件)</button></div>`
+        : (expanded && refundsSorted.length > REFUND_PREVIEW
+            ? `<div style="margin-top:10px;"><button class="ghost" onclick="toggleSquareRefundsExpanded()">▲ 折りたたむ</button></div>`
+            : '')}`;
+
+  const prevYm = shiftYearMonth(ym, -1);
+  const nextYm = shiftYearMonth(ym, 1);
+  const disableNext = nextYm > currentYm;
+  const monthLabel = `${ym.slice(0, 4)}年${Number(ym.slice(5, 7))}月`;
+
   return `<div class="card">
-    <h2>🟧 スクエア管理</h2>
-    <p style="font-size:13px; color:var(--muted);">中百舌鳥院 / 天満天六院 それぞれの Square アカウントから取引データを取得し、店舗別に集計します。</p>
+    <h2>🟧 スクエア管理 <span style="font-size:13px; color:var(--muted); font-weight:normal;">（${monthLabel}${isCurrent ? '・当月' : ''}）</span></h2>
+    <p style="font-size:13px; color:var(--muted);">中百舌鳥院 / 天満天六院 それぞれの Square アカウントから取引データを取得し、店舗別に集計します。返金は「返金された日」基準で月次集計しています。</p>
+
+    <div style="margin-top:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <button class="ghost" onclick="shiftSquareYm(-1)" title="${prevYm}">← 前月</button>
+      <strong style="font-size:14px; min-width:110px; text-align:center;">${monthLabel}</strong>
+      <button class="ghost" onclick="shiftSquareYm(1)" ${disableNext ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : `title="${nextYm}"`}>翌月 →</button>
+      ${!isCurrent ? `<button class="ghost" onclick="resetSquareYm()">今月へ</button>` : ''}
+      <input type="month" value="${ym}" max="${currentYm}" onchange="setSquareYm(this.value)" style="padding:6px 10px; border-radius:8px; border:1px solid var(--border); font-size:13px;" />
+      <span id="sqAutoSyncIndicator" style="font-size:12px; color:var(--muted); margin-left:4px;"></span>
+    </div>
 
     <div class="kpi-grid" style="margin-top:12px;">
       <div class="kpi-card"><div class="kpi-label">連携状態</div><div class="kpi-value ${connClass}">${connLabel}</div><div class="kpi-sub">${connSub}</div></div>
-      <div class="kpi-card"><div class="kpi-label">取引件数</div><div class="kpi-value">${fmt(sales.length)} 件</div></div>
-      <div class="kpi-card"><div class="kpi-label">合計売上</div><div class="kpi-value">${yen(total)}</div></div>
-      <div class="kpi-card"><div class="kpi-label">Square手数料</div><div class="kpi-value">${yen(totalFee)}</div><div class="kpi-sub">参考: 着金額 = 売上 - 手数料</div></div>
+      <div class="kpi-card"><div class="kpi-label">取引件数</div><div class="kpi-value">${fmt(sales.length)} 件</div><div class="kpi-sub">返金 ${fmt(refunds.length)} 件</div></div>
+      <div class="kpi-card"><div class="kpi-label">総売上</div><div class="kpi-value">${yen(totalGross)}</div><div class="kpi-sub">${monthLabel}の決済合計</div></div>
+      <div class="kpi-card"><div class="kpi-label">返金金額</div><div class="kpi-value ${totalRefund > 0 ? 'down' : ''}">${totalRefund > 0 ? '−' : ''}${yen(totalRefund)}</div><div class="kpi-sub">${fmt(refunds.length)} 件</div></div>
+      <div class="kpi-card" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5); border-color:#a7f3d0;"><div class="kpi-label">純売上</div><div class="kpi-value up">${yen(totalNet)}</div><div class="kpi-sub">総売上 − 返金</div></div>
+      <div class="kpi-card"><div class="kpi-label">Square手数料</div><div class="kpi-value">${yen(totalFee)}</div><div class="kpi-sub">着金額: ${yen(totalNet - totalFee)}</div></div>
     </div>
     ${missingList}
   </div>
 
   <div class="card" style="margin-top:18px;">
-    <h2>店舗別サマリー</h2>
+    <h2>店舗別サマリー <span style="font-size:12px; color:var(--muted); font-weight:normal;">（${monthLabel}）</span></h2>
     <table>
-      <thead><tr><th>店舗</th><th class="num">取引件数</th><th class="num">売上合計</th><th class="num">手数料合計</th><th class="num">差引</th></tr></thead>
+      <thead><tr>
+        <th>店舗</th>
+        <th class="num">取引件数</th>
+        <th class="num">総売上</th>
+        <th class="num">返金件数</th>
+        <th class="num">返金金額</th>
+        <th class="num">純売上</th>
+        <th class="num">手数料</th>
+        <th class="num">着金額</th>
+      </tr></thead>
       <tbody>${byClinic.map(b => `<tr>
         <td>${b.name}</td>
         <td class="num">${fmt(b.count)} 件</td>
-        <td class="num">${yen(b.total)}</td>
+        <td class="num">${yen(b.gross)}</td>
+        <td class="num">${fmt(b.refundCount)} 件</td>
+        <td class="num" style="${b.refundAmt > 0 ? 'color:var(--danger);' : ''}">${b.refundAmt > 0 ? '−' : ''}${yen(b.refundAmt)}</td>
+        <td class="num"><strong>${yen(b.net)}</strong></td>
         <td class="num">${yen(b.fee)}</td>
-        <td class="num">${yen(b.total - b.fee)}</td>
+        <td class="num">${yen(b.payout)}</td>
       </tr>`).join('')}
-        ${unassigned > 0 ? `<tr><td style="color:var(--danger)">未判定</td><td class="num">${fmt(unassigned)} 件</td><td class="num" colspan="3">Location名に「中百舌鳥」または「天満/天六」を含めてください</td></tr>` : ''}
+        ${unassigned > 0 ? `<tr><td style="color:var(--danger)">未判定</td><td class="num">${fmt(unassigned)} 件</td><td class="num" colspan="6">Location名に「中百舌鳥」または「天満/天六」を含めてください</td></tr>` : ''}
       </tbody>
     </table>
+    <div style="font-size:11px; color:var(--muted); margin-top:6px;">純売上 = 総売上 − 返金金額 / 着金額 = 純売上 − 手数料</div>
     <div style="margin-top:14px;">
       <button onclick="switchView('import-sales')">📥 取引CSVを取り込む</button>
       <button class="ghost" onclick="aggregateSalesToMonthly()">📊 月次売上に集計反映</button>
@@ -5489,12 +5652,17 @@ function viewSquareManagement() {
   </div>
 
   <div class="card" style="margin-top:18px;">
+    <h2>↩️ 返金履歴 <span style="font-size:12px; color:var(--muted); font-weight:normal;">（${monthLabel} / 返金日の新しい順）</span></h2>
+    ${refundsTable}
+  </div>
+
+  <div class="card" style="margin-top:18px;">
     <h2>🔌 Square API 同期</h2>
     <p style="font-size:13px; color:var(--muted);">中百舌鳥院・天満天六院それぞれのアクセストークンは Vercel の環境変数で管理しています。ブラウザ側にトークンは保持しません。</p>
 
     <div style="margin-top:12px;">
-      <button onclick="syncSquareNow()">🔄 今すぐ同期（両店舗・当月分）</button>
-      <span style="font-size:12px; color:var(--muted); margin-left:8px;">取得期間: 当月1日 〜 今日</span>
+      <button onclick="syncSquareNow()">🔄 今すぐ同期（両店舗・${monthLabel}）</button>
+      <span style="font-size:12px; color:var(--muted); margin-left:8px;">表示月のデータを再取得します。ページを開いた時にも自動同期します。</span>
     </div>
     <div id="sqResult" style="margin-top:10px; font-size:12px; color:var(--muted);">
       ${connectedCount > 0 ? `✓ ${connectedCount}店舗 接続済 / 最終同期: ${lastSync}` : '※ サーバー側の環境変数 (SQUARE_TOKEN_NAKAMOZU / SQUARE_LOCATION_NAKAMOZU / SQUARE_TOKEN_TENROKU / SQUARE_LOCATION_TENROKU) を設定してください。'}
@@ -5514,10 +5682,15 @@ function viewSquareManagement() {
       <strong>⚠️ 補足</strong>
       <ul style="margin:4px 0 0 18px; font-size:13px; line-height:1.7;">
         <li>環境はすべて Production（<code>https://connect.squareup.com</code>）</li>
-        <li>後日、期間指定 UI を追加予定（現状は当月1日〜今日固定）</li>
+        <li>取得期間は画面上部の月セレクタで切り替えられます（当月は1日〜今日、過去月は1日〜末日）。</li>
       </ul>
     </div>
   </div>`;
+}
+
+function toggleSquareRefundsExpanded() {
+  state.squareRefundsExpanded = !state.squareRefundsExpanded;
+  renderView();
 }
 
 async function refreshSquareStatus() {
@@ -5531,18 +5704,32 @@ async function refreshSquareStatus() {
   if (typeof renderView === 'function' && currentView === 'square-management') renderView();
 }
 
-async function syncSquareNow() {
+async function syncSquareNow(opts = {}) {
+  const ym = opts.ym || getSquareSelectedYm();
+  const silent = !!opts.silent;
+  const { from, to } = squareMonthRange(ym);
+  const mySeq = ++squareSyncSeq;
+  squareSyncInFlightCount++;
   const res = document.getElementById('sqResult');
-  if (res) res.textContent = '⏳ 同期中…（両店舗の Square API を呼び出し中）';
+  const indicator = document.getElementById('sqAutoSyncIndicator');
+  if (res) res.textContent = `⏳ 同期中… (${ym} の Square API を呼び出し中)`;
+  if (indicator) indicator.textContent = `⏳ 同期中… (${ym})`;
   try {
-    const r = await fetch('/api/square?action=sync', { cache: 'no-store' });
+    const r = await fetch(`/api/square?action=sync&from=${from}&to=${to}`, { cache: 'no-store' });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
-    const incoming = Array.isArray(data.sales) ? data.sales : [];
+    const incomingSales = Array.isArray(data.sales) ? data.sales : [];
+    const incomingRefunds = Array.isArray(data.refunds) ? data.refunds : [];
     const existing = state.sales || [];
-    const seen = new Set(existing.map(s => s.transactionId).filter(Boolean));
-    const added = incoming.filter(s => s.transactionId && !seen.has(s.transactionId));
-    state.sales = existing.concat(added);
+    const seenTx = new Set(existing.map(s => s.transactionId).filter(Boolean));
+    const addedSales = incomingSales.filter(s => s.transactionId && !seenTx.has(s.transactionId));
+    state.sales = existing.concat(addedSales);
+
+    const existingRefunds = state.refunds || [];
+    const seenRefund = new Set(existingRefunds.map(r => r.refundId).filter(Boolean));
+    const addedRefunds = incomingRefunds.filter(r => r.refundId && !seenRefund.has(r.refundId));
+    state.refunds = existingRefunds.concat(addedRefunds);
+
     if (!state.squareConfig) state.squareConfig = {};
     state.squareConfig.lastSyncAt = new Date().toISOString();
     state.squareStatus = {
@@ -5556,13 +5743,27 @@ async function syncSquareNow() {
     const breakdown = Object.keys(perClinic).map(c => {
       const p = perClinic[c];
       const label = SQUARE_CLINIC_LABELS[c] || c;
-      return p.ok ? `・${label}: ${p.count} 件` : `・${label}: ❌ ${p.error}`;
+      return p.ok
+        ? `・${label}: 取引 ${p.count} 件 / 返金 ${p.refundsCount || 0} 件`
+        : `・${label}: ❌ ${p.error}`;
     }).join('\n');
     const errMsg = (data.errors || []).length ? `\n\n⚠️ エラー:\n${data.errors.map(e => `・${SQUARE_CLINIC_LABELS[e.clinic] || e.clinic}: ${e.message}`).join('\n')}` : '';
-    alert(`同期完了\n取得 ${incoming.length} 件 / 新規追加 ${added.length} 件\n\n${breakdown}${errMsg}`);
+    if (!silent) {
+      alert(`同期完了 (${ym})\n取引: 取得 ${incomingSales.length} 件 / 新規 ${addedSales.length} 件\n返金: 取得 ${incomingRefunds.length} 件 / 新規 ${addedRefunds.length} 件\n\n${breakdown}${errMsg}`);
+    }
   } catch (e) {
-    if (res) res.textContent = `❌ 同期失敗: ${e.message}`;
-    alert(`同期失敗: ${e.message}`);
+    if (mySeq === squareSyncSeq) {
+      if (res) res.textContent = `❌ 同期失敗: ${e.message}`;
+      const ind2 = document.getElementById('sqAutoSyncIndicator');
+      if (ind2) ind2.textContent = `❌ 同期失敗: ${e.message}`;
+    }
+    if (!silent) alert(`同期失敗: ${e.message}`);
+  } finally {
+    squareSyncInFlightCount = Math.max(0, squareSyncInFlightCount - 1);
+    if (squareSyncInFlightCount === 0) {
+      const ind3 = document.getElementById('sqAutoSyncIndicator');
+      if (ind3 && ind3.textContent.startsWith('⏳')) ind3.textContent = '';
+    }
   }
 }
 
@@ -5647,7 +5848,7 @@ const VIEW_RENDER = {
   'revenue-entry':        { html: viewRevenueEntry },
   'daily-sales':          { html: viewDailySales, after: maybeAutoFetchDailyReport },
   'revenue-list':         { html: viewRevenueList },
-  'square-management':    { html: viewSquareManagement, after: refreshSquareStatus },
+  'square-management':    { html: viewSquareManagement, after: () => { refreshSquareStatus(); squareAutoSync(); } },
   'revenue-trend':        { html: viewRevenueTrend, after: viewRevenueTrendAfter },
   'meta-ads':             { html: viewMetaAds, after: viewMetaAdsAfter },
   'channel':              { html: viewChannel, after: viewChannelAfter },
