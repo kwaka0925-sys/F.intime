@@ -2307,6 +2307,12 @@ function shiftDailyMonth(delta) {
   save();
   renderView();
 }
+function jumpDailyMonth(ym) {
+  if (!ym) return;
+  state.dailyMonth = ym;
+  save();
+  renderView();
+}
 function switchDailyClinic(clinic) {
   state.dailyClinic = clinic;
   save();
@@ -2438,7 +2444,21 @@ function viewDailySales() {
         <h2 style="margin:0;">📅 日次売上 (${CLINICS[clinic]})</h2>
         <div style="flex:1;"></div>
         <button class="ghost" onclick="shiftDailyMonth(-1)">← 前月</button>
-        <div style="font-weight:700; font-size:16px; min-width:130px; text-align:center;">${y}年 ${m}月</div>
+        <select onchange="jumpDailyMonth(this.value)" style="padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-weight:700; font-size:14px; background:#fff;">
+          ${(() => {
+            const opts = [];
+            const todayYM = ymOf(new Date());
+            const [ty, tm] = todayYM.split('-').map(Number);
+            // 過去24ヶ月 + 今月 + 未来3ヶ月 の選択肢を生成
+            for (let i = 24; i >= -3; i--) {
+              const d = new Date(ty, tm - 1 - i, 1);
+              const ym = ymOf(d);
+              const label = `${d.getFullYear()}年 ${d.getMonth() + 1}月`;
+              opts.push(`<option value="${ym}" ${ym === state.dailyMonth ? 'selected' : ''}>${label}</option>`);
+            }
+            return opts.join('');
+          })()}
+        </select>
         <button class="ghost" onclick="shiftDailyMonth(1)">翌月 →</button>
         <button class="ghost" onclick="state.dailyMonth='${ymOf(new Date())}'; save(); renderView();">今月</button>
       </div>
