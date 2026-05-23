@@ -1886,7 +1886,6 @@ function viewSummary() {
           <div class="kpi-card" style="background:${cardBg};"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:${accent};">${yen(kpi.revenue)}</div></div>
           <div class="kpi-card"><div class="kpi-label">広告費${metaTag}</div><div class="kpi-value">${yen(kpi.adspend)}</div></div>
           <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(kpi.newCustomers)} <span style="font-size:12px; color:var(--muted);">人</span></div></div>
-          <div class="kpi-card"><div class="kpi-label">リピート来院</div><div class="kpi-value">${fmt(kpi.repeatVisits)} <span style="font-size:12px; color:var(--muted);">人</span></div></div>
           <div class="kpi-card"><div class="kpi-label">CPA${metaTag}</div><div class="kpi-value">${cpaText}</div><div class="kpi-sub">${cpaText !== '—' ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
           <div class="kpi-card"><div class="kpi-label">予約数${metaTag}</div><div class="kpi-value">${fmt(kpi.reservations)}</div></div>
         </div>
