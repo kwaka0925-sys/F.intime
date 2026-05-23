@@ -3911,6 +3911,10 @@ function toggleAllClinicPasswords(btn) {
 }
 
 function viewData() {
+  const cfg = state.squareConfig || {};
+  const status = state.squareStatus || null;
+  const connectedCount = status && Array.isArray(status.connectedClinics) ? status.connectedClinics.length : 0;
+  const lastSync = cfg.lastSyncAt ? new Date(cfg.lastSyncAt).toLocaleString('ja-JP') : '—';
   return `<div class="card"><h2>⚙️ データ管理</h2>
     <p style="font-size:13px; color:var(--muted);">データはブラウザの <code>localStorage</code> に保存されます。バックアップや別端末への移行はエクスポート/インポートをご利用ください。</p>
     <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
@@ -3922,6 +3926,37 @@ function viewData() {
       <button class="danger" onclick="if(confirm('全データを削除します。元に戻せません。よろしいですか？')) { localStorage.removeItem(STORAGE_KEY); state = { entries: [] }; renderView(); }">🗑 全データ削除</button>
     </div>
     <div class="note">現在 ${state.entries.length} 件のデータが保存されています。</div>
+  </div>
+
+  <div class="card" style="margin-top:18px;">
+    <h2>🔌 Square API 同期</h2>
+    <p style="font-size:13px; color:var(--muted);">中百舌鳥院・天満天六院それぞれのアクセストークンは Vercel の環境変数で管理しています。ブラウザ側にトークンは保持しません。</p>
+
+    <div style="margin-top:12px;">
+      <button onclick="syncSquareNow()">🔄 今すぐ同期（両店舗・当月）</button>
+      <span style="font-size:12px; color:var(--muted); margin-left:8px;">スクエア管理画面の表示月でも自動同期されます。</span>
+    </div>
+    <div style="margin-top:10px; font-size:12px; color:var(--muted);">
+      ${connectedCount > 0 ? `✓ ${connectedCount}店舗 接続済 / 最終同期: ${lastSync}` : '※ サーバー側の環境変数 (SQUARE_TOKEN_NAKAMOZU / SQUARE_LOCATION_NAKAMOZU / SQUARE_TOKEN_TENROKU / SQUARE_LOCATION_TENROKU) を設定してください。'}
+    </div>
+
+    <div class="note" style="margin-top:18px;">
+      <strong>📖 環境変数（Vercel）</strong>
+      <ul style="margin:6px 0 0 18px; font-size:13px; line-height:1.7;">
+        <li><code>SQUARE_TOKEN_NAKAMOZU</code> / <code>SQUARE_LOCATION_NAKAMOZU</code> — NAORU整体 中百舌鳥院</li>
+        <li><code>SQUARE_TOKEN_TENROKU</code> / <code>SQUARE_LOCATION_TENROKU</code> — NAORU整体 天満天六院</li>
+      </ul>
+      <br />
+      <strong>📡 サーバー処理</strong><br />
+      <span style="font-size:13px;">
+        ブラウザ → <code>/api/square?action=sync</code> → サーバーが店舗ごとに <code>POST /v2/orders/search</code> と <code>GET /v2/payments</code> を並列実行 → Payment ID で突合 → JSON で返却 → クライアントが <code>state.sales</code> にマージ・重複排除（Transaction ID）。
+      </span><br /><br />
+      <strong>⚠️ 補足</strong>
+      <ul style="margin:4px 0 0 18px; font-size:13px; line-height:1.7;">
+        <li>環境はすべて Production（<code>https://connect.squareup.com</code>）</li>
+        <li>取得期間はスクエア管理画面の月セレクタで切り替えられます（当月は1日〜今日、過去月は1日〜末日）。</li>
+      </ul>
+    </div>
   </div>`;
 }
 
@@ -5622,7 +5657,7 @@ function viewSquareManagement() {
       <div class="kpi-card"><div class="kpi-label">連携状態</div><div class="kpi-value ${connClass}">${connLabel}</div><div class="kpi-sub">${connSub}</div></div>
       <div class="kpi-card"><div class="kpi-label">取引件数</div><div class="kpi-value">${fmt(sales.length)} 件</div><div class="kpi-sub">返金 ${fmt(refunds.length)} 件</div></div>
       <div class="kpi-card"><div class="kpi-label">総売上</div><div class="kpi-value">${yen(totalGross)}</div><div class="kpi-sub">${monthLabel}の決済合計</div></div>
-      <div class="kpi-card"><div class="kpi-label">返金金額</div><div class="kpi-value ${totalRefund > 0 ? 'down' : ''}">${totalRefund > 0 ? '−' : ''}${yen(totalRefund)}</div><div class="kpi-sub">${fmt(refunds.length)} 件</div></div>
+      <div class="kpi-card"><div class="kpi-label">返金金額</div><div class="kpi-value" style="color:var(--danger);">${totalRefund > 0 ? '−' : ''}${yen(totalRefund)}</div><div class="kpi-sub">${fmt(refunds.length)} 件</div></div>
       <div class="kpi-card" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5); border-color:#a7f3d0;"><div class="kpi-label">純売上</div><div class="kpi-value up">${yen(totalNet)}</div><div class="kpi-sub">総売上 − 返金</div></div>
       <div class="kpi-card"><div class="kpi-label">Square手数料</div><div class="kpi-value">${yen(totalFee)}</div><div class="kpi-sub">着金額: ${yen(totalNet - totalFee)}</div></div>
     </div>
@@ -5665,37 +5700,6 @@ function viewSquareManagement() {
   <div class="card" style="margin-top:18px;">
     <h2>↩️ 返金履歴 <span style="font-size:12px; color:var(--muted); font-weight:normal;">（${monthLabel} / 返金日の新しい順）</span></h2>
     ${refundsTable}
-  </div>
-
-  <div class="card" style="margin-top:18px;">
-    <h2>🔌 Square API 同期</h2>
-    <p style="font-size:13px; color:var(--muted);">中百舌鳥院・天満天六院それぞれのアクセストークンは Vercel の環境変数で管理しています。ブラウザ側にトークンは保持しません。</p>
-
-    <div style="margin-top:12px;">
-      <button onclick="syncSquareNow()">🔄 今すぐ同期（両店舗・${monthLabel}）</button>
-      <span style="font-size:12px; color:var(--muted); margin-left:8px;">表示月のデータを再取得します。ページを開いた時にも自動同期します。</span>
-    </div>
-    <div id="sqResult" style="margin-top:10px; font-size:12px; color:var(--muted);">
-      ${connectedCount > 0 ? `✓ ${connectedCount}店舗 接続済 / 最終同期: ${lastSync}` : '※ サーバー側の環境変数 (SQUARE_TOKEN_NAKAMOZU / SQUARE_LOCATION_NAKAMOZU / SQUARE_TOKEN_TENROKU / SQUARE_LOCATION_TENROKU) を設定してください。'}
-    </div>
-
-    <div class="note" style="margin-top:18px;">
-      <strong>📖 環境変数（Vercel）</strong>
-      <ul style="margin:6px 0 0 18px; font-size:13px; line-height:1.7;">
-        <li><code>SQUARE_TOKEN_NAKAMOZU</code> / <code>SQUARE_LOCATION_NAKAMOZU</code> — NAORU整体 中百舌鳥院</li>
-        <li><code>SQUARE_TOKEN_TENROKU</code> / <code>SQUARE_LOCATION_TENROKU</code> — NAORU整体 天満天六院</li>
-      </ul>
-      <br />
-      <strong>📡 サーバー処理</strong><br />
-      <span style="font-size:13px;">
-        ブラウザ → <code>/api/square?action=sync</code> → サーバーが店舗ごとに <code>POST /v2/orders/search</code> と <code>GET /v2/payments</code> を並列実行 → Payment ID で突合 → JSON で返却 → クライアントが <code>state.sales</code> にマージ・重複排除（Transaction ID）。
-      </span><br /><br />
-      <strong>⚠️ 補足</strong>
-      <ul style="margin:4px 0 0 18px; font-size:13px; line-height:1.7;">
-        <li>環境はすべて Production（<code>https://connect.squareup.com</code>）</li>
-        <li>取得期間は画面上部の月セレクタで切り替えられます（当月は1日〜今日、過去月は1日〜末日）。</li>
-      </ul>
-    </div>
   </div>`;
 }
 
