@@ -5493,6 +5493,17 @@ function squareAutoSync() {
   syncSquareNow({ silent: true });
 }
 
+function bindSquareControls() {
+  const prev = document.getElementById('sqPrevMonthBtn');
+  if (prev) prev.addEventListener('click', () => shiftSquareYm(-1));
+  const next = document.getElementById('sqNextMonthBtn');
+  if (next && !next.disabled) next.addEventListener('click', () => shiftSquareYm(1));
+  const today = document.getElementById('sqThisMonthBtn');
+  if (today) today.addEventListener('click', () => resetSquareYm());
+  const inp = document.getElementById('sqMonthInput');
+  if (inp) inp.addEventListener('change', (e) => setSquareYm(e.target.value));
+}
+
 const REFUND_STATUS_LABEL = {
   COMPLETED: '完了', PENDING: '処理中', REJECTED: '却下', FAILED: '失敗',
 };
@@ -5599,11 +5610,11 @@ function viewSquareManagement() {
     <p style="font-size:13px; color:var(--muted);">中百舌鳥院 / 天満天六院 それぞれの Square アカウントから取引データを取得し、店舗別に集計します。返金は「返金された日」基準で月次集計しています。</p>
 
     <div style="margin-top:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-      <button class="ghost" onclick="shiftSquareYm(-1)" title="${prevYm}">← 前月</button>
-      <strong style="font-size:14px; min-width:110px; text-align:center;">${monthLabel}</strong>
-      <button class="ghost" onclick="shiftSquareYm(1)" ${disableNext ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : `title="${nextYm}"`}>翌月 →</button>
-      ${!isCurrent ? `<button class="ghost" onclick="resetSquareYm()">今月へ</button>` : ''}
-      <input type="month" value="${ym}" max="${currentYm}" onchange="setSquareYm(this.value)" style="padding:6px 10px; border-radius:8px; border:1px solid var(--border); font-size:13px;" />
+      <button type="button" id="sqPrevMonthBtn" class="ghost" title="${prevYm}" style="cursor:pointer; font-weight:600;">← 前月</button>
+      <strong style="font-size:15px; min-width:110px; text-align:center;">${monthLabel}</strong>
+      <button type="button" id="sqNextMonthBtn" class="ghost" style="cursor:${disableNext ? 'not-allowed' : 'pointer'}; font-weight:600; ${disableNext ? 'opacity:0.4;' : ''}" ${disableNext ? 'disabled' : `title="${nextYm}"`}>翌月 →</button>
+      ${!isCurrent ? `<button type="button" id="sqThisMonthBtn" class="ghost" style="cursor:pointer;">今月へ</button>` : ''}
+      <input type="month" id="sqMonthInput" value="${ym}" max="${currentYm}" style="padding:6px 10px; border-radius:8px; border:1px solid var(--border); font-size:13px; cursor:pointer;" />
       <span id="sqAutoSyncIndicator" style="font-size:12px; color:var(--muted); margin-left:4px;"></span>
     </div>
 
@@ -5848,7 +5859,7 @@ const VIEW_RENDER = {
   'revenue-entry':        { html: viewRevenueEntry },
   'daily-sales':          { html: viewDailySales, after: maybeAutoFetchDailyReport },
   'revenue-list':         { html: viewRevenueList },
-  'square-management':    { html: viewSquareManagement, after: () => { refreshSquareStatus(); squareAutoSync(); } },
+  'square-management':    { html: viewSquareManagement, after: () => { bindSquareControls(); refreshSquareStatus(); squareAutoSync(); } },
   'revenue-trend':        { html: viewRevenueTrend, after: viewRevenueTrendAfter },
   'meta-ads':             { html: viewMetaAds, after: viewMetaAdsAfter },
   'channel':              { html: viewChannel, after: viewChannelAfter },
