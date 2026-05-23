@@ -1418,6 +1418,11 @@ function load() {
     state.customersClinicMigrated = true;
     save();
   }
+  // Square: 旧ローカル保管トークンは廃止 (環境変数管理へ移行)
+  if (state.squareConfig && (state.squareConfig.accessTokenLocal || state.squareConfig.accessTokenSaved || state.squareConfig.env)) {
+    state.squareConfig = { lastSyncAt: state.squareConfig.lastSyncAt || null };
+    save();
+  }
 }
 
 function toggleNavGroup(name) {
@@ -5410,6 +5415,8 @@ function viewImportReservations() {
   </div>`;
 }
 
+const SQUARE_CLINIC_LABELS = { nakamozu: 'NAORU整体 中百舌鳥院', tenrokuten: 'NAORU整体 天満天六院' };
+
 function viewSquareManagement() {
   const sales = state.sales || [];
   const total = sales.reduce((s, x) => s + (x.amount || 0), 0);
@@ -5422,19 +5429,43 @@ function viewSquareManagement() {
     fee:   sales.filter(s => s.clinic === c).reduce((s2, x) => s2 + (x.fee    || 0), 0),
   }));
   const cfg = state.squareConfig || {};
-  const connected = !!cfg.accessTokenSaved;
+  const status = state.squareStatus || null;
+  const connectedCount = status && Array.isArray(status.connectedClinics) ? status.connectedClinics.length : null;
   const lastSync = cfg.lastSyncAt ? new Date(cfg.lastSyncAt).toLocaleString('ja-JP') : '—';
+
+  let connLabel, connClass, connSub;
+  if (connectedCount == null) {
+    connLabel = '確認中…';
+    connClass = '';
+    connSub = '/api/square?action=status を取得中';
+  } else if (connectedCount === 0) {
+    connLabel = '未接続';
+    connClass = 'down';
+    connSub = 'Vercel に SQUARE_TOKEN_* / SQUARE_LOCATION_* を設定してください';
+  } else {
+    connLabel = `✓ 接続済（${connectedCount}店舗）`;
+    connClass = 'up';
+    const names = status.connectedClinics.map(c => SQUARE_CLINIC_LABELS[c] || c).join(' / ');
+    connSub = `${names} / 最終同期: ${lastSync}`;
+  }
+
+  const missingList = status && Array.isArray(status.missing) && status.missing.length
+    ? `<div style="margin-top:10px; font-size:12px; color:var(--danger);">
+         未設定の店舗: ${status.missing.map(m => `${SQUARE_CLINIC_LABELS[m.clinic] || m.clinic}（${m.missingToken ? 'トークン' : ''}${m.missingToken && m.missingLocation ? '・' : ''}${m.missingLocation ? 'Location ID' : ''}）`).join(' / ')}
+       </div>`
+    : '';
 
   return `<div class="card">
     <h2>🟧 スクエア管理</h2>
-    <p style="font-size:13px; color:var(--muted);">Squareアプリと連携し、取引データの取り込み・店舗別集計・手数料の可視化を行います。</p>
+    <p style="font-size:13px; color:var(--muted);">中百舌鳥院 / 天満天六院 それぞれの Square アカウントから取引データを取得し、店舗別に集計します。</p>
 
     <div class="kpi-grid" style="margin-top:12px;">
-      <div class="kpi-card"><div class="kpi-label">連携状態</div><div class="kpi-value ${connected ? 'up' : 'down'}">${connected ? '✓ 接続済' : '未接続'}</div><div class="kpi-sub">${connected ? '最終同期: ' + lastSync : 'CSV取込のみ利用可能'}</div></div>
+      <div class="kpi-card"><div class="kpi-label">連携状態</div><div class="kpi-value ${connClass}">${connLabel}</div><div class="kpi-sub">${connSub}</div></div>
       <div class="kpi-card"><div class="kpi-label">取引件数</div><div class="kpi-value">${fmt(sales.length)} 件</div></div>
       <div class="kpi-card"><div class="kpi-label">合計売上</div><div class="kpi-value">${yen(total)}</div></div>
       <div class="kpi-card"><div class="kpi-label">Square手数料</div><div class="kpi-value">${yen(totalFee)}</div><div class="kpi-sub">参考: 着金額 = 売上 - 手数料</div></div>
     </div>
+    ${missingList}
   </div>
 
   <div class="card" style="margin-top:18px;">
@@ -5458,97 +5489,80 @@ function viewSquareManagement() {
   </div>
 
   <div class="card" style="margin-top:18px;">
-    <h2>🔌 Squareアプリ連携 (API)</h2>
-    <p style="font-size:13px; color:var(--muted);">Square APIを使うとCSV書き出しなしで取引データを自動取得できます。アクセストークンはサーバーサイドに保管し、ブラウザに露出させない設計が必要です。</p>
+    <h2>🔌 Square API 同期</h2>
+    <p style="font-size:13px; color:var(--muted);">中百舌鳥院・天満天六院それぞれのアクセストークンは Vercel の環境変数で管理しています。ブラウザ側にトークンは保持しません。</p>
 
     <div style="margin-top:12px;">
-      <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:4px;">環境</label>
-      <select id="sqEnv" style="margin-right:8px;">
-        <option value="production" ${cfg.env === 'production' ? 'selected' : ''}>本番 (production)</option>
-        <option value="sandbox" ${cfg.env === 'sandbox' ? 'selected' : ''}>サンドボックス (sandbox)</option>
-      </select>
-      <label style="display:inline-block; font-size:12px; color:var(--muted); margin:0 4px 0 12px;">アクセストークン</label>
-      <input type="password" id="sqToken" placeholder="EAAAE... (Square Developer Dashboard で発行)" style="width:320px;" />
-      <button onclick="saveSquareConfig()">💾 保存</button>
-      <button class="ghost" onclick="syncSquareNow()">🔄 今すぐ同期</button>
+      <button onclick="syncSquareNow()">🔄 今すぐ同期（両店舗・当月分）</button>
+      <span style="font-size:12px; color:var(--muted); margin-left:8px;">取得期間: 当月1日 〜 今日</span>
     </div>
     <div id="sqResult" style="margin-top:10px; font-size:12px; color:var(--muted);">
-      ${connected ? '✓ トークン保存済 (' + (cfg.env || 'production') + ') / 最終同期: ' + lastSync : '※ 「保存」を押すと localStorage に暗号化なしで保管されます。本番運用ではサーバー側 (api/square.js) 経由での保管を推奨。'}
+      ${connectedCount > 0 ? `✓ ${connectedCount}店舗 接続済 / 最終同期: ${lastSync}` : '※ サーバー側の環境変数 (SQUARE_TOKEN_NAKAMOZU / SQUARE_LOCATION_NAKAMOZU / SQUARE_TOKEN_TENROKU / SQUARE_LOCATION_TENROKU) を設定してください。'}
     </div>
 
     <div class="note" style="margin-top:18px;">
-      <strong>📖 Square API 連携の手順</strong><br />
-      <ol style="margin:6px 0 0 18px; padding:0; font-size:13px; line-height:1.7;">
-        <li><a href="https://developer.squareup.com/apps" target="_blank" rel="noopener">Square Developer Dashboard</a> にログインし、アプリを作成</li>
-        <li>「Credentials」から <code>Access Token</code> (本番 or サンドボックス) を取得</li>
-        <li>「Locations API」で各店舗の Location ID を確認（中百舌鳥 / 天満天六）</li>
-        <li>サーバー側 (例: <code>/api/square.js</code>) にトークンを環境変数として保管:
-          <ul style="margin:4px 0 0 16px;">
-            <li><code>SQUARE_ACCESS_TOKEN</code></li>
-            <li><code>SQUARE_ENV</code> = production / sandbox</li>
-          </ul>
-        </li>
-        <li>サーバーから Square <code>Orders API</code> / <code>Payments API</code> を呼び出して取引を取得し、本アプリの <code>state.sales</code> 形式に変換</li>
-        <li>定期同期は Vercel Cron か手動の「今すぐ同期」ボタンから実行</li>
-      </ol>
-      <br />
-      <strong>🔐 推奨される連携アーキテクチャ</strong><br />
-      <span style="font-size:13px;">
-        ブラウザ → <code>/api/square?action=sync&amp;from=YYYY-MM-DD</code> → サーバーが <code>SQUARE_ACCESS_TOKEN</code> で Square API 呼出 → JSON で返却 → クライアントが <code>state.sales</code> にマージ・重複排除 (Transaction ID)。
-      </span><br /><br />
-      <strong>📡 利用する主なエンドポイント</strong><br />
-      <ul style="margin:4px 0 0 18px; font-size:13px; line-height:1.7;">
-        <li><code>POST /v2/orders/search</code> — 注文一覧 (期間・Location指定)</li>
-        <li><code>GET  /v2/payments</code> — 決済一覧 (手数料 processing_fee を含む)</li>
-        <li><code>GET  /v2/locations</code> — 店舗マスタ</li>
+      <strong>📖 環境変数（Vercel）</strong>
+      <ul style="margin:6px 0 0 18px; font-size:13px; line-height:1.7;">
+        <li><code>SQUARE_TOKEN_NAKAMOZU</code> / <code>SQUARE_LOCATION_NAKAMOZU</code> — NAORU整体 中百舌鳥院</li>
+        <li><code>SQUARE_TOKEN_TENROKU</code> / <code>SQUARE_LOCATION_TENROKU</code> — NAORU整体 天満天六院</li>
       </ul>
       <br />
-      <strong>⚠️ 注意点</strong><br />
+      <strong>📡 サーバー処理</strong><br />
+      <span style="font-size:13px;">
+        ブラウザ → <code>/api/square?action=sync</code> → サーバーが店舗ごとに <code>POST /v2/orders/search</code> と <code>GET /v2/payments</code> を並列実行 → Payment ID で突合 → JSON で返却 → クライアントが <code>state.sales</code> にマージ・重複排除（Transaction ID）。
+      </span><br /><br />
+      <strong>⚠️ 補足</strong>
       <ul style="margin:4px 0 0 18px; font-size:13px; line-height:1.7;">
-        <li>アクセストークンを直接フロントエンドに埋め込まないでください（漏洩リスク）</li>
-        <li>本番環境では Square OAuth フローを使い、refresh token をサーバー保管するのが理想</li>
-        <li>取引が大量になる場合は cursor ベースのページングが必要</li>
+        <li>環境はすべて Production（<code>https://connect.squareup.com</code>）</li>
+        <li>後日、期間指定 UI を追加予定（現状は当月1日〜今日固定）</li>
       </ul>
     </div>
   </div>`;
 }
 
-function saveSquareConfig() {
-  const env = document.getElementById('sqEnv').value;
-  const token = document.getElementById('sqToken').value.trim();
-  if (!token) { alert('アクセストークンを入力してください'); return; }
-  state.squareConfig = {
-    env,
-    accessTokenSaved: true,
-    // NOTE: 本番運用ではサーバー側 (api/square.js) に環境変数として保管してください
-    accessTokenLocal: token,
-    lastSyncAt: state.squareConfig?.lastSyncAt || null,
-  };
-  save();
-  renderView();
-  alert('保存しました。サーバー側 (api/square.js) の実装後、「今すぐ同期」で連携できます。');
+async function refreshSquareStatus() {
+  try {
+    const r = await fetch('/api/square?action=status', { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    state.squareStatus = await r.json();
+  } catch (_) {
+    state.squareStatus = { connectedClinics: [], missing: [] };
+  }
+  if (typeof renderView === 'function' && currentView === 'square-management') renderView();
 }
 
 async function syncSquareNow() {
-  const cfg = state.squareConfig || {};
-  if (!cfg.accessTokenSaved) { alert('先にアクセストークンを保存してください'); return; }
   const res = document.getElementById('sqResult');
-  res.textContent = '⏳ 同期中... (api/square.js が必要です)';
+  if (res) res.textContent = '⏳ 同期中…（両店舗の Square API を呼び出し中）';
   try {
-    const r = await fetch(`/api/square?action=sync&env=${encodeURIComponent(cfg.env || 'production')}`);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const data = await r.json();
+    const r = await fetch('/api/square?action=sync', { cache: 'no-store' });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
     const incoming = Array.isArray(data.sales) ? data.sales : [];
     const existing = state.sales || [];
     const seen = new Set(existing.map(s => s.transactionId).filter(Boolean));
-    const merged = existing.concat(incoming.filter(s => s.transactionId && !seen.has(s.transactionId)));
-    state.sales = merged;
+    const added = incoming.filter(s => s.transactionId && !seen.has(s.transactionId));
+    state.sales = existing.concat(added);
+    if (!state.squareConfig) state.squareConfig = {};
     state.squareConfig.lastSyncAt = new Date().toISOString();
+    state.squareStatus = {
+      connectedClinics: data.connectedClinics || [],
+      missing: (data.missingClinics || []).map(c => ({ clinic: c })),
+    };
     save();
     renderView();
-    alert(`${incoming.length} 件取得 / ${merged.length - existing.length} 件を新規追加しました`);
+
+    const perClinic = data.perClinic || {};
+    const breakdown = Object.keys(perClinic).map(c => {
+      const p = perClinic[c];
+      const label = SQUARE_CLINIC_LABELS[c] || c;
+      return p.ok ? `・${label}: ${p.count} 件` : `・${label}: ❌ ${p.error}`;
+    }).join('\n');
+    const errMsg = (data.errors || []).length ? `\n\n⚠️ エラー:\n${data.errors.map(e => `・${SQUARE_CLINIC_LABELS[e.clinic] || e.clinic}: ${e.message}`).join('\n')}` : '';
+    alert(`同期完了\n取得 ${incoming.length} 件 / 新規追加 ${added.length} 件\n\n${breakdown}${errMsg}`);
   } catch (e) {
-    res.textContent = `❌ 同期失敗: ${e.message} (api/square.js を実装してください)`;
+    if (res) res.textContent = `❌ 同期失敗: ${e.message}`;
+    alert(`同期失敗: ${e.message}`);
   }
 }
 
@@ -5633,7 +5647,7 @@ const VIEW_RENDER = {
   'revenue-entry':        { html: viewRevenueEntry },
   'daily-sales':          { html: viewDailySales, after: maybeAutoFetchDailyReport },
   'revenue-list':         { html: viewRevenueList },
-  'square-management':    { html: viewSquareManagement },
+  'square-management':    { html: viewSquareManagement, after: refreshSquareStatus },
   'revenue-trend':        { html: viewRevenueTrend, after: viewRevenueTrendAfter },
   'meta-ads':             { html: viewMetaAds, after: viewMetaAdsAfter },
   'channel':              { html: viewChannel, after: viewChannelAfter },
