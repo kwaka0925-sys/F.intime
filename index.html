@@ -1862,21 +1862,25 @@ function viewSummary() {
     });
 
     // 日次売上シートの「実来院数」を期間合算（新規来院数として表示）
-    const fromYMD = from || '';
-    const toYMD = to || '';
+    // 範囲は YYYY-MM プレフィックスで比較し、日報の date 形式揺れに強くする
+    const fromYM = from ? from.slice(0, 7) : '';
+    const toYM   = to   ? to.slice(0, 7)   : '';
     let actualVisits = 0;
     let hasDailyVisits = false;
     (state.dailyEntries || []).forEach(e => {
       if (clinicKey !== 'all' && e.clinic !== clinicKey) return;
-      const d = e.date || '';
-      if (!d) return;
-      if (fromYMD && d < fromYMD) return;
-      if (toYMD && d > toYMD) return;
+      const month = (e.date || '').slice(0, 7);
+      if (!month) return;
+      if (fromYM && month < fromYM) return;
+      if (toYM   && month > toYM)   return;
       const cells = e.cells || {};
       const raw = cells['実来院数'];
       if (raw != null && raw !== '') {
-        actualVisits += parseSheetNum(raw);
-        hasDailyVisits = true;
+        const n = parseSheetNum(raw);
+        if (n > 0) {
+          actualVisits += n;
+          hasDailyVisits = true;
+        }
       }
     });
     const newVisits = hasDailyVisits ? actualVisits : t.newCustomers;
