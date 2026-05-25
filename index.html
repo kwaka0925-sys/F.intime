@@ -1861,13 +1861,34 @@ function viewSummary() {
       else t.revenue += agg.total;
     });
 
+    // 日次売上シートの「実来院数」を期間合算（新規来院数として表示）
+    const fromYMD = from || '';
+    const toYMD = to || '';
+    let actualVisits = 0;
+    let hasDailyVisits = false;
+    (state.dailyEntries || []).forEach(e => {
+      if (clinicKey !== 'all' && e.clinic !== clinicKey) return;
+      const d = e.date || '';
+      if (!d) return;
+      if (fromYMD && d < fromYMD) return;
+      if (toYMD && d > toYMD) return;
+      const cells = e.cells || {};
+      const raw = cells['実来院数'];
+      if (raw != null && raw !== '') {
+        actualVisits += parseSheetNum(raw);
+        hasDailyVisits = true;
+      }
+    });
+    const newVisits = hasDailyVisits ? actualVisits : t.newCustomers;
+
     // Meta 広告連携（広告費・予約数）
     const meta = aggregateMetaForPeriod(clinicKey, from, to);
     const hasMeta = meta.hasData;
     const adspend = hasMeta ? meta.adspend : t.adspend;
     const reservations = hasMeta ? meta.registrations : t.reservations;
     const cpa = reservations > 0 && adspend > 0 ? adspend / reservations : 0;
-    return { ...t, adspend, reservations, cpa, hasMeta };
+    const cpaVisits = newVisits > 0 && adspend > 0 ? adspend / newVisits : 0;
+    return { ...t, adspend, reservations, cpa, cpaVisits, newVisits, hasDailyVisits, hasMeta };
   }
 
   const naka = computeKpis('nakamozu');
@@ -1878,15 +1899,20 @@ function viewSummary() {
     const metaTag = kpi.hasMeta
       ? '<span style="font-size:9px; color:var(--primary); background:#eff6ff; padding:1px 4px; border-radius:3px; margin-left:3px;">Meta</span>'
       : '';
-    const cpaText = kpi.reservations > 0 && kpi.adspend > 0 ? yen(kpi.cpa) : '—';
+    const sheetTag = kpi.hasDailyVisits
+      ? '<span style="font-size:9px; color:#0f766e; background:#ccfbf1; padding:1px 4px; border-radius:3px; margin-left:3px;">日報</span>'
+      : '';
+    const cpaResText   = kpi.reservations > 0 && kpi.adspend > 0 ? yen(kpi.cpa) : '—';
+    const cpaVisitText = kpi.newVisits   > 0 && kpi.adspend > 0 ? yen(kpi.cpaVisits) : '—';
     return `
       <div style="margin-bottom:18px;">
         <h3 style="font-size:14px; font-weight:700; color:${accent}; margin:0 0 8px 0;">${label}</h3>
         <div class="kpi-grid">
           <div class="kpi-card" style="background:${cardBg};"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:${accent};">${yen(kpi.revenue)}</div></div>
           <div class="kpi-card"><div class="kpi-label">広告費${metaTag}</div><div class="kpi-value">${yen(kpi.adspend)}</div></div>
-          <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(kpi.newCustomers)} <span style="font-size:12px; color:var(--muted);">人</span></div></div>
-          <div class="kpi-card"><div class="kpi-label">CPA${metaTag}</div><div class="kpi-value">${cpaText}</div><div class="kpi-sub">${cpaText !== '—' ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
+          <div class="kpi-card"><div class="kpi-label">新規来院数${sheetTag}</div><div class="kpi-value">${fmt(kpi.newVisits)} <span style="font-size:12px; color:var(--muted);">人</span></div></div>
+          <div class="kpi-card"><div class="kpi-label">CPA (予約)${metaTag}</div><div class="kpi-value">${cpaResText}</div><div class="kpi-sub">${cpaResText !== '—' ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
+          <div class="kpi-card"><div class="kpi-label">CPA (実来院)${sheetTag}</div><div class="kpi-value">${cpaVisitText}</div><div class="kpi-sub">${cpaVisitText !== '—' ? '広告費 ÷ 新規来院数' : 'データなし'}</div></div>
           <div class="kpi-card"><div class="kpi-label">予約数${metaTag}</div><div class="kpi-value">${fmt(kpi.reservations)}</div></div>
         </div>
       </div>`;
