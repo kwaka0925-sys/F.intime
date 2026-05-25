@@ -2283,16 +2283,56 @@ function editEntry(month, clinic) {
 }
 
 // ===== Daily sales view =====
-// Per-clinic published-CSV URLs. Currently only 中百舌鳥院 is configured;
-// 天満天六院 用の URL が設定されると同期できるようになります。
+// Per-clinic published-CSV URLs. 各クリニックに月別のタブURLを複数登録できます。
+// 同じスプレッドシート内の月別タブを並べると、全期間を1テーブルにマージして表示します。
 const DAILY_REPORT_SHEET_URLS = {
-  nakamozu:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2129032732&single=true&output=csv',
-  tenrokuten: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7VDPUBlJ1En2sEFnA1QOyW7WzPl9fikJVOo2B6QoRR8cSzpBfTvMfMLEgRCDVz4IJVvwS7v7gCZz9/pub?gid=726457200&single=true&output=csv',
+  nakamozu: [
+    // 2025年9月
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRrzMfcwpJEqsKurlA5ht_fuC9Qd-D74CZoUVRmhZuXdZRmcIdJQ_dL2cO_haMRKAG_3loI46XYBIEo/pub?gid=726457200&single=true&output=csv',
+    // 2025年10月
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRrzMfcwpJEqsKurlA5ht_fuC9Qd-D74CZoUVRmhZuXdZRmcIdJQ_dL2cO_haMRKAG_3loI46XYBIEo/pub?gid=182539070&single=true&output=csv',
+    // 2025年11月
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRrzMfcwpJEqsKurlA5ht_fuC9Qd-D74CZoUVRmhZuXdZRmcIdJQ_dL2cO_haMRKAG_3loI46XYBIEo/pub?gid=2049917737&single=true&output=csv',
+    // 2025年12月
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRrzMfcwpJEqsKurlA5ht_fuC9Qd-D74CZoUVRmhZuXdZRmcIdJQ_dL2cO_haMRKAG_3loI46XYBIEo/pub?gid=743410317&single=true&output=csv',
+    // 2026年1月
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRrzMfcwpJEqsKurlA5ht_fuC9Qd-D74CZoUVRmhZuXdZRmcIdJQ_dL2cO_haMRKAG_3loI46XYBIEo/pub?gid=449418594&single=true&output=csv',
+    // 2026年2月
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRrzMfcwpJEqsKurlA5ht_fuC9Qd-D74CZoUVRmhZuXdZRmcIdJQ_dL2cO_haMRKAG_3loI46XYBIEo/pub?gid=695195883&single=true&output=csv',
+    // 2026年3月
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRrzMfcwpJEqsKurlA5ht_fuC9Qd-D74CZoUVRmhZuXdZRmcIdJQ_dL2cO_haMRKAG_3loI46XYBIEo/pub?gid=1610546607&single=true&output=csv',
+    // 2026年4月
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRrzMfcwpJEqsKurlA5ht_fuC9Qd-D74CZoUVRmhZuXdZRmcIdJQ_dL2cO_haMRKAG_3loI46XYBIEo/pub?gid=2050100492&single=true&output=csv',
+    // 2026年5月
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRxyoaXP_WFidQ3NEjNA7Sb9MhYJwrhxm4UCBPQzfrjXNQ5KAU-IZ_UnEu1VgEFCGZXwuneA2OtxIWA/pub?gid=2129032732&single=true&output=csv',
+  ],
+  tenrokuten: [
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7VDPUBlJ1En2sEFnA1QOyW7WzPl9fikJVOo2B6QoRR8cSzpBfTvMfMLEgRCDVz4IJVvwS7v7gCZz9/pub?gid=726457200&single=true&output=csv',
+  ],
 };
-function getDailyReportSheetUrl(clinic) {
-  return DAILY_REPORT_SHEET_URLS[clinic] || '';
+function getDailyReportSheetUrls(clinic) {
+  const v = DAILY_REPORT_SHEET_URLS[clinic];
+  if (!v) return [];
+  return Array.isArray(v) ? v.filter(Boolean) : [v];
 }
-let lastSheetFetchTime = 0;
+function getDailyReportSheetUrl(clinic) {
+  return getDailyReportSheetUrls(clinic)[0] || '';
+}
+// Merge multiple CSV texts: keep the first CSV's header, drop the header row from each subsequent CSV.
+function mergeCsvTexts(csvs) {
+  const cleaned = csvs.map(t => (t || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n+$/, ''));
+  const nonEmpty = cleaned.filter(t => t.length > 0);
+  if (nonEmpty.length === 0) return '';
+  const parts = [nonEmpty[0]];
+  for (let i = 1; i < nonEmpty.length; i++) {
+    const nl = nonEmpty[i].indexOf('\n');
+    if (nl < 0) continue; // header only, no data rows
+    const rest = nonEmpty[i].slice(nl + 1);
+    if (rest) parts.push(rest);
+  }
+  return parts.join('\n') + '\n';
+}
+let lastSheetFetchTime = {}; // クリニック別スロットル: { nakamozu: ts, tenrokuten: ts }
 let sheetFetchInFlight = false;
 const DAILY_COLS = [
   { key: 'newPatient',    label: '新患',    hl: true,  readonly: true },
@@ -2498,46 +2538,25 @@ function viewDailySales() {
   `;
 }
 
-// Auto-trigger sheet fetch when entering the daily-sales view (debounced)
+// Auto-trigger sheet fetch when entering the daily-sales view (per-clinic throttle)
 function maybeAutoFetchDailyReport() {
   if (sheetFetchInFlight) return;
-  if (Date.now() - lastSheetFetchTime < 5000) return; // throttle to 5s
-  if (!getDailyReportSheetUrl(state.dailyClinic)) return; // skip if URL not configured
+  const clinic = state.dailyClinic;
+  const lastTs = lastSheetFetchTime[clinic] || 0;
+  if (Date.now() - lastTs < 5000) return; // 同クリニックは5秒間隔でスロットル
+  if (!getDailyReportSheetUrl(clinic)) return; // skip if URL not configured
   fetchDailyReportSheet(false);
 }
 
-async function fetchDailyReportSheet(manual) {
-  if (sheetFetchInFlight) return;
-  sheetFetchInFlight = true;
-  lastSheetFetchTime = Date.now();
-  const setStatus = (msg) => {
-    state.lastSheetSyncMsg = msg;
-    const el = document.getElementById('sheetSyncStatus');
-    if (el) el.textContent = msg;
-  };
-  const targetClinic = state.dailyClinic;
-  const sheetUrl = getDailyReportSheetUrl(targetClinic);
-  if (!sheetUrl) {
-    setStatus(`※ ${CLINICS[targetClinic]} のスプレッドシートURLは未設定です。URLを教えてもらえれば設定します。`);
-    sheetFetchInFlight = false;
-    return;
-  }
-  setStatus(`⏳ ${CLINICS[targetClinic]} の日報シートから同期中...`);
-
+async function fetchSingleSheetText(url) {
   const candidates = [
-    { label: 'サーバー関数経由', url: '/api/sheet?clinic=' + encodeURIComponent(targetClinic) },
-    { label: '直接',           url: sheetUrl },
-    { label: 'corsproxy.io 経由', url: 'https://corsproxy.io/?' + encodeURIComponent(sheetUrl) },
-    { label: 'allorigins 経由',   url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(sheetUrl) },
+    { label: '直接',             url },
+    { label: 'corsproxy.io 経由', url: 'https://corsproxy.io/?' + encodeURIComponent(url) },
+    { label: 'allorigins 経由',   url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url) },
   ];
-
   const errors = [];
-  let text = null;
-  let usedLabel = '';
-
   for (const c of candidates) {
     try {
-      setStatus('⏳ ' + c.label + 'で取得中...');
       const res = await fetch(c.url, { cache: 'no-store' });
       if (!res.ok) {
         let detail = '';
@@ -2550,11 +2569,68 @@ async function fetchDailyReportSheet(manual) {
         errors.push(`${c.label}: HTMLが返されました`);
         continue;
       }
-      text = t;
-      usedLabel = c.label;
-      break;
+      return { text: t, label: c.label };
     } catch (e) {
       errors.push(`${c.label}: ${e.message || e}`);
+    }
+  }
+  return { text: null, errors };
+}
+
+async function fetchDailyReportSheet(manual) {
+  if (sheetFetchInFlight) return;
+  sheetFetchInFlight = true;
+  const targetClinic = state.dailyClinic;
+  lastSheetFetchTime[targetClinic] = Date.now();
+  const setStatus = (msg) => {
+    state.lastSheetSyncMsg = msg;
+    const el = document.getElementById('sheetSyncStatus');
+    if (el) el.textContent = msg;
+  };
+  const sheetUrls = getDailyReportSheetUrls(targetClinic);
+  if (sheetUrls.length === 0) {
+    setStatus(`※ ${CLINICS[targetClinic]} のスプレッドシートURLは未設定です。URLを教えてもらえれば設定します。`);
+    sheetFetchInFlight = false;
+    return;
+  }
+  setStatus(`⏳ ${CLINICS[targetClinic]} の日報シートから同期中... (${sheetUrls.length}シート)`);
+
+  const errors = [];
+  let text = null;
+  let usedLabel = '';
+
+  // 1) まずはサーバー関数経由で一括取得（サーバー側で全URLをマージ）
+  try {
+    setStatus('⏳ サーバー関数経由で取得中...');
+    const res = await fetch('/api/sheet?clinic=' + encodeURIComponent(targetClinic), { cache: 'no-store' });
+    if (res.ok) {
+      const t = await res.text();
+      if (t && !t.trim().startsWith('<') && !/<!DOCTYPE/i.test(t.slice(0, 200))) {
+        text = t;
+        usedLabel = 'サーバー関数経由';
+      } else {
+        errors.push('サーバー関数経由: HTMLが返されました');
+      }
+    } else {
+      let detail = '';
+      try { detail = (await res.text()).slice(0, 200); } catch {}
+      errors.push(`サーバー関数経由: HTTP ${res.status}${detail ? ' / ' + detail : ''}`);
+    }
+  } catch (e) {
+    errors.push(`サーバー関数経由: ${e.message || e}`);
+  }
+
+  // 2) フォールバック: 各URLをクライアント側で並列取得してマージ
+  if (!text) {
+    setStatus(`⏳ クライアント側で${sheetUrls.length}シートを並列取得中...`);
+    const results = await Promise.all(sheetUrls.map(u => fetchSingleSheetText(u)));
+    const failed = results.findIndex(r => !r.text);
+    if (failed >= 0) {
+      const detail = (results[failed].errors || []).join(' / ');
+      errors.push(`シート${failed + 1}: ${detail}`);
+    } else {
+      text = mergeCsvTexts(results.map(r => r.text));
+      usedLabel = `クライアント側マージ (${sheetUrls.length}シート)`;
     }
   }
 
@@ -2596,6 +2672,19 @@ async function fetchDailyReportSheet(manual) {
   }
 }
 
+// 年なし日付（M/D, M月D日）について、現在年で計算した日付が未来（数日先まで許容）なら
+// 前年を採用する。日報は過去〜直近の記録という前提のヒューリスティクス。
+// 年をまたぐ複数シートを一括取り込みするときに 2025年データが 2026年扱いされないようにする。
+function guessYearForMonthDay(mo, d) {
+  const now = new Date();
+  const todayMs = now.getTime();
+  const toleranceMs = 7 * 24 * 60 * 60 * 1000; // 7日先までは「今日」扱い
+  const thisYear = now.getFullYear();
+  const tThisYear = new Date(thisYear, mo - 1, d).getTime();
+  if (tThisYear > todayMs + toleranceMs) return thisYear - 1;
+  return thisYear;
+}
+
 function mapDailyReportRow(headers, row) {
   const findIdx = (...names) => {
     for (const n of names) {
@@ -2625,13 +2714,15 @@ function mapDailyReportRow(headers, row) {
     date = `${y}-${pad2(mo)}-${pad2(d)}`;
   } else if (/^\d{1,2}\/\d{1,2}/.test(dateRaw)) {
     const [mo, d] = dateRaw.split('/').map(Number);
-    const y = new Date().getFullYear();
+    const y = guessYearForMonthDay(mo, d);
     date = `${y}-${pad2(mo)}-${pad2(d)}`;
   } else if (/^\d{1,2}月\d{1,2}日/.test(dateRaw)) {
     const mm = dateRaw.match(/(\d{1,2})月(\d{1,2})日/);
     if (mm) {
-      const y = new Date().getFullYear();
-      date = `${y}-${pad2(Number(mm[1]))}-${pad2(Number(mm[2]))}`;
+      const mo = Number(mm[1]);
+      const d = Number(mm[2]);
+      const y = guessYearForMonthDay(mo, d);
+      date = `${y}-${pad2(mo)}-${pad2(d)}`;
     }
   }
   if (!date) return null;
