@@ -2292,7 +2292,7 @@ const DAILY_REPORT_SHEET_URLS = {
 function getDailyReportSheetUrl(clinic) {
   return DAILY_REPORT_SHEET_URLS[clinic] || '';
 }
-let lastSheetFetchTime = 0;
+let lastSheetFetchTime = {}; // クリニック別スロットル: { nakamozu: ts, tenrokuten: ts }
 let sheetFetchInFlight = false;
 const DAILY_COLS = [
   { key: 'newPatient',    label: '新患',    hl: true,  readonly: true },
@@ -2498,24 +2498,26 @@ function viewDailySales() {
   `;
 }
 
-// Auto-trigger sheet fetch when entering the daily-sales view (debounced)
+// Auto-trigger sheet fetch when entering the daily-sales view (per-clinic throttle)
 function maybeAutoFetchDailyReport() {
   if (sheetFetchInFlight) return;
-  if (Date.now() - lastSheetFetchTime < 5000) return; // throttle to 5s
-  if (!getDailyReportSheetUrl(state.dailyClinic)) return; // skip if URL not configured
+  const clinic = state.dailyClinic;
+  const lastTs = lastSheetFetchTime[clinic] || 0;
+  if (Date.now() - lastTs < 5000) return; // 同クリニックは5秒間隔でスロットル
+  if (!getDailyReportSheetUrl(clinic)) return; // skip if URL not configured
   fetchDailyReportSheet(false);
 }
 
 async function fetchDailyReportSheet(manual) {
   if (sheetFetchInFlight) return;
   sheetFetchInFlight = true;
-  lastSheetFetchTime = Date.now();
+  const targetClinic = state.dailyClinic;
+  lastSheetFetchTime[targetClinic] = Date.now();
   const setStatus = (msg) => {
     state.lastSheetSyncMsg = msg;
     const el = document.getElementById('sheetSyncStatus');
     if (el) el.textContent = msg;
   };
-  const targetClinic = state.dailyClinic;
   const sheetUrl = getDailyReportSheetUrl(targetClinic);
   if (!sheetUrl) {
     setStatus(`※ ${CLINICS[targetClinic]} のスプレッドシートURLは未設定です。URLを教えてもらえれば設定します。`);
