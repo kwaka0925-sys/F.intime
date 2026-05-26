@@ -1861,13 +1861,49 @@ function viewSummary() {
       else t.revenue += agg.total;
     });
 
+    // 日次売上シートの「新患」を期間合算（新規来院数として表示）
+    // ※「新規合算のCPA」を出したい用途のため、「実来院数」ではなく「新患」を採用。
+    // 範囲は YYYY-MM プレフィックスで比較し、日報の date 形式揺れに強くする
+    const fromYM = from ? from.slice(0, 7) : '';
+    const toYM   = to   ? to.slice(0, 7)   : '';
+    const NEW_PATIENT_KEYS = ['新患', '新患数', '新規患者', '新患（人）', '新患(人)'];
+    let actualVisits = 0;
+    let hasDailyVisits = false;
+    (state.dailyEntries || []).forEach(e => {
+      if (clinicKey !== 'all' && e.clinic !== clinicKey) return;
+      const month = (e.date || '').slice(0, 7);
+      if (!month) return;
+      if (fromYM && month < fromYM) return;
+      if (toYM   && month > toYM)   return;
+      const cells = e.cells || {};
+      let raw = null;
+      for (const k of NEW_PATIENT_KEYS) {
+        if (cells[k] != null && cells[k] !== '') { raw = cells[k]; break; }
+      }
+      if (raw != null && raw !== '') {
+        const n = parseSheetNum(raw);
+        if (n > 0) {
+          actualVisits += n;
+          hasDailyVisits = true;
+        }
+      }
+    });
+    const newVisits = hasDailyVisits ? actualVisits : t.newCustomers;
+
     // Meta 広告連携（広告費・予約数）
     const meta = aggregateMetaForPeriod(clinicKey, from, to);
     const hasMeta = meta.hasData;
     const adspend = hasMeta ? meta.adspend : t.adspend;
     const reservations = hasMeta ? meta.registrations : t.reservations;
+
+    // 手入力の他チャネル（チラシ / HPB / MAP / スレッズ）予算を加算 → 総広告金額
+    const manualAd = aggregateChannelManualForPeriod(clinicKey, from, to);
+    const totalAdspend = adspend + manualAd.budget;
+
     const cpa = reservations > 0 && adspend > 0 ? adspend / reservations : 0;
-    return { ...t, adspend, reservations, cpa, hasMeta };
+    // CPA (新患) は総広告金額ベースで算出
+    const cpaVisits = newVisits > 0 && totalAdspend > 0 ? totalAdspend / newVisits : 0;
+    return { ...t, adspend, totalAdspend, reservations, cpa, cpaVisits, newVisits, hasDailyVisits, hasMeta, hasManualAd: manualAd.hasData };
   }
 
   const naka = computeKpis('nakamozu');
@@ -1878,15 +1914,24 @@ function viewSummary() {
     const metaTag = kpi.hasMeta
       ? '<span style="font-size:9px; color:var(--primary); background:#eff6ff; padding:1px 4px; border-radius:3px; margin-left:3px;">Meta</span>'
       : '';
-    const cpaText = kpi.reservations > 0 && kpi.adspend > 0 ? yen(kpi.cpa) : '—';
+    const sheetTag = kpi.hasDailyVisits
+      ? '<span style="font-size:9px; color:#0f766e; background:#ccfbf1; padding:1px 4px; border-radius:3px; margin-left:3px;">日報</span>'
+      : '';
+    const cpaResText   = kpi.reservations > 0 && kpi.adspend > 0 ? yen(kpi.cpa) : '—';
+    const cpaVisitText = kpi.newVisits   > 0 && kpi.totalAdspend > 0 ? yen(kpi.cpaVisits) : '—';
+    const totalAdTag = kpi.hasManualAd || kpi.hasMeta
+      ? '<span style="font-size:9px; color:#92400e; background:#fef3c7; padding:1px 4px; border-radius:3px; margin-left:3px;">合算</span>'
+      : '';
     return `
       <div style="margin-bottom:18px;">
         <h3 style="font-size:14px; font-weight:700; color:${accent}; margin:0 0 8px 0;">${label}</h3>
         <div class="kpi-grid">
           <div class="kpi-card" style="background:${cardBg};"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:${accent};">${yen(kpi.revenue)}</div></div>
           <div class="kpi-card"><div class="kpi-label">広告費${metaTag}</div><div class="kpi-value">${yen(kpi.adspend)}</div></div>
-          <div class="kpi-card"><div class="kpi-label">新規顧客</div><div class="kpi-value">${fmt(kpi.newCustomers)} <span style="font-size:12px; color:var(--muted);">人</span></div></div>
-          <div class="kpi-card"><div class="kpi-label">CPA${metaTag}</div><div class="kpi-value">${cpaText}</div><div class="kpi-sub">${cpaText !== '—' ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
+          <div class="kpi-card"><div class="kpi-label">総広告金額${totalAdTag}</div><div class="kpi-value">${yen(kpi.totalAdspend)}</div><div class="kpi-sub">チラシ + HPB + メタ + MAP + スレッズ</div></div>
+          <div class="kpi-card"><div class="kpi-label">新規来院数${sheetTag}</div><div class="kpi-value">${fmt(kpi.newVisits)} <span style="font-size:12px; color:var(--muted);">人</span></div></div>
+          <div class="kpi-card"><div class="kpi-label">CPA (予約)${metaTag}</div><div class="kpi-value">${cpaResText}</div><div class="kpi-sub">${cpaResText !== '—' ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
+          <div class="kpi-card"><div class="kpi-label">CPA (新患)${sheetTag}</div><div class="kpi-value">${cpaVisitText}</div><div class="kpi-sub">${cpaVisitText !== '—' ? '総広告金額 ÷ 新患数' : 'データなし'}</div></div>
           <div class="kpi-card"><div class="kpi-label">予約数${metaTag}</div><div class="kpi-value">${fmt(kpi.reservations)}</div></div>
         </div>
       </div>`;
@@ -2596,20 +2641,35 @@ async function fetchDailyReportSheet(manual) {
   setStatus(`⏳ ${CLINICS[targetClinic]} の日報シートから同期中... (${sheetUrls.length}シート)`);
 
   const errors = [];
-  let text = null;
+  let sheetCsvs = null;  // [csvText, csvText, ...] - 各シートを独立した CSV として保持
   let usedLabel = '';
 
-  // 1) まずはサーバー関数経由で一括取得（サーバー側で全URLをマージ）
+  // 1) まずはサーバー関数経由で取得（JSON で各シートCSVを個別に受け取る）
   try {
     setStatus('⏳ サーバー関数経由で取得中...');
-    const res = await fetch('/api/sheet?clinic=' + encodeURIComponent(targetClinic), { cache: 'no-store' });
+    const res = await fetch('/api/sheet?clinic=' + encodeURIComponent(targetClinic) + '&format=json', {
+      cache: 'no-store',
+      headers: { 'Accept': 'application/json' },
+    });
     if (res.ok) {
-      const t = await res.text();
-      if (t && !t.trim().startsWith('<') && !/<!DOCTYPE/i.test(t.slice(0, 200))) {
-        text = t;
-        usedLabel = 'サーバー関数経由';
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (ct.includes('application/json')) {
+        const data = await res.json();
+        if (data && Array.isArray(data.sheets) && data.sheets.length > 0) {
+          sheetCsvs = data.sheets.map(s => s.csv || '');
+          usedLabel = `サーバー関数経由 (${sheetCsvs.length}シート)`;
+        } else {
+          errors.push('サーバー関数経由: sheets が空');
+        }
       } else {
-        errors.push('サーバー関数経由: HTMLが返されました');
+        const t = await res.text();
+        if (t && !t.trim().startsWith('<') && !/<!DOCTYPE/i.test(t.slice(0, 200))) {
+          // 旧形式のマージCSVを受信。1枚として扱う（マージ済みなので列ズレ可能性あり）
+          sheetCsvs = [t];
+          usedLabel = 'サーバー関数経由 (旧形式)';
+        } else {
+          errors.push('サーバー関数経由: HTMLが返されました');
+        }
       }
     } else {
       let detail = '';
@@ -2620,8 +2680,8 @@ async function fetchDailyReportSheet(manual) {
     errors.push(`サーバー関数経由: ${e.message || e}`);
   }
 
-  // 2) フォールバック: 各URLをクライアント側で並列取得してマージ
-  if (!text) {
+  // 2) フォールバック: 各URLをクライアント側で並列取得（各シート独立）
+  if (!sheetCsvs) {
     setStatus(`⏳ クライアント側で${sheetUrls.length}シートを並列取得中...`);
     const results = await Promise.all(sheetUrls.map(u => fetchSingleSheetText(u)));
     const failed = results.findIndex(r => !r.text);
@@ -2629,12 +2689,12 @@ async function fetchDailyReportSheet(manual) {
       const detail = (results[failed].errors || []).join(' / ');
       errors.push(`シート${failed + 1}: ${detail}`);
     } else {
-      text = mergeCsvTexts(results.map(r => r.text));
-      usedLabel = `クライアント側マージ (${sheetUrls.length}シート)`;
+      sheetCsvs = results.map(r => r.text);
+      usedLabel = `クライアント側 (${sheetCsvs.length}シート)`;
     }
   }
 
-  if (!text) {
+  if (!sheetCsvs || sheetCsvs.length === 0) {
     console.error('Sheet sync errors:', errors);
     const short = errors.map(e => '・' + e).join(' / ');
     setStatus('✕ 同期失敗 - ' + short);
@@ -2643,19 +2703,27 @@ async function fetchDailyReportSheet(manual) {
   }
 
   try {
-    const rows = parseCsv(text);
-    if (rows.length < 2) throw new Error('行が見つかりません');
-    const headers = rows[0].map(h => (h || '').toString().trim());
-    state.dailyHeaders = headers.filter(h => h);
+    // 各シートを独立してパース。シート間でヘッダー（列構造）が異なっても安全に取り込める。
     let imported = 0, skipped = 0;
-    rows.slice(1).forEach(row => {
-      const entry = mapDailyReportRow(headers, row);
-      if (!entry) { skipped++; return; }
-      const idx = state.dailyEntries.findIndex(e => e.date === entry.date && e.clinic === entry.clinic);
-      if (idx >= 0) state.dailyEntries[idx] = entry;
-      else state.dailyEntries.push(entry);
-      imported++;
-    });
+    let lastNonEmptyHeaders = null;
+    for (let i = 0; i < sheetCsvs.length; i++) {
+      const csv = sheetCsvs[i];
+      if (!csv || !csv.trim()) continue;
+      const rows = parseCsv(csv);
+      if (rows.length < 2) { skipped += 1; continue; }
+      const headers = rows[0].map(h => (h || '').toString().trim());
+      if (headers.some(h => h)) lastNonEmptyHeaders = headers;
+      rows.slice(1).forEach(row => {
+        const entry = mapDailyReportRow(headers, row);
+        if (!entry) { skipped++; return; }
+        const idx = state.dailyEntries.findIndex(e => e.date === entry.date && e.clinic === entry.clinic);
+        if (idx >= 0) state.dailyEntries[idx] = entry;
+        else state.dailyEntries.push(entry);
+        imported++;
+      });
+    }
+    // 直近（5月）のシートのヘッダーをUI表示の基準に使う
+    if (lastNonEmptyHeaders) state.dailyHeaders = lastNonEmptyHeaders.filter(h => h);
     save();
     const ts = new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' });
     setStatus(`✓ ${imported}件を取込${skipped > 0 ? ` / ${skipped}件スキップ` : ''} (${usedLabel} / ${ts})`);
@@ -2961,6 +3029,29 @@ function getFilteredMetaRows() {
 // Aggregate Meta ad data for a clinic filter ('all' | 'nakamozu' | 'tenrokuten')
 // and YYYY-MM period range. Used by 経営サマリー to surface Meta-derived
 // adspend / 予約数 / CPA without manual entry.
+// 「媒体別集客実績」で手入力されたチャネル予算（チラシ / HPB / MAP / スレッズ）を
+// 期間×店舗で合算する。meta は aggregateMetaForPeriod 側で集計するためここでは除外。
+function aggregateChannelManualForPeriod(clinicFilter, fromMonth, toMonth) {
+  const fromYM = fromMonth ? fromMonth.slice(0, 7) : '';
+  const toYM   = toMonth   ? toMonth.slice(0, 7)   : '';
+  let budget = 0;
+  let customers = 0;
+  let hasData = false;
+  (state.channelEntries || []).forEach(e => {
+    if (!e || !e.month) return;
+    if (e.channel === 'meta') return;
+    if (clinicFilter !== 'all' && e.clinic !== clinicFilter) return;
+    if (fromYM && e.month < fromYM) return;
+    if (toYM   && e.month > toYM)   return;
+    const b = Number(e.budget) || 0;
+    const c = Number(e.customers) || 0;
+    budget += b;
+    customers += c;
+    if (b > 0 || c > 0) hasData = true;
+  });
+  return { budget, customers, hasData };
+}
+
 function aggregateMetaForPeriod(clinicFilter, fromMonth, toMonth) {
   const allRows = state.metaRows || [];
   let rows;

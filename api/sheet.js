@@ -1,7 +1,13 @@
 // Vercel serverless function: server-side proxy for Google Sheets published CSVs.
 // Accepts ?clinic=nakamozu|tenrokuten to pick the right sheet(s) per clinic.
-// 各クリニックは複数のCSV URL（月別タブ等）を持てる。サーバー側で全部取得→
-// ヘッダー1行＋各シートのデータ行をマージした単一のCSVを返す。
+// 各クリニックは複数のCSV URL（月別タブ等）を持てる。サーバーで全部取得し、
+// **各シート単位のCSVテキストを配列で返す**（マージしない）ことで、
+// シート間で列構造が異なってもクライアント側がそれぞれのヘッダーで解釈できる。
+//
+// レスポンス形式:
+//   - Accept に application/json があるか ?format=json の場合: JSON で per-sheet CSV を返す
+//     { sheets: [{ index, csv }, ...] }
+//   - それ以外（後方互換）: 互換用にマージしたCSV（先頭シートのヘッダー + 各シートのデータ行）を返す
 
 const SHEET_URLS = {
   nakamozu: [
@@ -39,7 +45,7 @@ function mergeCsvTexts(texts) {
   const parts = [cleaned[0]];
   for (let i = 1; i < cleaned.length; i++) {
     const nl = cleaned[i].indexOf('\n');
-    if (nl < 0) continue; // header only, skip
+    if (nl < 0) continue;
     const rest = cleaned[i].slice(nl + 1);
     if (rest) parts.push(rest);
   }
@@ -58,18 +64,27 @@ async function fetchOne(url) {
   return { ok: response.ok, status: response.status, text };
 }
 
-module.exports = async function handler(req, res) {
-  // Determine which clinic to fetch
-  let clinic = 'nakamozu';
-  if (req.query && typeof req.query.clinic === 'string' && req.query.clinic) {
-    clinic = req.query.clinic;
-  } else if (req.url) {
-    try {
-      const u = new URL(req.url, 'http://localhost');
-      const c = u.searchParams.get('clinic');
-      if (c) clinic = c;
-    } catch (_) {}
+function getQuery(req) {
+  if (req.query && typeof req.query === 'object') return req.query;
+  try {
+    const u = new URL(req.url, 'http://localhost');
+    const q = {};
+    for (const [k, v] of u.searchParams) q[k] = v;
+    return q;
+  } catch (_) {
+    return {};
   }
+}
+
+function wantsJson(req, q) {
+  if (q && (q.format === 'json' || q.json === '1')) return true;
+  const accept = (req.headers && (req.headers.accept || req.headers.Accept)) || '';
+  return /application\/json/i.test(accept);
+}
+
+module.exports = async function handler(req, res) {
+  const q = getQuery(req);
+  const clinic = (q && typeof q.clinic === 'string' && q.clinic) ? q.clinic : 'nakamozu';
 
   const raw = SHEET_URLS[clinic];
   const urls = Array.isArray(raw) ? raw.filter(Boolean) : (raw ? [raw] : []);
@@ -99,8 +114,20 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const merged = mergeCsvTexts(results.map(r => r.text));
+    if (wantsJson(req, q)) {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.end(JSON.stringify({
+        clinic,
+        sheets: results.map((r, i) => ({ index: i, csv: r.text })),
+      }));
+      return;
+    }
 
+    // 後方互換: マージした単一 CSV を返す（同一構造のシートのみ安全）
+    const merged = mergeCsvTexts(results.map(r => r.text));
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60');
