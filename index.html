@@ -1861,10 +1861,12 @@ function viewSummary() {
       else t.revenue += agg.total;
     });
 
-    // 日次売上シートの「実来院数」を期間合算（新規来院数として表示）
+    // 日次売上シートの「新患」を期間合算（新規来院数として表示）
+    // ※「新規合算のCPA」を出したい用途のため、「実来院数」ではなく「新患」を採用。
     // 範囲は YYYY-MM プレフィックスで比較し、日報の date 形式揺れに強くする
     const fromYM = from ? from.slice(0, 7) : '';
     const toYM   = to   ? to.slice(0, 7)   : '';
+    const NEW_PATIENT_KEYS = ['新患', '新患数', '新規患者', '新患（人）', '新患(人)'];
     let actualVisits = 0;
     let hasDailyVisits = false;
     (state.dailyEntries || []).forEach(e => {
@@ -1874,7 +1876,10 @@ function viewSummary() {
       if (fromYM && month < fromYM) return;
       if (toYM   && month > toYM)   return;
       const cells = e.cells || {};
-      const raw = cells['実来院数'];
+      let raw = null;
+      for (const k of NEW_PATIENT_KEYS) {
+        if (cells[k] != null && cells[k] !== '') { raw = cells[k]; break; }
+      }
       if (raw != null && raw !== '') {
         const n = parseSheetNum(raw);
         if (n > 0) {
@@ -1916,7 +1921,7 @@ function viewSummary() {
           <div class="kpi-card"><div class="kpi-label">広告費${metaTag}</div><div class="kpi-value">${yen(kpi.adspend)}</div></div>
           <div class="kpi-card"><div class="kpi-label">新規来院数${sheetTag}</div><div class="kpi-value">${fmt(kpi.newVisits)} <span style="font-size:12px; color:var(--muted);">人</span></div></div>
           <div class="kpi-card"><div class="kpi-label">CPA (予約)${metaTag}</div><div class="kpi-value">${cpaResText}</div><div class="kpi-sub">${cpaResText !== '—' ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
-          <div class="kpi-card"><div class="kpi-label">CPA (実来院)${sheetTag}</div><div class="kpi-value">${cpaVisitText}</div><div class="kpi-sub">${cpaVisitText !== '—' ? '広告費 ÷ 新規来院数' : 'データなし'}</div></div>
+          <div class="kpi-card"><div class="kpi-label">CPA (新患)${sheetTag}</div><div class="kpi-value">${cpaVisitText}</div><div class="kpi-sub">${cpaVisitText !== '—' ? '広告費 ÷ 新患数' : 'データなし'}</div></div>
           <div class="kpi-card"><div class="kpi-label">予約数${metaTag}</div><div class="kpi-value">${fmt(kpi.reservations)}</div></div>
         </div>
       </div>`;
