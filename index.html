@@ -1895,9 +1895,15 @@ function viewSummary() {
     const hasMeta = meta.hasData;
     const adspend = hasMeta ? meta.adspend : t.adspend;
     const reservations = hasMeta ? meta.registrations : t.reservations;
+
+    // 手入力の他チャネル（チラシ / HPB / MAP / スレッズ）予算を加算 → 総広告金額
+    const manualAd = aggregateChannelManualForPeriod(clinicKey, from, to);
+    const totalAdspend = adspend + manualAd.budget;
+
     const cpa = reservations > 0 && adspend > 0 ? adspend / reservations : 0;
-    const cpaVisits = newVisits > 0 && adspend > 0 ? adspend / newVisits : 0;
-    return { ...t, adspend, reservations, cpa, cpaVisits, newVisits, hasDailyVisits, hasMeta };
+    // CPA (新患) は総広告金額ベースで算出
+    const cpaVisits = newVisits > 0 && totalAdspend > 0 ? totalAdspend / newVisits : 0;
+    return { ...t, adspend, totalAdspend, reservations, cpa, cpaVisits, newVisits, hasDailyVisits, hasMeta, hasManualAd: manualAd.hasData };
   }
 
   const naka = computeKpis('nakamozu');
@@ -1912,16 +1918,20 @@ function viewSummary() {
       ? '<span style="font-size:9px; color:#0f766e; background:#ccfbf1; padding:1px 4px; border-radius:3px; margin-left:3px;">日報</span>'
       : '';
     const cpaResText   = kpi.reservations > 0 && kpi.adspend > 0 ? yen(kpi.cpa) : '—';
-    const cpaVisitText = kpi.newVisits   > 0 && kpi.adspend > 0 ? yen(kpi.cpaVisits) : '—';
+    const cpaVisitText = kpi.newVisits   > 0 && kpi.totalAdspend > 0 ? yen(kpi.cpaVisits) : '—';
+    const totalAdTag = kpi.hasManualAd || kpi.hasMeta
+      ? '<span style="font-size:9px; color:#92400e; background:#fef3c7; padding:1px 4px; border-radius:3px; margin-left:3px;">合算</span>'
+      : '';
     return `
       <div style="margin-bottom:18px;">
         <h3 style="font-size:14px; font-weight:700; color:${accent}; margin:0 0 8px 0;">${label}</h3>
         <div class="kpi-grid">
           <div class="kpi-card" style="background:${cardBg};"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:${accent};">${yen(kpi.revenue)}</div></div>
           <div class="kpi-card"><div class="kpi-label">広告費${metaTag}</div><div class="kpi-value">${yen(kpi.adspend)}</div></div>
+          <div class="kpi-card"><div class="kpi-label">総広告金額${totalAdTag}</div><div class="kpi-value">${yen(kpi.totalAdspend)}</div><div class="kpi-sub">チラシ + HPB + メタ + MAP + スレッズ</div></div>
           <div class="kpi-card"><div class="kpi-label">新規来院数${sheetTag}</div><div class="kpi-value">${fmt(kpi.newVisits)} <span style="font-size:12px; color:var(--muted);">人</span></div></div>
           <div class="kpi-card"><div class="kpi-label">CPA (予約)${metaTag}</div><div class="kpi-value">${cpaResText}</div><div class="kpi-sub">${cpaResText !== '—' ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
-          <div class="kpi-card"><div class="kpi-label">CPA (新患)${sheetTag}</div><div class="kpi-value">${cpaVisitText}</div><div class="kpi-sub">${cpaVisitText !== '—' ? '広告費 ÷ 新患数' : 'データなし'}</div></div>
+          <div class="kpi-card"><div class="kpi-label">CPA (新患)${sheetTag}</div><div class="kpi-value">${cpaVisitText}</div><div class="kpi-sub">${cpaVisitText !== '—' ? '総広告金額 ÷ 新患数' : 'データなし'}</div></div>
           <div class="kpi-card"><div class="kpi-label">予約数${metaTag}</div><div class="kpi-value">${fmt(kpi.reservations)}</div></div>
         </div>
       </div>`;
@@ -3019,6 +3029,29 @@ function getFilteredMetaRows() {
 // Aggregate Meta ad data for a clinic filter ('all' | 'nakamozu' | 'tenrokuten')
 // and YYYY-MM period range. Used by 経営サマリー to surface Meta-derived
 // adspend / 予約数 / CPA without manual entry.
+// 「媒体別集客実績」で手入力されたチャネル予算（チラシ / HPB / MAP / スレッズ）を
+// 期間×店舗で合算する。meta は aggregateMetaForPeriod 側で集計するためここでは除外。
+function aggregateChannelManualForPeriod(clinicFilter, fromMonth, toMonth) {
+  const fromYM = fromMonth ? fromMonth.slice(0, 7) : '';
+  const toYM   = toMonth   ? toMonth.slice(0, 7)   : '';
+  let budget = 0;
+  let customers = 0;
+  let hasData = false;
+  (state.channelEntries || []).forEach(e => {
+    if (!e || !e.month) return;
+    if (e.channel === 'meta') return;
+    if (clinicFilter !== 'all' && e.clinic !== clinicFilter) return;
+    if (fromYM && e.month < fromYM) return;
+    if (toYM   && e.month > toYM)   return;
+    const b = Number(e.budget) || 0;
+    const c = Number(e.customers) || 0;
+    budget += b;
+    customers += c;
+    if (b > 0 || c > 0) hasData = true;
+  });
+  return { budget, customers, hasData };
+}
+
 function aggregateMetaForPeriod(clinicFilter, fromMonth, toMonth) {
   const allRows = state.metaRows || [];
   let rows;
