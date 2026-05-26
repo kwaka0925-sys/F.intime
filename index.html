@@ -2626,20 +2626,35 @@ async function fetchDailyReportSheet(manual) {
   setStatus(`⏳ ${CLINICS[targetClinic]} の日報シートから同期中... (${sheetUrls.length}シート)`);
 
   const errors = [];
-  let text = null;
+  let sheetCsvs = null;  // [csvText, csvText, ...] - 各シートを独立した CSV として保持
   let usedLabel = '';
 
-  // 1) まずはサーバー関数経由で一括取得（サーバー側で全URLをマージ）
+  // 1) まずはサーバー関数経由で取得（JSON で各シートCSVを個別に受け取る）
   try {
     setStatus('⏳ サーバー関数経由で取得中...');
-    const res = await fetch('/api/sheet?clinic=' + encodeURIComponent(targetClinic), { cache: 'no-store' });
+    const res = await fetch('/api/sheet?clinic=' + encodeURIComponent(targetClinic) + '&format=json', {
+      cache: 'no-store',
+      headers: { 'Accept': 'application/json' },
+    });
     if (res.ok) {
-      const t = await res.text();
-      if (t && !t.trim().startsWith('<') && !/<!DOCTYPE/i.test(t.slice(0, 200))) {
-        text = t;
-        usedLabel = 'サーバー関数経由';
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (ct.includes('application/json')) {
+        const data = await res.json();
+        if (data && Array.isArray(data.sheets) && data.sheets.length > 0) {
+          sheetCsvs = data.sheets.map(s => s.csv || '');
+          usedLabel = `サーバー関数経由 (${sheetCsvs.length}シート)`;
+        } else {
+          errors.push('サーバー関数経由: sheets が空');
+        }
       } else {
-        errors.push('サーバー関数経由: HTMLが返されました');
+        const t = await res.text();
+        if (t && !t.trim().startsWith('<') && !/<!DOCTYPE/i.test(t.slice(0, 200))) {
+          // 旧形式のマージCSVを受信。1枚として扱う（マージ済みなので列ズレ可能性あり）
+          sheetCsvs = [t];
+          usedLabel = 'サーバー関数経由 (旧形式)';
+        } else {
+          errors.push('サーバー関数経由: HTMLが返されました');
+        }
       }
     } else {
       let detail = '';
@@ -2650,8 +2665,8 @@ async function fetchDailyReportSheet(manual) {
     errors.push(`サーバー関数経由: ${e.message || e}`);
   }
 
-  // 2) フォールバック: 各URLをクライアント側で並列取得してマージ
-  if (!text) {
+  // 2) フォールバック: 各URLをクライアント側で並列取得（各シート独立）
+  if (!sheetCsvs) {
     setStatus(`⏳ クライアント側で${sheetUrls.length}シートを並列取得中...`);
     const results = await Promise.all(sheetUrls.map(u => fetchSingleSheetText(u)));
     const failed = results.findIndex(r => !r.text);
@@ -2659,12 +2674,12 @@ async function fetchDailyReportSheet(manual) {
       const detail = (results[failed].errors || []).join(' / ');
       errors.push(`シート${failed + 1}: ${detail}`);
     } else {
-      text = mergeCsvTexts(results.map(r => r.text));
-      usedLabel = `クライアント側マージ (${sheetUrls.length}シート)`;
+      sheetCsvs = results.map(r => r.text);
+      usedLabel = `クライアント側 (${sheetCsvs.length}シート)`;
     }
   }
 
-  if (!text) {
+  if (!sheetCsvs || sheetCsvs.length === 0) {
     console.error('Sheet sync errors:', errors);
     const short = errors.map(e => '・' + e).join(' / ');
     setStatus('✕ 同期失敗 - ' + short);
@@ -2673,19 +2688,27 @@ async function fetchDailyReportSheet(manual) {
   }
 
   try {
-    const rows = parseCsv(text);
-    if (rows.length < 2) throw new Error('行が見つかりません');
-    const headers = rows[0].map(h => (h || '').toString().trim());
-    state.dailyHeaders = headers.filter(h => h);
+    // 各シートを独立してパース。シート間でヘッダー（列構造）が異なっても安全に取り込める。
     let imported = 0, skipped = 0;
-    rows.slice(1).forEach(row => {
-      const entry = mapDailyReportRow(headers, row);
-      if (!entry) { skipped++; return; }
-      const idx = state.dailyEntries.findIndex(e => e.date === entry.date && e.clinic === entry.clinic);
-      if (idx >= 0) state.dailyEntries[idx] = entry;
-      else state.dailyEntries.push(entry);
-      imported++;
-    });
+    let lastNonEmptyHeaders = null;
+    for (let i = 0; i < sheetCsvs.length; i++) {
+      const csv = sheetCsvs[i];
+      if (!csv || !csv.trim()) continue;
+      const rows = parseCsv(csv);
+      if (rows.length < 2) { skipped += 1; continue; }
+      const headers = rows[0].map(h => (h || '').toString().trim());
+      if (headers.some(h => h)) lastNonEmptyHeaders = headers;
+      rows.slice(1).forEach(row => {
+        const entry = mapDailyReportRow(headers, row);
+        if (!entry) { skipped++; return; }
+        const idx = state.dailyEntries.findIndex(e => e.date === entry.date && e.clinic === entry.clinic);
+        if (idx >= 0) state.dailyEntries[idx] = entry;
+        else state.dailyEntries.push(entry);
+        imported++;
+      });
+    }
+    // 直近（5月）のシートのヘッダーをUI表示の基準に使う
+    if (lastNonEmptyHeaders) state.dailyHeaders = lastNonEmptyHeaders.filter(h => h);
     save();
     const ts = new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' });
     setStatus(`✓ ${imported}件を取込${skipped > 0 ? ` / ${skipped}件スキップ` : ''} (${usedLabel} / ${ts})`);
