@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>NAORU整体 経営ダッシュボード</title>
+<title>F.intime 経営ダッシュボード</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -1028,6 +1028,24 @@
 </head>
 <body>
 
+<!-- =================== LOGIN OVERLAY =================== -->
+<div id="loginOverlay" style="position:fixed; inset:0; z-index:9999; background:linear-gradient(135deg,#fce7f3 0%,#ede9fe 100%); display:flex; align-items:center; justify-content:center; font-family:'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic UI', 'Segoe UI', sans-serif;">
+  <form onsubmit="return handleLogin(event)" style="background:#fff; padding:36px 32px; border-radius:16px; box-shadow:0 20px 50px rgba(99,102,241,0.18); width:360px; max-width:90vw;">
+    <div style="text-align:center; margin-bottom:24px;">
+      <div style="font-size:22px; font-weight:800; color:#1e293b;">🏢 F.intime</div>
+      <div style="font-size:12px; color:#6366f1; margin-top:4px; font-weight:500;">経営ダッシュボード</div>
+    </div>
+    <label style="display:block; font-size:12px; color:#94a3b8; font-weight:600; margin-bottom:4px;">ログインID</label>
+    <input id="loginEmail" type="email" autocomplete="username" required
+      style="width:100%; padding:10px 12px; border:1px solid #ede9fe; border-radius:8px; font-size:14px; margin-bottom:14px; box-sizing:border-box;" />
+    <label style="display:block; font-size:12px; color:#94a3b8; font-weight:600; margin-bottom:4px;">PASS</label>
+    <input id="loginPassword" type="password" autocomplete="current-password" required
+      style="width:100%; padding:10px 12px; border:1px solid #ede9fe; border-radius:8px; font-size:14px; margin-bottom:8px; box-sizing:border-box;" />
+    <div id="loginError" style="color:#fb7185; font-size:12px; min-height:18px; margin-bottom:8px;"></div>
+    <button type="submit" style="width:100%; padding:11px; background:linear-gradient(135deg,#6366f1 0%,#4f46e5 100%); color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer;">ログイン</button>
+  </form>
+</div>
+
 <!-- =================== BOOKING MODAL =================== -->
 <div class="modal-backdrop" id="bookingModal">
   <div class="modal">
@@ -1145,7 +1163,7 @@
   <!-- =================== SIDEBAR =================== -->
   <aside class="sidebar">
     <div class="sidebar-header">
-      <div class="logo">🏥 NAORU整体</div>
+      <div class="logo">🏢 F.intime</div>
       <div class="sub">経営ダッシュボード</div>
     </div>
 
@@ -1348,17 +1366,26 @@ function logout() {
   location.reload();
 }
 function showApp() {
-  // ログイン画面は廃止。appRoot は常に表示。
   const overlay = document.getElementById('loginOverlay');
   if (overlay) overlay.style.display = 'none';
   const root = document.getElementById('appRoot');
   if (root) root.style.display = '';
 }
+function showLogin() {
+  const overlay = document.getElementById('loginOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  const root = document.getElementById('appRoot');
+  if (root) root.style.display = 'none';
+  const emailEl = document.getElementById('loginEmail');
+  if (emailEl && !emailEl.value) emailEl.focus();
+}
 function checkAuth() {
-  // ログインは廃止済。アプリを直接開く。
-  isAuthedInMemory = true;
-  showApp();
-  return true;
+  if (isAuthedInMemory) {
+    showApp();
+    return true;
+  }
+  showLogin();
+  return false;
 }
 
 // ===== Persistence =====
