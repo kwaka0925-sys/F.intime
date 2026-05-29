@@ -1955,11 +1955,11 @@ function viewSummary() {
         <div class="kpi-grid">
           <div class="kpi-card" style="background:${cardBg};"><div class="kpi-label">合計売上</div><div class="kpi-value" style="color:${accent};">${yen(kpi.revenue)}</div></div>
           <div class="kpi-card"><div class="kpi-label">広告費${metaTag}</div><div class="kpi-value">${yen(kpi.adspend)}</div></div>
+          <div class="kpi-card"><div class="kpi-label">予約数${metaTag}</div><div class="kpi-value">${fmt(kpi.reservations)}</div></div>
+          <div class="kpi-card"><div class="kpi-label">CPA (予約)${metaTag}</div><div class="kpi-value">${cpaResText}</div><div class="kpi-sub">${cpaResText !== '—' ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
           <div class="kpi-card"><div class="kpi-label">総広告金額${totalAdTag}</div><div class="kpi-value">${yen(kpi.totalAdspend)}</div><div class="kpi-sub">チラシ + HPB + メタ + MAP + スレッズ</div></div>
           <div class="kpi-card"><div class="kpi-label">新規来院数${sheetTag}</div><div class="kpi-value">${fmt(kpi.newVisits)} <span style="font-size:12px; color:var(--muted);">人</span></div></div>
-          <div class="kpi-card"><div class="kpi-label">CPA (予約)${metaTag}</div><div class="kpi-value">${cpaResText}</div><div class="kpi-sub">${cpaResText !== '—' ? '広告費 ÷ 予約数' : 'データなし'}</div></div>
           <div class="kpi-card"><div class="kpi-label">CPA (新患)${sheetTag}</div><div class="kpi-value">${cpaVisitText}</div><div class="kpi-sub">${cpaVisitText !== '—' ? '総広告金額 ÷ 新患数' : 'データなし'}</div></div>
-          <div class="kpi-card"><div class="kpi-label">予約数${metaTag}</div><div class="kpi-value">${fmt(kpi.reservations)}</div></div>
         </div>
       </div>`;
   }
