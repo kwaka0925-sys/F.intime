@@ -3136,13 +3136,10 @@ function renderMetaDebug() {
 }
 
 function metaKpiBlock(label, rows, clinicLabel, withGraph) {
-  const now = new Date();
-  const thisMonth = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
-  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonth = `${prev.getFullYear()}-${pad2(prev.getMonth() + 1)}`;
-
-  const thisMonthRows = rows.filter(r => r.date.startsWith(thisMonth));
-  const lastMonthRows = rows.filter(r => r.date.startsWith(lastMonth));
+  const { mainFrom, mainTo, compFrom, compTo, mainLabel, compLabel } = getMetaPeriodRanges();
+  const inRange = (r, f, t) => r.date && r.date >= f && r.date <= t;
+  const thisMonthRows = rows.filter(r => inRange(r, mainFrom, mainTo));
+  const lastMonthRows = rows.filter(r => inRange(r, compFrom, compTo));
   const sumKey = (arr, key) => arr.reduce((s, r) => s + (r[key] || 0), 0);
   const tSpent = sumKey(thisMonthRows, 'amountSpent');
   const tRegs  = sumKey(thisMonthRows, 'registrations');
@@ -3153,20 +3150,56 @@ function metaKpiBlock(label, rows, clinicLabel, withGraph) {
   const lRegs  = sumKey(lastMonthRows, 'registrations');
   const lCpa   = lRegs > 0 ? lSpent / lRegs : 0;
   const pct = (cur, prv) => prv > 0 ? ((cur - prv) / prv) * 100 : null;
-  const fmtPct = (v) => v == null ? '前月データなし' : `前月比 ${v >= 0 ? '+' : ''}${v.toFixed(1)}%`;
+  const fmtPct = (v) => v == null ? `${compLabel}データなし` : `${compLabel}比 ${v >= 0 ? '+' : ''}${v.toFixed(1)}%`;
   const pctColor = (v, betterDown) => v == null ? 'var(--muted)' : (betterDown ? v <= 0 : v >= 0) ? 'var(--success)' : 'var(--danger)';
 
   return `
     <div style="margin-top:18px;">
       <h3 style="margin:0 0 10px; font-size:15px; font-weight:700; color:var(--text-dark);">🏥 ${clinicLabel} (${rows.length}行)</h3>
       <div class="kpi-grid">
-        <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">💰 今月の広告費</div><div class="kpi-value" style="color:var(--primary);">${yen(tSpent)}</div><div class="kpi-sub" style="color:${pctColor(pct(tSpent, lSpent), true)};">${fmtPct(pct(tSpent, lSpent))} (先月 ${yen(lSpent)})</div></div>
-        <div class="kpi-card"><div class="kpi-label">✅ 登録完了</div><div class="kpi-value">${fmt(tRegs)} <span style="font-size:14px; color:var(--muted);">件</span></div><div class="kpi-sub" style="color:${pctColor(pct(tRegs, lRegs), false)};">${fmtPct(pct(tRegs, lRegs))} (先月 ${fmt(lRegs)}件)</div></div>
-        <div class="kpi-card"><div class="kpi-label">🎯 CPA</div><div class="kpi-value">${tRegs > 0 ? yen(tCpa) : '—'}</div><div class="kpi-sub" style="color:${pctColor(pct(tCpa, lCpa), true)};">${fmtPct(pct(tCpa, lCpa))} (先月 ${lRegs > 0 ? yen(lCpa) : '—'})</div></div>
+        <div class="kpi-card" style="background:#eff6ff;"><div class="kpi-label">💰 ${mainLabel}の広告費</div><div class="kpi-value" style="color:var(--primary);">${yen(tSpent)}</div><div class="kpi-sub" style="color:${pctColor(pct(tSpent, lSpent), true)};">${fmtPct(pct(tSpent, lSpent))} (${compLabel} ${yen(lSpent)})</div></div>
+        <div class="kpi-card"><div class="kpi-label">✅ 登録完了</div><div class="kpi-value">${fmt(tRegs)} <span style="font-size:14px; color:var(--muted);">件</span></div><div class="kpi-sub" style="color:${pctColor(pct(tRegs, lRegs), false)};">${fmtPct(pct(tRegs, lRegs))} (${compLabel} ${fmt(lRegs)}件)</div></div>
+        <div class="kpi-card"><div class="kpi-label">🎯 CPA</div><div class="kpi-value">${tRegs > 0 ? yen(tCpa) : '—'}</div><div class="kpi-sub" style="color:${pctColor(pct(tCpa, lCpa), true)};">${fmtPct(pct(tCpa, lCpa))} (${compLabel} ${lRegs > 0 ? yen(lCpa) : '—'})</div></div>
         <div class="kpi-card"><div class="kpi-label">👁 表示 / 🖱 クリック</div><div class="kpi-value" style="font-size:18px;">${fmt(tImpr)}<br /><span style="font-size:14px; color:var(--muted);">${fmt(tClicks)} click</span></div></div>
       </div>
     </div>
   `;
+}
+
+// 期間セレクタ（先月 / 今月 / 直近3ヶ月 等）から、Meta広告画面の「メイン期間」と
+// 「比較期間（同じ長さの直前期間）」を導出する。表示用ラベル付き。
+function getMetaPeriodRanges() {
+  const ymdOf = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const monthLabel = (ym) => `${ym.slice(0, 4)}年${Number(ym.slice(5, 7))}月`;
+  const { from, to } = getPeriodRange();
+  const now = new Date();
+  if (from && to) {
+    const fromD = new Date(from);
+    const toD = new Date(to);
+    const days = Math.round((toD - fromD) / 86400000) + 1;
+    const cTo = new Date(fromD); cTo.setDate(cTo.getDate() - 1);
+    const cFrom = new Date(cTo);  cFrom.setDate(cFrom.getDate() - days + 1);
+    const compFrom = ymdOf(cFrom);
+    const compTo   = ymdOf(cTo);
+    let mainLabel, compLabel;
+    if (from.slice(0, 7) === to.slice(0, 7) && /-01$/.test(from)) {
+      mainLabel = monthLabel(from.slice(0, 7));
+      compLabel = monthLabel(compTo.slice(0, 7));
+    } else {
+      mainLabel = `${from}〜${to}`;
+      compLabel = `${compFrom}〜${compTo}`;
+    }
+    return { mainFrom: from, mainTo: to, compFrom, compTo, mainLabel, compLabel };
+  }
+  // 「全期間」など範囲が空のときは今月 vs 先月（従来挙動）
+  const tm = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lm = `${prev.getFullYear()}-${pad2(prev.getMonth() + 1)}`;
+  return {
+    mainFrom: startOfMonthYMD(tm), mainTo: endOfMonthYMD(tm),
+    compFrom: startOfMonthYMD(lm), compTo: endOfMonthYMD(lm),
+    mainLabel: monthLabel(tm), compLabel: monthLabel(lm),
+  };
 }
 
 function viewMetaAds() {
@@ -3193,9 +3226,8 @@ function viewMetaAds() {
     `;
   }
 
-  // Current month + previous month
-  const now = new Date();
-  const thisMonth = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
+  // 期間セレクタに連動した「メイン期間」を使う
+  const { mainFrom, mainTo, mainLabel } = getMetaPeriodRanges();
 
   // When filter is 'all', split KPIs per clinic + show combined block
   let kpisHtml;
@@ -3209,12 +3241,12 @@ function viewMetaAds() {
     kpisHtml = metaKpiBlock(clinicFilter, filtered, clinicLabel, true);
   }
 
-  const thisMonthRows = filtered.filter(r => r.date.startsWith(thisMonth));
+  const thisMonthRows = filtered.filter(r => r.date && r.date >= mainFrom && r.date <= mainTo);
 
   return `
     <div class="card" style="margin-bottom:18px;">
       <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-        <h2 style="margin:0;">📣 Meta広告 (${clinicLabel}) — ${thisMonth.replace('-', '年')}月</h2>
+        <h2 style="margin:0;">📣 Meta広告 (${clinicLabel}) — ${mainLabel}</h2>
         <div style="flex:1;"></div>
         <button onclick="fetchMetaAds(true)" style="background:linear-gradient(135deg,#10b981,#059669);">🔄 Meta広告データから同期</button>
       </div>
@@ -3232,14 +3264,14 @@ function viewMetaAds() {
     </div>
 
     <div class="card" style="margin-top:18px;">
-      <h2>📋 ${thisMonth.replace('-', '年')}月の日別明細</h2>
+      <h2>📋 ${mainLabel}の日別明細</h2>
       <table>
         <thead><tr>
           <th>日付</th><th>キャンペーン</th>
           <th class="num">広告費</th><th class="num">登録</th><th class="num">CPA</th>
           <th class="num">表示</th><th class="num">クリック</th><th class="num">CTR</th>
         </tr></thead>
-        <tbody>${thisMonthRows.length === 0 ? '<tr><td colspan="8" class="empty">今月のデータがありません。</td></tr>' :
+        <tbody>${thisMonthRows.length === 0 ? `<tr><td colspan="8" class="empty">${mainLabel}のデータがありません。</td></tr>` :
           thisMonthRows
             .slice()
             .sort((a, b) => b.date.localeCompare(a.date) || a.campaign.localeCompare(b.campaign))
